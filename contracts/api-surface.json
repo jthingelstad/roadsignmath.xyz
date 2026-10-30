@@ -1,0 +1,1165 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Road Sign Math API",
+    "version": "1.0.0",
+    "summary": "The signs, the map and the players of Road Sign Math.",
+    "description": "Read-only for now: every public sign, the ways people found to make it true, the map and who’s playing. Answers are JSON in UTF-8 with snake_case keys and carry an `API-Version` header. An error is `{\"error\": {\"code\", \"message\"}}`.",
+    "license": {
+      "name": "MIT",
+      "identifier": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://roadsignmath.xyz"
+    }
+  ],
+  "paths": {
+    "/api/v1": {
+      "get": {
+        "operationId": "getIndex",
+        "summary": "The API version and how many signs, players and states there are",
+        "description": "Read `api_version` to know what this server can do.",
+        "responses": {
+          "200": {
+            "description": "The API version and how many signs, players and states there are",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Index"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/openapi.json": {
+      "get": {
+        "operationId": "getOpenApi",
+        "summary": "This description",
+        "description": "OpenAPI 3.1, the same document as contracts/api-surface.json in the repo.",
+        "responses": {
+          "200": {
+            "description": "This description",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenApi"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/signs": {
+      "get": {
+        "operationId": "listSigns",
+        "summary": "The latest signs, newest first",
+        "description": "A page of at most `limit` signs (default 20, at most 50). Pass `next_cursor` back as `cursor` for the next page; it is null on the last.",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "The `next_cursor` from the page before.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Signs on the page.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The latest signs, newest first",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/signs/near": {
+      "get": {
+        "operationId": "listSignsNear",
+        "summary": "Signs nearest a point",
+        "description": "The 50 nearest signs with a pin, nearest first, each with its straight-line `miles`. A sign nobody placed is left out.",
+        "parameters": [
+          {
+            "name": "lat",
+            "in": "query",
+            "required": true,
+            "description": "Latitude in degrees.",
+            "schema": {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90
+            }
+          },
+          {
+            "name": "lng",
+            "in": "query",
+            "required": true,
+            "description": "Longitude in degrees.",
+            "schema": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Signs nearest a point",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NearSigns"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/signs/similar": {
+      "get": {
+        "operationId": "listSimilarSigns",
+        "summary": "Signs that may be this one",
+        "description": "Signs within 2 miles that share at least half of the given numbers, for \"Nobody has posted this sign yet\" before posting. An empty list means none.",
+        "parameters": [
+          {
+            "name": "lat",
+            "in": "query",
+            "required": true,
+            "description": "Latitude in degrees.",
+            "schema": {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90
+            }
+          },
+          {
+            "name": "lng",
+            "in": "query",
+            "required": true,
+            "description": "Longitude in degrees.",
+            "schema": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180
+            }
+          },
+          {
+            "name": "numbers",
+            "in": "query",
+            "required": true,
+            "description": "The numbers read off the sign, comma separated, at most 30.",
+            "schema": {
+              "type": "string",
+              "examples": [
+                "90,82,8,7"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Signs that may be this one",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimilarSigns"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/signs/{id}": {
+      "get": {
+        "operationId": "getSign",
+        "summary": "One sign and its ways",
+        "description": "By id or by slug. The ways are oldest first; the first is the poster’s, unless it was posted unsolved.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The sign’s id or slug.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One sign and its ways",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such route, sign or player.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/map": {
+      "get": {
+        "operationId": "getMap",
+        "summary": "Every sign with a pin, for the map",
+        "description": "Every sign, with or without a pin (`lat` and `lng` are null without), and the years they span.",
+        "responses": {
+          "200": {
+            "description": "Every sign with a pin, for the map",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MapPins"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/players": {
+      "get": {
+        "operationId": "listPlayers",
+        "summary": "Who’s playing",
+        "description": "Every player with at least one sign, the one with the latest sign first.",
+        "responses": {
+          "200": {
+            "description": "Who’s playing",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Players"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/players/{handle}": {
+      "get": {
+        "operationId": "getPlayer",
+        "summary": "One player and their signs",
+        "description": "A player’s signs are the ones they found, newest first.",
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "description": "The player’s handle.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One player and their signs",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such route, sign or player.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "bad_request",
+                  "not_found",
+                  "internal"
+                ]
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Index": {
+        "type": "object",
+        "required": [
+          "api_version",
+          "signs",
+          "players",
+          "states",
+          "openapi_url"
+        ],
+        "properties": {
+          "api_version": {
+            "type": "string",
+            "examples": [
+              "1.0.0"
+            ]
+          },
+          "signs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "players": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "states": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "openapi_url": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "OpenApi": {
+        "type": "object",
+        "description": "This document."
+      },
+      "Place": {
+        "type": "object",
+        "required": [
+          "label",
+          "state",
+          "lat",
+          "lng",
+          "approximate"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "examples": [
+              "I-35W, Bloomington, Minnesota"
+            ]
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Two-letter US state."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "approximate": {
+            "type": "boolean",
+            "description": "True when the pin is only as good as a town."
+          }
+        }
+      },
+      "Photo": {
+        "type": "object",
+        "required": [
+          "id",
+          "width",
+          "height",
+          "alt",
+          "url",
+          "thumb_url"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "alt": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "thumb_url": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "SignNumber": {
+        "type": "object",
+        "description": "A number on the sign, as its poster checked it.",
+        "required": [
+          "value",
+          "text",
+          "why",
+          "box"
+        ],
+        "properties": {
+          "value": {
+            "type": "string",
+            "description": "The number the math may use, as decimal text.",
+            "examples": [
+              "7"
+            ]
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "What it was read from.",
+                "examples": [
+                  "EXIT 7B"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "why": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Why the value differs from the text.",
+                "examples": [
+                  "Read as 7"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "box": {
+            "anyOf": [
+              {
+                "type": "array",
+                "description": "Where on the first photo: x, y, width, height as fractions, origin top left.",
+                "items": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "minItems": 4,
+                "maxItems": 4
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "Finder": {
+        "type": "object",
+        "required": [
+          "name",
+          "handle",
+          "role"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "found",
+              "took_photo",
+              "spotted"
+            ]
+          }
+        }
+      },
+      "FirstWay": {
+        "type": "object",
+        "required": [
+          "text",
+          "value"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "examples": [
+              "3 × 33 = 99"
+            ]
+          },
+          "value": {
+            "type": "string",
+            "examples": [
+              "99"
+            ]
+          }
+        }
+      },
+      "Sign": {
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "title",
+          "url",
+          "caption",
+          "found_on",
+          "posted_at",
+          "posted_by",
+          "place",
+          "photos",
+          "numbers",
+          "finders",
+          "first_way",
+          "way_count"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "found_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "posted_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "posted_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "place": {
+            "$ref": "#/components/schemas/Place"
+          },
+          "photos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Photo"
+            }
+          },
+          "numbers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SignNumber"
+            }
+          },
+          "finders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Finder"
+            }
+          },
+          "first_way": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FirstWay"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "way_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "Way": {
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "value",
+          "numbers",
+          "by",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string",
+            "description": "Canonical text: Unicode operators, √ for square roots."
+          },
+          "value": {
+            "type": "string",
+            "description": "What both sides equal."
+          },
+          "numbers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "by": {
+            "anyOf": [
+              {
+                "type": "object",
+                "required": [
+                  "handle",
+                  "name"
+                ],
+                "properties": {
+                  "handle": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SignDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Sign"
+          },
+          {
+            "type": "object",
+            "required": [
+              "ways"
+            ],
+            "properties": {
+              "ways": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Way"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "SignPage": {
+        "type": "object",
+        "required": [
+          "signs",
+          "next_cursor"
+        ],
+        "properties": {
+          "signs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Sign"
+            }
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "NearSigns": {
+        "type": "object",
+        "required": [
+          "signs"
+        ],
+        "properties": {
+          "signs": {
+            "type": "array",
+            "items": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Sign"
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "miles"
+                  ],
+                  "properties": {
+                    "miles": {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "SimilarSigns": {
+        "type": "object",
+        "required": [
+          "signs"
+        ],
+        "properties": {
+          "signs": {
+            "type": "array",
+            "items": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Sign"
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "miles"
+                  ],
+                  "properties": {
+                    "miles": {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "Pin": {
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "title",
+          "url",
+          "lat",
+          "lng",
+          "approximate",
+          "state",
+          "found_on",
+          "thumb_url"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "approximate": {
+            "type": "boolean"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "found_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "thumb_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "MapPins": {
+        "type": "object",
+        "required": [
+          "pins",
+          "years"
+        ],
+        "properties": {
+          "pins": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Pin"
+            }
+          },
+          "years": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "Player": {
+        "type": "object",
+        "required": [
+          "handle",
+          "name",
+          "avatar_color",
+          "bio",
+          "url",
+          "sign_count",
+          "states",
+          "first_year"
+        ],
+        "properties": {
+          "handle": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "avatar_color": {
+            "type": "string",
+            "pattern": "^#[0-9A-F]{6}$"
+          },
+          "bio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "sign_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "states": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "first_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "Players": {
+        "type": "object",
+        "required": [
+          "players"
+        ],
+        "properties": {
+          "players": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Player"
+            }
+          }
+        }
+      },
+      "PlayerDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Player"
+          },
+          {
+            "type": "object",
+            "required": [
+              "signs"
+            ],
+            "properties": {
+              "signs": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Sign"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

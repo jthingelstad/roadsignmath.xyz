@@ -1,0 +1,379 @@
+{
+  "description": "Shared test vectors for the Road Sign Math equation checker. The server (src/domain/equation.ts) and the app (RoadSignMathKit) both run every case. Values: an exact integer, decimal or fraction, or ≈ and six significant digits when a root is irrational.",
+  "checks": [
+    {
+      "text": "(90 − 82) ÷ 8 × 1 × 2 = 6 ÷ (10 − 7)",
+      "ok": true,
+      "canonical": "(90 − 82) ÷ 8 × 1 × 2 = 6 ÷ (10 − 7)",
+      "value": "2",
+      "numbers": ["90", "82", "8", "1", "2", "6", "10", "7"],
+      "note": "I-35W at 82nd Street"
+    },
+    {
+      "text": "(25 − 1) ÷ 8 = 4 − 3 ÷ 3",
+      "ok": true,
+      "canonical": "(25 − 1) ÷ 8 = 4 − 3 ÷ 3",
+      "value": "3",
+      "numbers": ["25", "1", "8", "4", "3", "3"],
+      "note": "On the way to the airport"
+    },
+    {
+      "text": "(35 ÷ 7 × 10 + 12) − 62 + 6 + 3 + 2 = 11",
+      "ok": true,
+      "canonical": "(35 ÷ 7 × 10 + 12) − 62 + 6 + 3 + 2 = 11",
+      "value": "11",
+      "numbers": ["35", "7", "10", "12", "62", "6", "3", "2", "11"],
+      "note": "Cancel it all out"
+    },
+    {
+      "text": "√(5 − 1) = 2",
+      "ok": true,
+      "canonical": "√(5 − 1) = 2",
+      "value": "2",
+      "numbers": ["5", "1", "2"],
+      "note": "Twin Lakes"
+    },
+    {
+      "text": "105 − 5 = 136 − 36",
+      "ok": true,
+      "canonical": "105 − 5 = 136 − 36",
+      "value": "100",
+      "numbers": ["105", "5", "136", "36"],
+      "note": "Mason Math"
+    },
+    {
+      "text": "7 + 12 = 19",
+      "ok": true,
+      "canonical": "7 + 12 = 19",
+      "value": "19",
+      "numbers": ["7", "12", "19"],
+      "note": "Iconium"
+    },
+    {
+      "text": "5 + 1 = 6",
+      "ok": true,
+      "canonical": "5 + 1 = 6",
+      "value": "6",
+      "numbers": ["5", "1", "6"],
+      "note": "Osceola"
+    },
+    {
+      "text": "10 + √4 = 12",
+      "ok": true,
+      "canonical": "10 + √4 = 12",
+      "value": "12",
+      "numbers": ["10", "4", "12"],
+      "note": "Bolivar"
+    },
+    {
+      "text": "3 × 33 = 99",
+      "ok": true,
+      "canonical": "3 × 33 = 99",
+      "value": "99",
+      "numbers": ["3", "33", "99"],
+      "note": "Genesis"
+    },
+    {
+      "text": "√(83 − √4) = 6 + 3",
+      "ok": true,
+      "canonical": "√(83 − √4) = 6 + 3",
+      "value": "9",
+      "numbers": ["83", "4", "6", "3"],
+      "note": "Fair Play"
+    },
+    {
+      "text": "11 + √4 = 13",
+      "ok": true,
+      "canonical": "11 + √4 = 13",
+      "value": "13",
+      "numbers": ["11", "4", "13"],
+      "note": "Fair Grove"
+    },
+    {
+      "text": "14 + 10 = 24",
+      "ok": true,
+      "canonical": "14 + 10 = 24",
+      "value": "24",
+      "numbers": ["14", "10", "24"],
+      "note": "Saratoga"
+    },
+    {
+      "text": "9 + 11 = 20",
+      "ok": true,
+      "canonical": "9 + 11 = 20",
+      "value": "20",
+      "numbers": ["9", "11", "20"],
+      "note": "Greenbush"
+    },
+    {
+      "text": "12 + 1 = 13",
+      "ok": true,
+      "canonical": "12 + 1 = 13",
+      "value": "13",
+      "numbers": ["12", "1", "13"],
+      "note": "Wurtsboro"
+    },
+    {
+      "text": "(70 ÷ (90 − 80)) + 13 = 65 − 45",
+      "ok": true,
+      "canonical": "(70 ÷ (90 − 80)) + 13 = 65 − 45",
+      "value": "20",
+      "numbers": ["70", "90", "80", "13", "65", "45"],
+      "note": "Gross Vehicle Weight"
+    },
+    {
+      "text": "7 + 7 + (3 × 2) = 19 + 1",
+      "ok": true,
+      "canonical": "7 + 7 + (3 × 2) = 19 + 1",
+      "value": "20",
+      "numbers": ["7", "7", "3", "2", "19", "1"],
+      "note": "Phoenix Math"
+    },
+    {
+      "text": "90 − 82 − 8 + 6 = 10 − 7 + 2 + 1",
+      "ok": true,
+      "canonical": "90 − 82 − 8 + 6 = 10 − 7 + 2 + 1",
+      "value": "6",
+      "numbers": ["90", "82", "8", "6", "10", "7", "2", "1"],
+      "note": "The design's second way for I-35W"
+    },
+    {
+      "text": "90-82 = 8",
+      "ok": true,
+      "canonical": "90 − 82 = 8",
+      "value": "8",
+      "numbers": ["90", "82", "8"],
+      "note": "ASCII minus becomes −"
+    },
+    {
+      "text": "6/(10-7)*1 = 2",
+      "ok": true,
+      "canonical": "6 ÷ (10 − 7) × 1 = 2",
+      "value": "2",
+      "numbers": ["6", "10", "7", "1", "2"],
+      "note": "ASCII / and * become ÷ and ×"
+    },
+    {
+      "text": "sqrt(16) = 4",
+      "ok": true,
+      "canonical": "√(16) = 4",
+      "value": "4",
+      "numbers": ["16", "4"],
+      "note": "sqrt is √"
+    },
+    {
+      "text": "3! = 6",
+      "ok": true,
+      "canonical": "3! = 6",
+      "value": "6",
+      "numbers": ["3", "6"],
+      "note": "factorial"
+    },
+    {
+      "text": "2^3 = 8",
+      "ok": true,
+      "canonical": "2^3 = 8",
+      "value": "8",
+      "numbers": ["2", "3", "8"],
+      "note": "power"
+    },
+    {
+      "text": "2^3^2 = 512",
+      "ok": true,
+      "canonical": "2^3^2 = 512",
+      "value": "512",
+      "numbers": ["2", "3", "2", "512"],
+      "note": "powers group to the right"
+    },
+    {
+      "text": "−3 + 5 = 2",
+      "ok": true,
+      "canonical": "−3 + 5 = 2",
+      "value": "2",
+      "numbers": ["3", "5", "2"],
+      "note": "unary minus"
+    },
+    {
+      "text": "4 = 4 = 4",
+      "ok": true,
+      "canonical": "4 = 4 = 4",
+      "value": "4",
+      "numbers": ["4", "4", "4"],
+      "note": "more than two sides"
+    },
+    {
+      "text": "0.1 + 0.2 = 0.3",
+      "ok": true,
+      "canonical": "0.1 + 0.2 = 0.3",
+      "value": "0.3",
+      "numbers": ["0.1", "0.2", "0.3"],
+      "note": "exact decimals"
+    },
+    {
+      "text": "1.5 × 2 = 3",
+      "ok": true,
+      "canonical": "1.5 × 2 = 3",
+      "value": "3",
+      "numbers": ["1.5", "2", "3"],
+      "note": "decimals"
+    },
+    {
+      "text": "√2 × √2 = 2",
+      "ok": true,
+      "canonical": "√2 × √2 = 2",
+      "value": "2",
+      "numbers": ["2", "2", "2"],
+      "note": "irrational roots compare within a tolerance"
+    },
+    {
+      "text": "1 ÷ 3 = 2 ÷ 6",
+      "ok": true,
+      "canonical": "1 ÷ 3 = 2 ÷ 6",
+      "value": "1/3",
+      "numbers": ["1", "3", "2", "6"],
+      "note": "fractions stay exact"
+    },
+    {
+      "text": "√4! = √24",
+      "ok": true,
+      "canonical": "√4! = √24",
+      "value": "≈4.89898",
+      "numbers": ["4", "24"],
+      "note": "√ applies to the factorial"
+    },
+    {
+      "text": "2 + 3 × 4 = 14",
+      "ok": true,
+      "canonical": "2 + 3 × 4 = 14",
+      "value": "14",
+      "numbers": ["2", "3", "4", "14"],
+      "note": "× before +"
+    },
+    {
+      "text": "007 = 7",
+      "ok": true,
+      "canonical": "7 = 7",
+      "value": "7",
+      "numbers": ["7", "7"],
+      "note": "leading zeros drop"
+    },
+    {
+      "text": "2^−1 = 1 ÷ 2",
+      "ok": true,
+      "canonical": "2^−1 = 1 ÷ 2",
+      "value": "0.5",
+      "numbers": ["2", "1", "1", "2"],
+      "note": "negative powers"
+    },
+    {
+      "text": "2 + 2 = 5",
+      "ok": false,
+      "error": "not-true",
+      "note": "the math is false"
+    },
+    {
+      "text": "",
+      "ok": false,
+      "error": "empty",
+      "note": "nothing written"
+    },
+    {
+      "text": "2 + 2",
+      "ok": false,
+      "error": "no-equals",
+      "note": "no equals sign"
+    },
+    {
+      "text": "2 + = 3",
+      "ok": false,
+      "error": "parse",
+      "note": "missing number"
+    },
+    {
+      "text": "(2 = 2",
+      "ok": false,
+      "error": "parse",
+      "note": "unclosed bracket"
+    },
+    {
+      "text": "2 2 = 4",
+      "ok": false,
+      "error": "parse",
+      "note": "two numbers side by side"
+    },
+    {
+      "text": "2(3) = 6",
+      "ok": false,
+      "error": "parse",
+      "note": "no implied multiplication"
+    },
+    {
+      "text": "1 ÷ 0 = 1",
+      "ok": false,
+      "error": "divide-by-zero",
+      "note": "divide by zero"
+    },
+    {
+      "text": "1 ÷ (3 − 3) = 1",
+      "ok": false,
+      "error": "divide-by-zero",
+      "note": "divide by zero after working it out"
+    },
+    {
+      "text": "√(1 − 5) = 2",
+      "ok": false,
+      "error": "not-real",
+      "note": "root of a negative"
+    },
+    {
+      "text": "1.5! = 2",
+      "ok": false,
+      "error": "not-real",
+      "note": "factorial of a fraction"
+    },
+    {
+      "text": "9^9^9 = 1",
+      "ok": false,
+      "error": "too-big",
+      "note": "too big to check"
+    },
+    {
+      "text": "2 + a = 3",
+      "ok": false,
+      "error": "parse",
+      "note": "a letter"
+    }
+  ],
+  "numbers_on_sign": [
+    {
+      "used": ["7", "7", "3", "2", "19", "1"],
+      "sign": ["7", "7", "3", "2", "19", "1"],
+      "missing": [],
+      "note": "Phoenix: 7 twice on the sign"
+    },
+    {
+      "used": ["7", "7"],
+      "sign": ["7", "3"],
+      "missing": ["7"],
+      "note": "a number used more often than the sign shows it"
+    },
+    {
+      "used": ["90", "82", "8"],
+      "sign": ["90", "82", "8", "1", "2", "6", "10", "7"],
+      "missing": [],
+      "note": "not every number has to be used"
+    },
+    {
+      "used": ["1.50", "07"],
+      "sign": ["1.5", "7"],
+      "missing": [],
+      "note": "numbers compare by value"
+    },
+    {
+      "used": ["5"],
+      "sign": ["50"],
+      "missing": ["5"],
+      "note": "digits of a number are not numbers"
+    }
+  ]
+}
