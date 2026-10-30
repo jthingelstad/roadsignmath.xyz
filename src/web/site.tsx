@@ -96,7 +96,28 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
   const people = async (): Promise<People> => new Map((await store.allPlayers()).map((p) => [p.id, p]));
   site.use(async (c, next) => {
     await next();
+    if (c.res.headers.get('Cache-Control') === 'no-store') return;
     c.header('Cache-Control', c.res.status === 200 ? 'public, max-age=60' : 'no-store');
+  });
+
+  // The sign-in link opens the app on an iPhone that has it (src/web/apple.ts). Anywhere else it
+  // lands here, which says where to use it. The link's token never appears in the page, and the
+  // page is never cached under it.
+  site.get('/signin', (c) => {
+    c.header('Cache-Control', 'no-store');
+    c.header('Referrer-Policy', 'no-referrer');
+    return c.html(
+      <Page title="Sign in · Road Sign Math" description="Sign in to Road Sign Math in the iPhone app.">
+        <h1>Sign in on your iPhone</h1>
+        <p>
+          This link signs you in to the Road Sign Math app. Open it on the iPhone where the app is installed, or type
+          the 6-digit code from the same email into the app.
+        </p>
+        <p>
+          <a href="/">See the signs</a>
+        </p>
+      </Page>
+    );
   });
 
   site.get('/', async (c) => {

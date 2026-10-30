@@ -47,6 +47,14 @@ Parameters:
     Default: ""
     AllowedPattern: '^$|^E[A-Z0-9]+$'
     Description: This stack's own distribution id, from its last release (empty on the first). The server clears a hidden sign's photos from it. A parameter because the function cannot name the distribution in front of it without a cycle.
+  # Public by nature (every AASA file and signed app shows it), but kept out of the repository
+  # like the other ids: scripts/release.sh passes it when APPLE_TEAM_ID is set, and every later
+  # release keeps the stack's value. Empty, the site serves no apple-app-site-association.
+  AppleTeamId:
+    Type: String
+    Default: ""
+    AllowedPattern: '^$|^[A-Z0-9]{10}$'
+    Description: The Apple Team ID that signs the iPhone app, for apple-app-site-association (sign-in and sign links open the app).
   OpsQueueName:
     Type: String
     Default: projects-ops-alerts
@@ -66,6 +74,7 @@ Parameters:
 
 Conditions:
   HasPhotoDistribution: !Not [!Equals [!Ref PhotoDistributionId, ""]]
+  HasAppleTeam: !Not [!Equals [!Ref AppleTeamId, ""]]
 
 Resources:
   # --- the web function -------------------------------------------------------
@@ -121,6 +130,7 @@ Resources:
           FROM_ADDRESS: !Sub "Road Sign Math <${FromAddress}>"
           SITE_URL: !Sub "https://${Domain}"
           RUNTIME_SECRET: !Ref RuntimeSecretName
+          APPLE_TEAM_ID: !If [HasAppleTeam, !Ref AppleTeamId, !Ref AWS::NoValue]
           APP_VERSION: !Ref BuildId
         TelemetryConfig:
           LoggingConfig:

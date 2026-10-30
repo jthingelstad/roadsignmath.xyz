@@ -8,7 +8,7 @@ import { addPlayer } from '../src/store/store.ts';
 import { ScriptedModerator } from './support/moderator.ts';
 import { ada, sign, way } from './support/fixtures.ts';
 
-async function setup() {
+async function setup(appleTeamId?: string) {
   const store = new MemoryStore();
   await addPlayer(store, ada);
   await store.putSign(
@@ -24,7 +24,8 @@ async function setup() {
     urls: { site: 'https://example.test' },
     mailer: new MemoryMailer(),
     photos: new MemoryPhotoStore(),
-    moderator: new ScriptedModerator()
+    moderator: new ScriptedModerator(),
+    appleTeamId
   });
   const signs = await store.allSigns();
   return { app, slug: (title: string) => signs.find((s) => s.title === title)!.slug };
@@ -57,4 +58,44 @@ test('the math is drawn as SVG, with the text for screen readers', async () => {
     new RegExp(`<span class="math" role="img" aria-label="${label}"><svg aria-hidden="true" `);
   assert.match(await (await app.request('/')).text(), drawn('7 \\+ 12 = 19'));
   assert.match(await (await app.request(`/signs/${slug('Newer Sign')}`)).text(), drawn('18 ÷ 6 = 3'));
+});
+
+test('apple-app-site-association opens the sign-in link and sign pages in the app', async () => {
+  const { app } = await setup('ABCDE12345');
+  for (const path of ['/.well-known/apple-app-site-association', '/apple-app-site-association']) {
+    const res = await app.request(path);
+    assert.equal(res.status, 200, path);
+    assert.equal(res.headers.get('content-type'), 'application/json');
+    assert.equal(res.headers.get('cache-control'), 'public, max-age=3600');
+    const body = (await res.json()) as { applinks: { details: unknown[] } };
+    assert.deepEqual(body.applinks.details, [
+      {
+        appIDs: ['ABCDE12345.xyz.roadsignmath.app'],
+        components: [
+          { '/': '/signin', comment: 'The sign-in link in the email' },
+          { '/': '/signs/?*', comment: 'A sign’s page' }
+        ]
+      }
+    ]);
+    const head = await app.request(path, { method: 'HEAD' });
+    assert.equal(head.status, 200, `HEAD ${path}`);
+  }
+});
+
+test('without a team id there is no apple-app-site-association', async () => {
+  const { app } = await setup();
+  assert.equal((await app.request('/.well-known/apple-app-site-association')).status, 404);
+  assert.equal((await app.request('/apple-app-site-association')).status, 404);
+});
+
+test('the sign-in link in a browser says where to use it, and is never cached', async () => {
+  const { app } = await setup('ABCDE12345');
+  const res = await app.request('/signin?l=01JLOGIN&t=secret-token-value');
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('cache-control'), 'no-store');
+  assert.equal(res.headers.get('referrer-policy'), 'no-referrer');
+  const html = await res.text();
+  assert.match(html, /Sign in on your iPhone/);
+  assert.ok(!html.includes('secret-token-value'));
+  assert.ok(!html.includes('01JLOGIN'));
 });

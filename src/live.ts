@@ -1,13 +1,15 @@
 // The live server's parts, from the environment the stack gives the web function
 // (infra/template.yaml): the table, the photo bucket and the distribution that serves it, the
-// sign-in address, the site and the runtime secret. `src/server.ts` runs them; tests build them
-// from a made-up environment without touching the network.
+// sign-in address, the site, the runtime secret and the team that signs the iPhone app.
+// `src/server.ts` runs them; tests build them from a made-up environment without touching the
+// network.
 
 import type { ApiOptions } from './api/app.ts';
 import { cloudFrontIp } from './api/app.ts';
 import { SesMailer } from './mail/mailer.ts';
 import { KeyedModerator } from './moderation/moderator.ts';
 import { S3PhotoStore } from './photos.ts';
+import { TEAM_ID } from './web/apple.ts';
 import { secretField } from './secrets.ts';
 import { DynamoStore } from './store/dynamo.ts';
 
@@ -19,6 +21,8 @@ export type LiveConfig = {
   fromAddress: string;
   site: string;
   runtimeSecret: string;
+  /** The team that signs the iPhone app, for apple-app-site-association; unset, none is served. */
+  appleTeamId?: string;
 };
 
 export function liveConfig(env: Record<string, string | undefined> = process.env): LiveConfig {
@@ -29,13 +33,16 @@ export function liveConfig(env: Record<string, string | undefined> = process.env
   };
   const site = need('SITE_URL');
   if (!/^https:\/\/[a-z0-9.-]+$/.test(site)) throw new Error('SITE_URL must be an https origin');
+  const appleTeamId = env.APPLE_TEAM_ID?.trim() || undefined;
+  if (appleTeamId && !TEAM_ID.test(appleTeamId)) throw new Error('APPLE_TEAM_ID must be a ten-character Team ID');
   return {
     table: need('TABLE'),
     photoBucket: need('PHOTO_BUCKET'),
     photoDistributionId: env.PHOTO_DISTRIBUTION_ID?.trim() || undefined,
     fromAddress: need('FROM_ADDRESS'),
     site,
-    runtimeSecret: need('RUNTIME_SECRET')
+    runtimeSecret: need('RUNTIME_SECRET'),
+    ...(appleTeamId ? { appleTeamId } : {})
   };
 }
 
@@ -49,6 +56,7 @@ export function liveOptions(config: LiveConfig): ApiOptions {
     mailer: new SesMailer(config.fromAddress),
     photos: new S3PhotoStore(config.photoBucket, config.photoDistributionId),
     moderator: new KeyedModerator(moderatorKey(config)),
-    clientIp: cloudFrontIp
+    clientIp: cloudFrontIp,
+    appleTeamId: config.appleTeamId
   };
 }
