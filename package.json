@@ -7,19 +7,21 @@
   },
   "scripts": {
     "dev": "node --import tsx src/dev.ts",
-    "format": "prettier --write --no-error-on-unmatched-pattern \"{src,tools,test}/**/*.{ts,tsx}\" \"*.{ts,json}\" \"contracts/*.json\"",
-    "format:check": "prettier --check --no-error-on-unmatched-pattern \"{src,tools,test}/**/*.{ts,tsx}\" \"*.{ts,json}\" \"contracts/*.json\"",
+    "format": "prettier --write --no-error-on-unmatched-pattern \"{src,tools,test}/**/*.{ts,tsx}\" \"*.{ts,json}\" \"contracts/*.json\" \"seed/*.json\"",
+    "format:check": "prettier --check --no-error-on-unmatched-pattern \"{src,tools,test}/**/*.{ts,tsx}\" \"*.{ts,json}\" \"contracts/*.json\" \"seed/*.json\"",
     "lint": "oxlint src tools test --deny-warnings",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node --import tsx --test \"test/**/*.test.ts\"",
     "contract": "node --import tsx tools/export-api-contract.ts",
-    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test"
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test",
+    "seed": "node --import tsx tools/seed-microblog.ts"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "3.1150.0",
     "@aws-sdk/lib-dynamodb": "3.1150.0",
     "@hono/node-server": "2.1.4",
-    "hono": "4.13.13"
+    "hono": "4.13.13",
+    "sharp": "0.35.5"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

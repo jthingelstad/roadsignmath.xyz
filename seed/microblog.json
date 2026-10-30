@@ -1,0 +1,564 @@
+{
+  "description": "The 16 micro.blog signs (2021-2025), the launch set. tools/seed-microblog.ts joins this to the micro.blog export, which holds the photos, dates and captions. Numbers and alt text come from looking at each photo. Pins sit on the town the post or the sign names, so every one is approximate; Gross Vehicle Weight has none.",
+  "posted_by": "jamie",
+  "players": [
+    {
+      "handle": "jamie",
+      "name": "Jamie",
+      "avatar_color": "#006348",
+      "bio": "Driving + Math = Fun."
+    },
+    {
+      "handle": "tyler",
+      "name": "Tyler",
+      "avatar_color": "#004C80"
+    },
+    {
+      "handle": "tammy",
+      "name": "Tammy",
+      "avatar_color": "#F2B300"
+    }
+  ],
+  "signs": [
+    {
+      "post": "2021/03/04/phoenix-math.html",
+      "title": "Phoenix Math",
+      "finder": "tammy",
+      "math": "7 + 7 + (3 × 2) = 19 + 1",
+      "numbers": [
+        {
+          "value": "7",
+          "text": "7th St",
+          "why": "Letters dropped"
+        },
+        {
+          "value": "1"
+        },
+        {
+          "value": "7",
+          "text": "7th Ave",
+          "why": "Letters dropped"
+        },
+        {
+          "value": "2"
+        },
+        {
+          "value": "19",
+          "text": "19th Ave",
+          "why": "Letters dropped"
+        },
+        {
+          "value": "3"
+        }
+      ],
+      "place": {
+        "label": "Loop 101, Phoenix, Arizona",
+        "state": "AZ",
+        "lat": 33.67,
+        "lng": -112.06
+      },
+      "alt": ["An overhead green sign: 7th St 1, 7th Ave 2, 19th Ave 3."]
+    },
+    {
+      "post": "2021/07/31/gross-vehicle-weight.html",
+      "title": "Gross Vehicle Weight",
+      "finder": "jamie",
+      "math": "(70 ÷ (90 − 80)) + 13 = 65 − 45",
+      "numbers": [
+        {
+          "value": "70",
+          "text": "Cars 70"
+        },
+        {
+          "value": "65",
+          "text": "Trucks 65"
+        },
+        {
+          "value": "13",
+          "text": "Over 13 tons"
+        },
+        {
+          "value": "45",
+          "text": "Minimum 45"
+        },
+        {
+          "value": "80",
+          "text": "I-80",
+          "why": "Letters dropped"
+        },
+        {
+          "value": "90",
+          "text": "I-90",
+          "why": "Letters dropped"
+        }
+      ],
+      "place": {
+        "label": "Along I-80/I-90 East"
+      },
+      "alt": [
+        "A white speed limit sign beside I-80 and I-90 East: cars 70, trucks over 13 tons declared gross weight 65, minimum 45."
+      ]
+    },
+    {
+      "post": "2021/08/02/wurtsboro.html",
+      "title": "Wurtsboro",
+      "finder": "jamie",
+      "math": "12 + 1 = 13",
+      "numbers": [
+        {
+          "value": "1",
+          "text": "Wurtsboro 1"
+        },
+        {
+          "value": "12",
+          "text": "Ellenville 12"
+        },
+        {
+          "value": "13",
+          "text": "Monticello 13"
+        }
+      ],
+      "place": {
+        "label": "Near Wurtsboro, New York",
+        "state": "NY",
+        "lat": 41.577,
+        "lng": -74.487
+      },
+      "alt": ["A green distance sign: Wurtsboro 1, Ellenville 12, Monticello 13."]
+    },
+    {
+      "post": "2021/08/04/greenbush.html",
+      "title": "Greenbush",
+      "finder": "jamie",
+      "math": "9 + 11 = 20",
+      "numbers": [
+        {
+          "value": "11",
+          "text": "EXIT 11"
+        },
+        {
+          "value": "9",
+          "text": "US 9"
+        },
+        {
+          "value": "20",
+          "text": "US 20"
+        }
+      ],
+      "place": {
+        "label": "Exit 11 to East Greenbush, New York",
+        "state": "NY",
+        "lat": 42.591,
+        "lng": -73.703
+      },
+      "alt": ["A green exit sign seen through a windshield: Exit 11, US 9 and US 20, E Greenbush and Nassau."]
+    },
+    {
+      "post": "2021/08/05/saratoga.html",
+      "title": "Saratoga",
+      "finder": "jamie",
+      "math": "14 + 10 = 24",
+      "numbers": [
+        {
+          "value": "14",
+          "text": "Saratoga 14"
+        },
+        {
+          "value": "24",
+          "text": "Troy 24"
+        },
+        {
+          "value": "10",
+          "text": "Argyle 10"
+        }
+      ],
+      "place": {
+        "label": "On the way to Saratoga, New York",
+        "state": "NY",
+        "lat": 43.083,
+        "lng": -73.785
+      },
+      "alt": ["A green sign at a corner by a Dunkin' Donuts: Saratoga 14 and Troy 24 ahead, Argyle 10 to the right."]
+    },
+    {
+      "post": "2023/10/19/sqrt.html",
+      "title": "Fair Grove",
+      "finder": "jamie",
+      "math": "11 + √4 = 13",
+      "numbers": [
+        {
+          "value": "13",
+          "text": "Springfield 13"
+        },
+        {
+          "value": "4",
+          "text": "Brighton 4"
+        },
+        {
+          "value": "11",
+          "text": "Fair Grove 11"
+        }
+      ],
+      "place": {
+        "label": "Near Fair Grove, Missouri",
+        "state": "MO",
+        "lat": 37.384,
+        "lng": -93.151
+      },
+      "alt": ["A green sign beside the highway: Springfield 13 ahead, Brighton 4 and Fair Grove 11 to the left."]
+    },
+    {
+      "post": "2023/10/19/sqrt-sqrt.html",
+      "title": "Fair Play",
+      "finder": "jamie",
+      "math": "√(83 − √4) = 6 + 3",
+      "numbers": [
+        {
+          "value": "4",
+          "text": "Bolivar 4"
+        },
+        {
+          "value": "83",
+          "text": "Missouri 83"
+        },
+        {
+          "value": "3"
+        },
+        {
+          "value": "6",
+          "text": "Fair Play 6"
+        }
+      ],
+      "place": {
+        "label": "Near Fair Play, Missouri",
+        "state": "MO",
+        "lat": 37.631,
+        "lng": -93.577
+      },
+      "alt": ["A green sign beside the highway: Bolivar 4 ahead, Missouri 83 3 to the left, Fair Play 6 to the right."]
+    },
+    {
+      "post": "2023/10/21/genesis.html",
+      "title": "Genesis",
+      "finder": "jamie",
+      "math": "3 × 33 = 99",
+      "numbers": [
+        {
+          "value": "3",
+          "text": "Melrose 3"
+        },
+        {
+          "value": "33",
+          "text": "St Cloud 33"
+        },
+        {
+          "value": "99",
+          "text": "Minneapolis 99"
+        }
+      ],
+      "place": {
+        "label": "I-94 east near Melrose, Minnesota",
+        "state": "MN",
+        "lat": 45.675,
+        "lng": -94.808
+      },
+      "alt": [
+        "A green distance sign by a creek: Melrose 3, St Cloud 33, Minneapolis 99.",
+        "A selfie at the roadside with the Melrose, St Cloud and Minneapolis sign behind."
+      ]
+    },
+    {
+      "post": "2023/10/22/sqrt.html",
+      "title": "Bolivar",
+      "finder": "jamie",
+      "math": "10 + √4 = 12",
+      "numbers": [
+        {
+          "value": "10",
+          "text": "Collins 10"
+        },
+        {
+          "value": "4",
+          "text": "Dunnegan 4"
+        },
+        {
+          "value": "12",
+          "text": "Bolivar 12"
+        }
+      ],
+      "place": {
+        "label": "Near Bolivar, Missouri",
+        "state": "MO",
+        "lat": 37.614,
+        "lng": -93.41
+      },
+      "alt": ["A green sign beside the highway: Collins 10 ahead, Dunnegan 4 and Bolivar 12 to the left."]
+    },
+    {
+      "post": "2023/10/22/125900.html",
+      "title": "Osceola",
+      "finder": "jamie",
+      "math": "5 + 1 = 6",
+      "numbers": [
+        {
+          "value": "5",
+          "text": "Osceola 5"
+        },
+        {
+          "value": "1",
+          "text": "Vista 1"
+        },
+        {
+          "value": "6",
+          "text": "Gerster 6"
+        }
+      ],
+      "place": {
+        "label": "Near Osceola, Missouri",
+        "state": "MO",
+        "lat": 38.047,
+        "lng": -93.704
+      },
+      "alt": ["A green sign beside the highway: Osceola 5 ahead, Vista 1 to the left, Gerster 6 to the right."]
+    },
+    {
+      "post": "2023/10/22/125959.html",
+      "title": "Iconium",
+      "finder": "jamie",
+      "math": "7 + 12 = 19",
+      "numbers": [
+        {
+          "value": "7",
+          "text": "Deepwater 7"
+        },
+        {
+          "value": "19",
+          "text": "Appleton City 19"
+        },
+        {
+          "value": "12",
+          "text": "Iconium 12"
+        }
+      ],
+      "place": {
+        "label": "Near Iconium, Missouri",
+        "state": "MO",
+        "lat": 38.096,
+        "lng": -93.529
+      },
+      "alt": ["A green sign in a field: Deepwater 7 ahead, Appleton City 19 to the left, Iconium 12 to the right."]
+    },
+    {
+      "post": "2023/10/22/153704.html",
+      "title": "Mason Math",
+      "finder": "jamie",
+      "math": "105 − 5 = 136 − 36",
+      "numbers": [
+        {
+          "value": "105",
+          "text": "Iowa 105"
+        },
+        {
+          "value": "5"
+        },
+        {
+          "value": "36",
+          "text": "Mason City 36"
+        },
+        {
+          "value": "136",
+          "text": "Des Moines 136"
+        }
+      ],
+      "place": {
+        "label": "I-35 toward Mason City, Iowa",
+        "state": "IA",
+        "lat": 43.153,
+        "lng": -93.201
+      },
+      "alt": ["A green distance sign: Iowa 105 5, Mason City 36, Des Moines 136."]
+    },
+    {
+      "post": "2023/10/22/153816.html",
+      "title": "Twin Lakes",
+      "finder": "jamie",
+      "math": "√(5 − 1) = 2",
+      "numbers": [
+        {
+          "value": "2",
+          "text": "EXIT 2"
+        },
+        {
+          "value": "5",
+          "text": "County 5"
+        },
+        {
+          "value": "1",
+          "text": "1 MILE"
+        }
+      ],
+      "place": {
+        "label": "I-35 near Twin Lakes, Minnesota",
+        "state": "MN",
+        "lat": 43.559,
+        "lng": -93.421
+      },
+      "alt": ["A green exit sign beside the highway: Exit 2, County 5, 1 mile."]
+    },
+    {
+      "post": "2025/06/19/strategy-here-is-to-cancel.html",
+      "title": "Cancel it all out",
+      "finder": "tyler",
+      "math": "(35 ÷ 7 × 10 + 12) − 62 + 6 + 3 + 2 = 11",
+      "numbers": [
+        {
+          "value": "2",
+          "text": "HOV 2+",
+          "why": "Read as 2"
+        },
+        {
+          "value": "6",
+          "text": "6AM-10AM",
+          "why": "Times split in two"
+        },
+        {
+          "value": "10",
+          "text": "6AM-10AM",
+          "why": "Times split in two"
+        },
+        {
+          "value": "3",
+          "text": "3PM-7PM",
+          "why": "Times split in two"
+        },
+        {
+          "value": "7",
+          "text": "3PM-7PM",
+          "why": "Times split in two"
+        },
+        {
+          "value": "35",
+          "text": "35W",
+          "why": "Letters dropped"
+        },
+        {
+          "value": "11",
+          "text": "EXIT 11"
+        },
+        {
+          "value": "62",
+          "text": "62"
+        },
+        {
+          "value": "12",
+          "text": "EXIT 12"
+        }
+      ],
+      "place": {
+        "label": "I-35W south at Highway 62, Minneapolis, Minnesota",
+        "state": "MN",
+        "lat": 44.905,
+        "lng": -93.271
+      },
+      "alt": [
+        "Overhead signs on I-35W: Express Lane (E-ZPass or HOV 2+ only, 6AM-10AM and 3PM-7PM), 35W South, Exit 11 for 62 East and West, and Exit 12 Diamond Lake Road."
+      ]
+    },
+    {
+      "post": "2025/08/06/in-vermont-on-the-way.html",
+      "title": "On the way to the airport",
+      "finder": "jamie",
+      "math": "(25 − 1) ÷ 8 = 4 − 3 ÷ 3",
+      "numbers": [
+        {
+          "value": "8",
+          "text": "Hinesburg 8"
+        },
+        {
+          "value": "25",
+          "text": "Bristol 25"
+        },
+        {
+          "value": "1",
+          "text": "VT State University 1"
+        },
+        {
+          "value": "3",
+          "text": "Airport 3"
+        },
+        {
+          "value": "3",
+          "text": "Williston 3"
+        },
+        {
+          "value": "4",
+          "text": "Essex Jct 4"
+        }
+      ],
+      "place": {
+        "label": "On the way to the Burlington airport, Vermont",
+        "state": "VT",
+        "lat": 44.466,
+        "lng": -73.171
+      },
+      "alt": [
+        "A green guide sign beside the road: Hinesburg 8, Bristol 25, VT State University 1, Airport 3, Williston 3, Essex Jct 4."
+      ]
+    },
+    {
+      "post": "2025/09/01/tyler-found-this-one-driving.html",
+      "title": "I-35W at 82nd Street",
+      "finder": "tyler",
+      "math": "(90 − 82) ÷ 8 × 1 × 2 = 6 ÷ (10 − 7)",
+      "numbers": [
+        {
+          "value": "2",
+          "text": "HOV 2+",
+          "why": "Read as 2"
+        },
+        {
+          "value": "6",
+          "text": "6AM-10AM",
+          "why": "Times split in two"
+        },
+        {
+          "value": "10",
+          "text": "6AM-10AM",
+          "why": "Times split in two"
+        },
+        {
+          "value": "8",
+          "text": "EXIT 8"
+        },
+        {
+          "value": "82",
+          "text": "82nd St",
+          "why": "Letters dropped"
+        },
+        {
+          "value": "1",
+          "text": "1 MILE"
+        },
+        {
+          "value": "7",
+          "text": "EXIT 7B",
+          "why": "Read as 7"
+        },
+        {
+          "value": "90",
+          "text": "90th St",
+          "why": "Letters dropped"
+        }
+      ],
+      "place": {
+        "label": "I-35W at 82nd Street, Bloomington, Minnesota",
+        "state": "MN",
+        "lat": 44.857,
+        "lng": -93.29
+      },
+      "alt": [
+        "Overhead signs on I-35W: Express Lane (E-ZPass or HOV 2+ only, 6AM-10AM Mon-Fri), Exit 8 82nd St 1 mile, and Exit 7B 90th St."
+      ]
+    }
+  ]
+}

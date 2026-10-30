@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 
@@ -35,4 +35,13 @@ export function slugify(title: string): string {
 export function uniqueSlug(base: string, taken: (slug: string) => boolean): string {
   if (!taken(base)) return base;
   for (let n = 2; ; n++) if (!taken(`${base}-${n}`)) return `${base}-${n}`;
+}
+
+/** A ULID whose random half comes from `key`, so re-running a seed gives the same ids. */
+export function ulidFrom(time: number, key: string): string {
+  const real = ulid(time);
+  const digest = createHash('sha256').update(key).digest();
+  let rand = '';
+  for (let i = 0; i < 16; i++) rand += CROCKFORD[digest[i] % 32];
+  return real.slice(0, 10) + rand;
 }
