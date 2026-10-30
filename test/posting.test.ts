@@ -233,6 +233,28 @@ test('the same post sent twice with one Idempotency-Key makes one sign', async (
   assert.equal(bad.res.status, 400);
 });
 
+test('two posts at once can’t share an upload', async () => {
+  const t = await setup();
+  const photoId = await t.upload();
+  const body = (title: string) => ({
+    photo_ids: [photoId],
+    title,
+    numbers: [{ value: '7' }],
+    place: { label: 'Testville' },
+    found_on: '2026-06-01'
+  });
+  t.moderator.post = { verdict: 'hold', reason: 'Held', alt: [] };
+  const answers = await Promise.all([
+    t.call('POST', '/signs', { as: 'ada', body: body('One') }),
+    t.call('POST', '/signs', { as: 'ada', body: body('Two') })
+  ]);
+  assert.deepEqual(answers.map((a) => a.res.status).sort(), [201, 409]);
+  const signs = await t.store.allSigns();
+  assert.equal(signs.length, 1);
+  assert.ok(await t.photos.get(photoId, 'large', 'held'));
+  assert.equal(await t.photos.get(photoId, 'large', 'shown'), undefined);
+});
+
 test('posting needs a name, your own fresh uploads, and true math from the sign', async () => {
   const t = await setup();
   await t.store.updatePlayer(cy.id, { name: '' });
@@ -320,6 +342,19 @@ test('another way must be true, from the sign, and new', async () => {
   assert.equal((await add('7 + 7 = 14')).res.status, 400, 'the sign shows one 7');
   assert.equal((await add('7 + 12')).res.status, 400);
   assert.equal((await t.call('POST', `/signs/${posted.id}/ways`, { body: { text: '7 = 7' } })).res.status, 401);
+});
+
+test('the same way sent twice at once is added once, and every new way counts', async () => {
+  const t = await setup();
+  const { body: posted } = await t.post({ way: undefined });
+  const add = (text: string, as: string) => t.call('POST', `/signs/${posted.id}/ways`, { as, body: { text } });
+  const same = await Promise.all([add('7 + 12 = 19', 'ben'), add('7+12=19', 'cy')]);
+  assert.deepEqual(same.map((a) => a.res.status).sort(), [201, 409]);
+  await Promise.all([add('19 − 12 = 7', 'ben'), add('19 − 7 = 12', 'cy')]);
+  const sign = (await t.store.getSign(posted.id))!;
+  assert.equal(sign.wayCount, 3);
+  assert.equal((await t.store.listWays(posted.id)).length, 3);
+  assert.ok(sign.firstWay);
 });
 
 test('an unsolved sign gets its first way from whoever solves it', async () => {

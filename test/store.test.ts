@@ -217,6 +217,56 @@ for (const [name, make] of kinds) {
       );
     });
 
+    test('a way’s math is held by one way on its sign until that way goes', async () => {
+      const store = make();
+      const first = way('S1', { id: 'w1' });
+      assert.equal(await store.claimWay('S1', first.text, 'w1'), true);
+      assert.equal(await store.claimWay('S1', first.text, 'w1'), true, 'the same way again');
+      assert.equal(await store.claimWay('S1', first.text, 'w2'), false);
+      assert.equal(await store.claimWay('S2', first.text, 'w3'), true, 'another sign');
+      await store.putWay(first);
+      await store.deleteWay(first);
+      assert.equal(await store.claimWay('S1', first.text, 'w2'), true);
+      await store.putSign(sign({ id: 'S2', title: 'Two' }));
+      await store.deleteSign('S2');
+      assert.equal(await store.claimWay('S2', first.text, 'w4'), true, 'gone with its sign');
+    });
+
+    test('a sign counts each new way and keeps its first', async () => {
+      const store = make();
+      await store.putSign(sign({ id: 'S1', title: 'One', wayCount: 0 }));
+      const firstWay = { text: '7 + 12 = 19', value: '19', playerId: ada.id };
+      await store.countWay('S1', firstWay);
+      await store.countWay('S1', { text: '19 − 12 = 7', value: '7', playerId: ben.id });
+      const s = (await store.getSign('S1'))!;
+      assert.equal(s.wayCount, 2);
+      assert.deepEqual(s.firstWay, firstWay);
+      await store.countWay('gone', firstWay);
+      assert.equal(await store.getSign('gone'), undefined, 'a deleted sign isn’t made again');
+    });
+
+    test('an upload is taken by one post, and given back if that post fails', async () => {
+      const store = make();
+      const upload = {
+        playerId: ada.id,
+        photoId: 'p1',
+        width: 10,
+        height: 10,
+        createdAt: 'x',
+        expiresAt: nowSeconds() + 60
+      };
+      await store.putUpload(upload);
+      assert.equal(await store.claimUpload(ada.id, 'p1', 'S1'), true);
+      assert.equal(await store.claimUpload(ada.id, 'p1', 'S2'), false);
+      await store.releaseUpload(ada.id, 'p1', 'S2');
+      assert.equal(await store.claimUpload(ada.id, 'p1', 'S2'), false, 'only its taker gives it back');
+      await store.releaseUpload(ada.id, 'p1', 'S1');
+      assert.equal(await store.claimUpload(ada.id, 'p1', 'S2'), true);
+      assert.equal(await store.claimUpload(ada.id, 'p9', 'S1'), false, 'no such upload');
+      await store.putUpload({ ...upload, photoId: 'old', expiresAt: nowSeconds() - 1 });
+      assert.equal(await store.claimUpload(ada.id, 'old', 'S1'), false, 'expired');
+    });
+
     test('logins and sessions read back until they expire', async () => {
       const store = make();
       const now = nowSeconds();

@@ -8,6 +8,7 @@
 //   EMAIL#<sha256>      EMAIL                       the player id for an email address
 //   HANDLE#<handle>     HANDLE                      the player id holding a handle
 //   SLUG#<slug>         SLUG                        the sign id holding a slug
+//   SIGN#<signId>       MATH#<sha256>               the way id holding that math on the sign
 //   SIGN#<signId>       REPORT#<playerId>           a player's report of that sign
 //   PLAYER#<playerId>   SESSION#<sha256>            a signed-in app (expires)
 //   PLAYER#<playerId>   UPLOAD#<photoId>            a photo uploaded, not yet posted (expires)
@@ -31,12 +32,13 @@ import {
   type QueryCommandInput
 } from '@aws-sdk/lib-dynamodb';
 import type { Block, Login, Player, Report, Session, Sign, Upload, Way } from '../domain/types.ts';
-import { emailHash, nowSeconds, type PlayerChanges, type SignChanges, type Store } from './store.ts';
+import { emailHash, nowSeconds, wayHash, type PlayerChanges, type SignChanges, type Store } from './store.ts';
 
 export const KEY_PREFIXES = [
   'SIGNS',
   'SIGN#',
   'WAY#',
+  'MATH#',
   'PLAYERS',
   'PLAYER#',
   'EMAIL#',
@@ -182,9 +184,15 @@ export class DynamoStore implements Store {
   async listWays(signId: string): Promise<Way[]> {
     const items = await this.query({
       KeyConditionExpression: 'pk = :pk AND begins_with(sk, :sk)',
-      ExpressionAttributeValues: { ':pk': `SIGN#${signId}`, ':sk': 'WAY#' }
+      ExpressionAttributeValues: { ':pk': `SIGN#${signId}`, ':sk': 'WAY#' },
+      // Read right after a way is added or removed, so it must see that write.
+      ConsistentRead: true
     });
     return items.map((i) => strip<Way>(i));
+  }
+
+  async claimWay(signId: string, text: string, wayId: string): Promise<boolean> {
+    return (await this.claim(`SIGN#${signId}`, `MATH#${wayHash(text)}`, 'math', 'wayId', wayId)) === wayId;
   }
 
   async putWay(way: Way): Promise<void> {
@@ -193,6 +201,19 @@ export class DynamoStore implements Store {
 
   async deleteWay(way: Way): Promise<void> {
     await this.delete(`SIGN#${way.signId}`, `WAY#${way.createdAt}#${way.id}`);
+    await this.unclaim(`SIGN#${way.signId}`, `MATH#${wayHash(way.text)}`, 'wayId', way.id);
+  }
+
+  async countWay(signId: string, first: NonNullable<Sign['firstWay']>): Promise<void> {
+    await this.when(
+      new UpdateCommand({
+        TableName: this.table,
+        Key: { pk: 'SIGNS', sk: `SIGN#${signId}` },
+        UpdateExpression: 'ADD wayCount :one SET firstWay = if_not_exists(firstWay,:first)',
+        ConditionExpression: 'attribute_exists(pk)',
+        ExpressionAttributeValues: { ':one': 1, ':first': first }
+      })
+    );
   }
 
   async allPlayers(): Promise<Player[]> {
@@ -385,6 +406,30 @@ export class DynamoStore implements Store {
 
   async getUpload(playerId: string, photoId: string): Promise<Upload | undefined> {
     return this.live<Upload>(await this.get(`PLAYER#${playerId}`, `UPLOAD#${photoId}`));
+  }
+
+  async claimUpload(playerId: string, photoId: string, signId: string): Promise<boolean> {
+    return this.when(
+      new UpdateCommand({
+        TableName: this.table,
+        Key: { pk: `PLAYER#${playerId}`, sk: `UPLOAD#${photoId}` },
+        UpdateExpression: 'SET signId = :id',
+        ConditionExpression: 'expiresAt > :now AND attribute_not_exists(signId)',
+        ExpressionAttributeValues: { ':id': signId, ':now': nowSeconds() }
+      })
+    );
+  }
+
+  async releaseUpload(playerId: string, photoId: string, signId: string): Promise<void> {
+    await this.when(
+      new UpdateCommand({
+        TableName: this.table,
+        Key: { pk: `PLAYER#${playerId}`, sk: `UPLOAD#${photoId}` },
+        UpdateExpression: 'REMOVE signId',
+        ConditionExpression: 'signId = :id',
+        ExpressionAttributeValues: { ':id': signId }
+      })
+    );
   }
 
   async deleteUpload(playerId: string, photoId: string): Promise<void> {

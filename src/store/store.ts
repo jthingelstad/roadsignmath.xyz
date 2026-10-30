@@ -32,8 +32,19 @@ export interface Store {
   deleteSign(id: string): Promise<void>;
   /** Oldest first. */
   listWays(signId: string): Promise<Way[]>;
+  /**
+   * Reserves a way's math on its sign for the way, so two requests at once can't add the same
+   * way twice; false when another way on the sign has it. `deleteWay` frees it.
+   */
+  claimWay(signId: string, text: string, wayId: string): Promise<boolean>;
   putWay(way: Way): Promise<void>;
+  /** Removes the way and frees its math on the sign. */
   deleteWay(way: Way): Promise<void>;
+  /**
+   * Counts one more way on the sign, and makes `first` its first way when it has none, in one
+   * write, so ways added at once all count.
+   */
+  countWay(signId: string, first: NonNullable<Sign['firstWay']>): Promise<void>;
   allPlayers(): Promise<Player[]>;
   getPlayer(id: string): Promise<Player | undefined>;
   /** Writes the player's row. The email and handle are claimed separately, first. */
@@ -81,6 +92,13 @@ export interface Store {
   putUpload(upload: Upload): Promise<void>;
   /** Missing once it has expired. */
   getUpload(playerId: string, photoId: string): Promise<Upload | undefined>;
+  /**
+   * Takes a live upload for the sign being posted, so two posts can't share a photo; false when
+   * it is gone, expired or already taken.
+   */
+  claimUpload(playerId: string, photoId: string, signId: string): Promise<boolean>;
+  /** Gives the upload back when the post that took it fails. */
+  releaseUpload(playerId: string, photoId: string, signId: string): Promise<void>;
   deleteUpload(playerId: string, photoId: string): Promise<void>;
 
   putReport(report: Report): Promise<void>;
@@ -102,6 +120,9 @@ export interface Store {
 export const nowSeconds = (): number => Math.floor(Date.now() / 1000);
 
 export const normalizeEmail = (email: string): string => email.trim().toLowerCase();
+/** The key a way's math is reserved under on its sign. */
+export const wayHash = (text: string): string => createHash('sha256').update(text).digest('hex');
+
 export const emailHash = (email: string): string => createHash('sha256').update(normalizeEmail(email)).digest('hex');
 
 /** For seeding and tests: claims the sign's slug, then writes the row. */

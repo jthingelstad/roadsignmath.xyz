@@ -280,12 +280,18 @@ export async function postSign(
       fail('conflict', 'That post is still being made. Try again in a moment.');
     }
   }
+  const taken: string[] = [];
   try {
     await limit(store, `posts:${player.id}`, LIMITS.postsADay, DAY, now, `Too many posts today. ${tomorrow}`);
     const notYours = (photoId: string) => `Photo ${photoId} isn’t one of your uploads, or it waited too long`;
     const uploads = [];
     for (const photoId of input.photoIds) {
       const upload = (await store.getUpload(player.id, photoId)) ?? fail('bad_request', notYours(photoId));
+      // Taken for this sign alone, so a second post at once can't share (and later delete) it.
+      if (!(await store.claimUpload(player.id, photoId, id))) {
+        fail('conflict', `Photo ${photoId} is already in another post`);
+      }
+      taken.push(photoId);
       const large = (await photos.get(photoId, 'large', 'upload')) ?? fail('bad_request', notYours(photoId));
       uploads.push({ upload, large });
     }
@@ -333,10 +339,14 @@ export async function postSign(
       ways.push({ id: ulid(now * 1000), signId: id, playerId: player.id, ...way, createdAt: at });
     }
     await store.putSign(sign);
-    for (const w of ways) await store.putWay(w);
+    for (const w of ways) {
+      await store.claimWay(id, w.text, w.id);
+      await store.putWay(w);
+    }
     for (const { upload } of uploads) await store.deleteUpload(player.id, upload.photoId);
     return { sign, ways };
   } catch (err) {
+    for (const photoId of taken) await store.releaseUpload(player.id, photoId, id);
     if (key !== undefined) await store.releasePost(player.id, key);
     throw err;
   }
@@ -362,18 +372,16 @@ export async function addWay(
     fail('bad_request', `text is math of at most ${LIMITS.wayMax} characters`);
   }
   const way = checkWay(body.text as string, sign.numbers);
-  if ((await store.listWays(sign.id)).some((w) => w.text === way.text)) {
-    fail('conflict', 'Someone already found that way');
-  }
+  const taken = 'Someone already found that way';
+  if ((await store.listWays(sign.id)).some((w) => w.text === way.text)) fail('conflict', taken);
   const now = nowSeconds();
   await limit(store, `ways:${player.id}`, LIMITS.waysADay, DAY, now, `Too many ways today. ${tomorrow}`);
-  await store.putWay({ id: ulid(now * 1000), signId: sign.id, playerId: player.id, ...way, createdAt: isoNow(now) });
-  const ways = await store.listWays(sign.id);
-  await store.updateSign(sign.id, {
-    wayCount: ways.length,
-    firstWay: ways[0] ? { text: ways[0].text, value: ways[0].value, playerId: ways[0].playerId } : null
-  });
-  return ways;
+  const id = ulid(now * 1000);
+  // The check above answers most repeats; the claim settles two of the same way sent at once.
+  if (!(await store.claimWay(sign.id, way.text, id))) fail('conflict', taken);
+  await store.putWay({ id, signId: sign.id, playerId: player.id, ...way, createdAt: isoNow(now) });
+  await store.countWay(sign.id, { text: way.text, value: way.value, playerId: player.id });
+  return store.listWays(sign.id);
 }
 
 /** Sends a sign back to the moderator with the player's reason; it is hidden if the moderator agrees. */

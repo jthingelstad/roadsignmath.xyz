@@ -123,6 +123,8 @@ export type Upload = {
   height: number;
   createdAt: string;
   expiresAt: number;
+  /** The sign being posted with it, once a post has taken it. */
+  signId?: string;
 };
 
 /** A player's report of a sign, and what the moderator made of it. One per player per sign. */

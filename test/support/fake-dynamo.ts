@@ -53,7 +53,7 @@ export class FakeDynamo {
     throw Object.assign(new Error('The conditional request failed'), { name: 'ConditionalCheckFailedException' });
   }
 
-  /** Applies `SET a = :x, b = :y`, `ADD a :x` and `REMOVE a` clauses, and returns what changed. */
+  /** Applies `SET a = :x, b = if_not_exists(b,:y)`, `ADD a :x` and `REMOVE a` clauses, and returns what changed. */
   private update(item: Item, expression: string, input: Record<string, unknown>): Item {
     const names = (input.ExpressionAttributeNames ?? {}) as Record<string, string>;
     const values = (input.ExpressionAttributeValues ?? {}) as Record<string, unknown>;
@@ -64,7 +64,11 @@ export class FakeDynamo {
         const field = names[path] ?? path;
         if (verb === 'REMOVE') delete item[field];
         else if (verb === 'ADD') item[field] = ((item[field] as number | undefined) ?? 0) + (values[rest[0]] as number);
-        else if (rest[0] === '=') item[field] = values[rest[1]];
+        else if (rest[0] === '=' && rest[1].startsWith('if_not_exists(')) {
+          const [, own, value] = /^if_not_exists\((#?\w+),(:\w+)\)$/.exec(rest[1]) ?? [];
+          if (own === undefined) throw new Error(`unknown update ${part}`);
+          item[field] = item[names[own] ?? own] ?? values[value];
+        } else if (rest[0] === '=') item[field] = values[rest[1]];
         else throw new Error(`unknown update ${part}`);
         if (verb !== 'REMOVE') changed[field] = item[field];
       }

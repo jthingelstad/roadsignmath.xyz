@@ -25,6 +25,7 @@ export class MemoryStore implements Store {
   private reports = new Map<string, Report>();
   private blocks = new Map<string, Block>();
   private claims = new Map<string, { signId: string; expiresAt: number }>();
+  private wayTexts = new Map<string, string>();
 
   async allSigns(): Promise<Sign[]> {
     return [...this.signs.values()].map(copy);
@@ -59,11 +60,18 @@ export class MemoryStore implements Store {
     if (sign && this.slugs.get(sign.slug) === id) this.slugs.delete(sign.slug);
     this.signs.delete(id);
     this.ways.delete(id);
+    for (const key of this.wayTexts.keys()) if (key.startsWith(`${id}/`)) this.wayTexts.delete(key);
     for (const [key, report] of this.reports) if (report.signId === id) this.reports.delete(key);
   }
 
   async listWays(signId: string): Promise<Way[]> {
     return (this.ways.get(signId) ?? []).map(copy).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  async claimWay(signId: string, text: string, wayId: string): Promise<boolean> {
+    const key = `${signId}/${text}`;
+    if (!this.wayTexts.has(key)) this.wayTexts.set(key, wayId);
+    return this.wayTexts.get(key) === wayId;
   }
 
   async putWay(way: Way): Promise<void> {
@@ -73,10 +81,19 @@ export class MemoryStore implements Store {
   }
 
   async deleteWay(way: Way): Promise<void> {
+    const key = `${way.signId}/${way.text}`;
+    if (this.wayTexts.get(key) === way.id) this.wayTexts.delete(key);
     this.ways.set(
       way.signId,
       (this.ways.get(way.signId) ?? []).filter((w) => w.id !== way.id)
     );
+  }
+
+  async countWay(signId: string, first: NonNullable<Sign['firstWay']>): Promise<void> {
+    const sign = this.signs.get(signId);
+    if (!sign) return;
+    sign.wayCount = (sign.wayCount ?? 0) + 1;
+    sign.firstWay ??= copy(first);
   }
 
   async allPlayers(): Promise<Player[]> {
@@ -188,6 +205,18 @@ export class MemoryStore implements Store {
     return upload && upload.expiresAt > nowSeconds() ? copy(upload) : undefined;
   }
 
+  async claimUpload(playerId: string, photoId: string, signId: string): Promise<boolean> {
+    const upload = this.uploads.get(`${playerId}/${photoId}`);
+    if (!upload || upload.expiresAt <= nowSeconds() || upload.signId) return false;
+    upload.signId = signId;
+    return true;
+  }
+
+  async releaseUpload(playerId: string, photoId: string, signId: string): Promise<void> {
+    const upload = this.uploads.get(`${playerId}/${photoId}`);
+    if (upload?.signId === signId) delete upload.signId;
+  }
+
   async deleteUpload(playerId: string, photoId: string): Promise<void> {
     this.uploads.delete(`${playerId}/${photoId}`);
   }
@@ -243,7 +272,10 @@ export class MemoryStore implements Store {
     const store = new MemoryStore();
     for (const p of data.players) await addPlayer(store, p);
     for (const s of data.signs) await addSign(store, s);
-    for (const w of data.ways) await store.putWay(w);
+    for (const w of data.ways) {
+      await store.claimWay(w.signId, w.text, w.id);
+      await store.putWay(w);
+    }
     return store;
   }
 }

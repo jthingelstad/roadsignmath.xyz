@@ -56,6 +56,7 @@ and filtered in memory; at this size that is cheaper and simpler than indexes.
 | `EMAIL#<sha256>` | `EMAIL` | the player id for an email address |
 | `HANDLE#<handle>` | `HANDLE` | the player id holding a handle |
 | `SLUG#<slug>` | `SLUG` | the sign id holding a slug |
+| `SIGN#<signId>` | `MATH#<sha256>` | the way id holding that math on the sign |
 | `SIGN#<signId>` | `REPORT#<playerId>` | a player's report of that sign |
 | `PLAYER#<playerId>` | `SESSION#<sha256>` | a signed-in app (expires) |
 | `PLAYER#<playerId>` | `UPLOAD#<photoId>` | a photo uploaded, not yet posted (expires) |
@@ -64,9 +65,11 @@ and filtered in memory; at this size that is cheaper and simpler than indexes.
 | `LOGIN#<loginId>` | `LOGIN` | a sign-in in progress (expires) |
 | `LIMIT#<key>` | `<windowStart>` | a rate-limit count (expires) |
 
-The email, handle and slug rows are claimed with conditional writes, so two requests at once
-can't give one address two players, or one handle or slug to two. A sign changes field by field
-(`updateSign`), so a new way can't undo a report's hide. Rows that expire carry `expiresAt` (epoch seconds) for the table's TTL, and every read checks
+The email, handle, slug and math rows are claimed with conditional writes, so two requests at
+once can't give one address two players, one handle or slug to two, or one sign the same way
+twice. A post takes its uploads the same way, so two posts can't share a photo. A sign changes field by field
+(`updateSign`), so a new way can't undo a report's hide, and a new way counts itself in one
+write (`countWay`). Rows that expire carry `expiresAt` (epoch seconds) for the table's TTL, and every read checks
 it too, since TTL deletes late. `test/docs.test.ts` checks this table against
 `src/store/dynamo.ts`.
 

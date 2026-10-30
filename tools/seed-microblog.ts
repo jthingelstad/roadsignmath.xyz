@@ -49,6 +49,9 @@ for (const photo of plan.photos) {
 }
 for (const player of plan.players) await addPlayer(store, player);
 for (const sign of plan.signs) await addSign(store, sign);
-for (const way of plan.ways) await store.putWay(way);
+for (const way of plan.ways) {
+  await store.claimWay(way.signId, way.text, way.id);
+  await store.putWay(way);
+}
 await writeFile('.data/store.json', JSON.stringify(store.snapshot(), null, 2) + '\n');
 console.log('Wrote .data/store.json and .data/photos/. Run `npm run dev` to see them.');
