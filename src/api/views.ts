@@ -1,6 +1,7 @@
 // What the API sends: snake_case JSON built from the stored records. A player's email never
 // leaves the server, and only shown signs are public.
 
+import { texOf } from '../domain/equation.ts';
 import type { Player, Sign, Way } from '../domain/types.ts';
 
 export type Urls = {
@@ -68,7 +69,7 @@ export function signSummary(urls: Urls, people: People, sign: Sign, blocked: Rea
       box: n.box ?? null
     })),
     finders: sign.finders.map((f) => ({ name: f.name, handle: handleOf(people, f.playerId), role: f.role })),
-    first_way: first ? { text: first.text, value: first.value } : null,
+    first_way: first ? { text: first.text, tex: texOf(first.text) ?? null, value: first.value } : null,
     way_count: sign.wayCount,
     visibility: sign.visibility,
     moderation_note: sign.visibility === 'shown' ? null : (sign.moderation?.note ?? null)
@@ -80,6 +81,7 @@ export function wayView(people: People, way: Way) {
   return {
     id: way.id,
     text: way.text,
+    tex: texOf(way.text) ?? null,
     value: way.value,
     numbers: way.numbers,
     by: player ? { handle: player.handle, name: player.name } : null,
@@ -92,7 +94,7 @@ export function signDetail(urls: Urls, people: People, sign: Sign, ways: Way[]) 
   const first = ways[0];
   return {
     ...signSummary(urls, people, sign),
-    first_way: first ? { text: first.text, value: first.value } : null,
+    first_way: first ? { text: first.text, tex: texOf(first.text) ?? null, value: first.value } : null,
     way_count: ways.length,
     ways: ways.map((w) => wayView(people, w))
   };

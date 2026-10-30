@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { check, numbersNotOnSign } from '../src/domain/equation.ts';
+import { check, numbersNotOnSign, texOf } from '../src/domain/equation.ts';
 
 type Vector = {
   text: string;
@@ -9,6 +9,7 @@ type Vector = {
   canonical?: string;
   value?: string;
   numbers?: string[];
+  tex?: string;
   error?: string;
   note: string;
 };
@@ -26,6 +27,8 @@ for (const v of vectors.checks) {
       assert.equal(r.canonical, v.canonical);
       assert.equal(r.value, v.value);
       assert.deepEqual(r.numbers, v.numbers);
+      assert.equal(texOf(v.text), v.tex);
+      assert.equal(texOf(r.canonical), v.tex);
     } else {
       assert.equal(r.ok, false);
       if (r.ok) return;

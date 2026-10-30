@@ -6,6 +6,7 @@ import { Hono } from 'hono';
 import type { FC, PropsWithChildren } from 'hono/jsx';
 import type { ApiOptions } from '../api/app.ts';
 import { byNewest, isPublic, signDetail, signSummary, type People } from '../api/views.ts';
+import { mathSvg } from './math.ts';
 
 type Summary = ReturnType<typeof signSummary>;
 
@@ -29,7 +30,8 @@ main { max-width: 760px; margin: 0 auto; padding: 16px; }
 .card img { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: var(--line); }
 .card div { padding: 10px 12px 12px; }
 .title { font-weight: 700; margin: 0; }
-.math { font: 600 17px/1.4 ui-monospace, Menlo, monospace; color: var(--green); margin: 4px 0; }
+.math { display: block; font-size: 19px; line-height: 1.3; color: var(--green); margin: 6px 0; }
+.math svg { max-width: 100%; height: auto; }
 .meta { color: var(--soft); font-size: 14px; margin: 0; }
 .photo { width: 100%; height: auto; border-radius: 10px; display: block; margin: 0 0 12px; }
 h1 { margin: 8px 0 4px; font-size: 28px; line-height: 1.2; }
@@ -58,6 +60,14 @@ const Page: FC<PropsWithChildren<{ title: string; description: string }>> = ({ t
   </html>
 );
 
+/** A way's math, drawn from its LaTeX; the plain text when there is none. */
+const Equation: FC<{ way: { text: string; tex: string | null } }> = ({ way }) =>
+  way.tex === null ? (
+    <span class="math">{way.text}</span>
+  ) : (
+    <span class="math" role="img" aria-label={way.text} dangerouslySetInnerHTML={{ __html: mathSvg(way.tex) }} />
+  );
+
 const finders = (s: Summary): string => s.finders.map((f) => f.name).join(', ');
 
 const Card: FC<{ sign: Summary }> = ({ sign }) => {
@@ -70,7 +80,7 @@ const Card: FC<{ sign: Summary }> = ({ sign }) => {
         )}
         <div>
           <p class="title">{sign.title}</p>
-          {sign.first_way && <p class="math">{sign.first_way.text}</p>}
+          {sign.first_way && <Equation way={sign.first_way} />}
           <p class="meta">
             {sign.place.label} · {finders(sign)}
           </p>
@@ -122,8 +132,8 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
         <ul class="ways">
           {sign.ways.map((w) => (
             <li>
-              <span class="math">{w.text}</span>
-              {w.by && <span class="meta"> · {w.by.name ?? w.by.handle}</span>}
+              <Equation way={w} />
+              {w.by && <p class="meta">by {w.by.name ?? w.by.handle}</p>}
             </li>
           ))}
         </ul>

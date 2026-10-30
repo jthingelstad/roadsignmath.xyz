@@ -70,6 +70,11 @@ const SCHEMAS: Record<string, Schema> = {
   }),
   FirstWay: object({
     text: { type: 'string', examples: ['3 × 33 = 99'] },
+    tex: nullable({
+      type: 'string',
+      description: 'LaTeX for drawing the math (÷ as a stacked fraction); null only if the text no longer parses.',
+      examples: ['3 \\times 33 = 99']
+    }),
     value: { type: 'string', examples: ['99'] }
   }),
   Sign: object({
@@ -97,6 +102,11 @@ const SCHEMAS: Record<string, Schema> = {
   Way: object({
     id: str,
     text: { type: 'string', description: 'Canonical text: Unicode operators, √ for square roots.' },
+    tex: nullable({
+      type: 'string',
+      description: 'LaTeX for drawing the math (÷ as a stacked fraction); null only if the text no longer parses.',
+      examples: ['3 \\times 33 = 99']
+    }),
     value: { type: 'string', description: 'What both sides equal.' },
     numbers: array(str),
     by: nullable(object({ handle: str, name: str })),

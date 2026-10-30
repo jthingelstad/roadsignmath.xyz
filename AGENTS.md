@@ -13,7 +13,9 @@ ids or ARNs, local paths, or photos of plates or faces that weren't meant to be 
 - **A light check.** A way is accepted when the math is true and every number in it is one of
   the sign's checked numbers, each used no more often than the sign shows it. Using every
   number is encouraged, not required. `src/domain/equation.ts` is the checker;
-  `contracts/equation-vectors.json` holds the cases the server and the iPhone app both pass.
+  `contracts/equation-vectors.json` holds the cases the server and the iPhone app both pass,
+  including each way's LaTeX (`tex`): ÷ is a stacked fraction. The site draws it as SVG with
+  MathJax on the server (`src/web/math.ts`); the app draws the same LaTeX with SwiftMath.
 - **Public reads, signed-in writes.** Only `shown` signs are public; a player also sees their
   own held and hidden signs. A player's email never leaves the server.
 - **Moderation is Claude's alone** (`src/moderation/`). No person reviews posts. Claude holds a
@@ -31,7 +33,7 @@ ids or ARNs, local paths, or photos of plates or faces that weren't meant to be 
 | `src/domain/` | The data model (`types.ts`), the equation checker, ids and slugs, miles. No I/O. |
 | `src/store/` | `Store`, with `MemoryStore` (tests, `npm run dev`) and `DynamoStore` (the live table). |
 | `src/api/` | `/api/v1` on Hono. `contract.ts` is the route table, limits and errors; `openapi.ts` describes it; `views.ts` makes the JSON. |
-| `src/web/` | The website's pages (`site.tsx`, Hono JSX): every shown sign at `/` and one page per sign at `/signs/<slug>`, public and cached a minute. The designed pages (map, players, sign-in) come later. |
+| `src/web/` | The website's pages (`site.tsx`, Hono JSX): every shown sign at `/` and one page per sign at `/signs/<slug>`, public and cached a minute. The math is MathJax SVG drawn on the server, no script in the page. The designed pages (map, players, sign-in) come later. |
 | `src/auth/` | Sign-in by email (link or code), tokens, and the account: name, bio, delete. |
 | `src/mail/` | `Mailer`: SES live, files in `.data/mail/` for `npm run dev`, memory in tests. |
 | `src/posting/` | Uploads, posting a sign, ways, deleting, reports and blocks. |
