@@ -291,6 +291,32 @@ test('a post that fails after its photos moved puts them back, so it can be sent
   assert.ok(await t.photos.get(photoId, 'large', 'shown'));
 });
 
+test('a post is made even when clearing its used uploads fails', async () => {
+  const t = await setup();
+  t.store.deleteUpload = async () => {
+    throw new Error('the table is down');
+  };
+  const { res, body } = await t.post();
+  assert.equal(res.status, 201);
+  assert.equal((await t.store.allSigns()).length, 1);
+  assert.ok(await t.photos.get(body.photos[0].id, 'large', 'shown'));
+  const reuse = await t.post({ photo_ids: body.photos.map((p: Json) => p.id), title: 'Again' });
+  assert.equal(reuse.res.status, 409, 'its uploads stay taken');
+});
+
+test('a sign’s first way is stored before the sign can be seen', async () => {
+  const t = await setup();
+  const putSign = t.store.putSign.bind(t.store);
+  let waysAtPut = -1;
+  t.store.putSign = async (sign) => {
+    waysAtPut = (await t.store.listWays(sign.id)).length;
+    await putSign(sign);
+  };
+  const { body } = await t.post();
+  assert.equal(waysAtPut, 1);
+  assert.equal(await t.store.claimWay(body.id, '7 + 12 = 19', 'another'), false, 'its math is held');
+});
+
 test('posting needs a name, your own fresh uploads, and true math from the sign', async () => {
   const t = await setup();
   await t.store.updatePlayer(cy.id, { name: '' });

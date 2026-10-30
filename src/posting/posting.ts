@@ -345,18 +345,21 @@ export async function postSign(
       sign.firstWay = { text: way.text, value: way.value, playerId: player.id };
       ways.push({ id: ulid(now * 1000), signId: id, playerId: player.id, ...way, createdAt: at });
     }
+    // The first way is in before the sign is, so no one can add the same math to it in between.
     written = true;
-    await store.putSign(sign);
     for (const w of ways) {
       await store.claimWay(id, w.text, w.id);
       await store.putWay(w);
     }
-    for (const { upload } of uploads) await store.deleteUpload(player.id, upload.photoId);
+    await store.putSign(sign);
+    // The post is made. Its uploads are taken for it, so another post can't use them, and they
+    // expire on their own if clearing them fails here.
+    for (const photoId of taken) await store.deleteUpload(player.id, photoId).catch(() => undefined);
     return { sign, ways };
   } catch (err) {
     const undo = [
       ...(written ? [() => store.deleteSign(id)] : []),
-      ...(slug !== undefined && !written ? [() => store.releaseSlug(slug!, id)] : []),
+      ...(slug !== undefined ? [() => store.releaseSlug(slug!, id)] : []),
       ...published.map((photoId) => () => photos.unpublish(photoId)),
       ...taken.map((photoId) => () => store.releaseUpload(player.id, photoId, id)),
       ...(key !== undefined ? [() => store.releasePost(player.id, key)] : [])
