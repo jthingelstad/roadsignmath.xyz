@@ -64,6 +64,7 @@ and filtered in memory; at this size that is cheaper and simpler than indexes.
 | `PLAYER#<playerId>` | `POST#<idempotencyKey>` | the sign a post's key made (expires) |
 | `LOGIN#<loginId>` | `LOGIN` | a sign-in in progress (expires) |
 | `LIMIT#<key>` | `<windowStart>` | a rate-limit count (expires) |
+| `LEASE#<key>` | `LEASE` | one request's hold on what the key names (expires) |
 
 The email, handle, slug and math rows are claimed with conditional writes, so two requests at
 once can't give one address two players, one handle or slug to two, or one sign the same way

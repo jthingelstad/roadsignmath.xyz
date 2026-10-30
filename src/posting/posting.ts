@@ -424,7 +424,26 @@ export async function reportSign(
   if (earlier) return earlier;
   const now = nowSeconds();
   await limit(store, `reports:${player.id}`, LIMITS.reportsADay, DAY, now, `Too many reports today. ${tomorrow}`);
+  // One report at a time on a sign, so one hiding its photos and another keeping them can't cross.
+  const lease = `report:${sign.id}`;
+  if (!(await store.lease(lease, player.id, 120))) {
+    fail('conflict', 'Someone else’s report of this sign is being looked at. Try again in a minute.');
+  }
+  try {
+    return await judgeReport({ store, photos, moderator }, player, (await store.getSign(sign.id)) ?? sign, reason, now);
+  } finally {
+    await store.endLease(lease, player.id).catch(() => undefined);
+  }
+}
 
+/** The moderator's look at a reported sign, read fresh under the sign's report lease. */
+async function judgeReport(
+  { store, photos, moderator }: PostingDeps,
+  player: Player,
+  sign: Sign,
+  reason: string,
+  now: number
+): Promise<Report> {
   // Each photo is read from wherever it is: a hide that failed partway can have moved some of a
   // shown sign's photos to held/ already, and the moderator should see them all.
   const larges: Buffer[] = [];

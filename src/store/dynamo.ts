@@ -16,6 +16,7 @@
 //   PLAYER#<playerId>   POST#<idempotencyKey>       the sign a post's key made (expires)
 //   LOGIN#<loginId>     LOGIN                       a sign-in in progress (expires)
 //   LIMIT#<key>         <windowStart>               a rate-limit count (expires)
+//   LEASE#<key>         LEASE                       one request's hold on what the key names (expires)
 //
 // Items carry their fields at the top level next to pk, sk and `kind`. Items that expire carry
 // `expiresAt` in epoch seconds, the table's time-to-live attribute; reads check it too, since
@@ -55,7 +56,9 @@ export const KEY_PREFIXES = [
   'POST#',
   'LOGIN#',
   'LOGIN',
-  'LIMIT#'
+  'LIMIT#',
+  'LEASE#',
+  'LEASE'
 ] as const;
 
 /** The one method of the document client this store uses, so tests can pass a fake. */
@@ -519,5 +522,27 @@ export class DynamoStore implements Store {
 
   async releasePost(playerId: string, key: string): Promise<void> {
     await this.delete(`PLAYER#${playerId}`, `POST#${key}`);
+  }
+  async lease(key: string, holder: string, seconds: number): Promise<boolean> {
+    const now = nowSeconds();
+    return this.when(
+      new PutCommand({
+        TableName: this.table,
+        Item: { pk: `LEASE#${key}`, sk: 'LEASE', kind: 'lease', holder, expiresAt: now + seconds },
+        ConditionExpression: 'attribute_not_exists(pk) OR expiresAt <= :now OR holder = :holder',
+        ExpressionAttributeValues: { ':now': now, ':holder': holder }
+      })
+    );
+  }
+
+  async endLease(key: string, holder: string): Promise<void> {
+    await this.when(
+      new DeleteCommand({
+        TableName: this.table,
+        Key: { pk: `LEASE#${key}`, sk: 'LEASE' },
+        ConditionExpression: 'holder = :holder',
+        ExpressionAttributeValues: { ':holder': holder }
+      })
+    );
   }
 }

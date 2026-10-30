@@ -1301,6 +1301,16 @@
               }
             }
           },
+          "409": {
+            "description": "It already exists (that way was found), or the same post is still being made.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Too many tries for now; the message says when to try again.",
             "content": {

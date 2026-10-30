@@ -26,6 +26,7 @@ export class MemoryStore implements Store {
   private blocks = new Map<string, Block>();
   private claims = new Map<string, { signId: string; expiresAt: number }>();
   private wayTexts = new Map<string, string>();
+  private leases = new Map<string, { holder: string; expiresAt: number }>();
 
   async allSigns(): Promise<Sign[]> {
     return [...this.signs.values()].map(copy);
@@ -266,6 +267,18 @@ export class MemoryStore implements Store {
 
   async releasePost(playerId: string, key: string): Promise<void> {
     this.claims.delete(`${playerId}/${key}`);
+  }
+
+  async lease(key: string, holder: string, seconds: number): Promise<boolean> {
+    const now = nowSeconds();
+    const held = this.leases.get(key);
+    if (held && held.expiresAt > now && held.holder !== holder) return false;
+    this.leases.set(key, { holder, expiresAt: now + seconds });
+    return true;
+  }
+
+  async endLease(key: string, holder: string): Promise<void> {
+    if (this.leases.get(key)?.holder === holder) this.leases.delete(key);
   }
 
   /** For `npm run dev`: everything, to save between runs. */

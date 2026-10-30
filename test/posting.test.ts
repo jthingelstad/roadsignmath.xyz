@@ -511,6 +511,16 @@ test('a report after a hide that failed partway sees every photo, and a kept one
   assert.equal(await t.photos.get(id, 'large', 'held'), undefined);
 });
 
+test('two reports of one sign at once are looked at one after the other', async () => {
+  const t = await setup();
+  const { body: posted } = await t.post();
+  const send = (as: string) => t.call('POST', `/signs/${posted.id}/report`, { as, body: { reason: 'Spam' } });
+  const both = await Promise.all([send('ben'), send('cy')]);
+  assert.deepEqual(both.map((r) => r.res.status).sort(), [200, 409]);
+  assert.equal(t.moderator.reports.length, 1);
+  assert.equal((await send(both[0].res.status === 409 ? 'ben' : 'cy')).res.status, 200, 'the lease is given back');
+});
+
 test('a kept report is answered once per player', async () => {
   const t = await setup();
   const { body: posted } = await t.post();

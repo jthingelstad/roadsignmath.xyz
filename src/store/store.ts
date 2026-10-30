@@ -117,6 +117,13 @@ export interface Store {
    * call made the claim, or the sign id of the live claim already there.
    */
   claimPost(playerId: string, key: string, signId: string, seconds: number): Promise<string | undefined>;
+
+  /**
+   * Takes a lease on `key` for `seconds`, so only one request at a time works on what it names;
+   * false while another live lease holds it. `endLease` gives it back early.
+   */
+  lease(key: string, holder: string, seconds: number): Promise<boolean>;
+  endLease(key: string, holder: string): Promise<void>;
   releasePost(playerId: string, key: string): Promise<void>;
 }
 

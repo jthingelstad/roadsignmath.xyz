@@ -442,7 +442,7 @@ export const ROUTES: Route[] = [
     params: [signId],
     auth: 'signed_in',
     body: 'ReportPost',
-    errors: ['rate_limited', 'unavailable'],
+    errors: ['rate_limited', 'unavailable', 'conflict'],
     status: 200,
     response: 'ReportOutcome'
   },

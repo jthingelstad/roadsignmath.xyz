@@ -290,6 +290,18 @@ for (const [name, make] of kinds) {
       assert.equal(await store.claimUpload(ada.id, 'old', 'S1'), false, 'expired');
     });
 
+    test('a lease is one holder’s until it ends or expires', async () => {
+      const store = make();
+      assert.equal(await store.lease('report:S1', 'ada', 60), true);
+      assert.equal(await store.lease('report:S1', 'ben', 60), false);
+      assert.equal(await store.lease('report:S1', 'ada', 60), true, 'its holder can take it again');
+      await store.endLease('report:S1', 'ben');
+      assert.equal(await store.lease('report:S1', 'ben', 60), false, 'only its holder ends it');
+      await store.endLease('report:S1', 'ada');
+      assert.equal(await store.lease('report:S1', 'ben', 0), true);
+      assert.equal(await store.lease('report:S1', 'cy', 60), true, 'an expired lease is free');
+    });
+
     test('logins and sessions read back until they expire', async () => {
       const store = make();
       const now = nowSeconds();
