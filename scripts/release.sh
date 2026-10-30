@@ -103,6 +103,15 @@ CODE_PARAMETER=$("${RELEASE[@]}" upload --artifacts "$BUNDLE/artifacts" --commit
 [[ "$CODE_PARAMETER" =~ ^AppCode=[a-f0-9]{64}$ ]] || refuse "unexpected code parameter"
 echo "code uploaded"
 
+# The Apple Team ID for apple-app-site-association, only when the caller sets APPLE_TEAM_ID (once,
+# from the Mac); otherwise the stack keeps the value it has, so GitHub never needs it.
+TEAM_PARAMETER=()
+if [[ -n "${APPLE_TEAM_ID:-}" ]]; then
+  [[ "$APPLE_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]] || refuse "APPLE_TEAM_ID is not a Team ID"
+  mask "$APPLE_TEAM_ID"
+  TEAM_PARAMETER=("AppleTeamId=$APPLE_TEAM_ID")
+fi
+
 # The stack acts through its own service role (infra/deploy.yaml), whoever deploys.
 update() {
   if ! aws cloudformation deploy \
@@ -112,7 +121,7 @@ update() {
     --capabilities CAPABILITY_IAM \
     --no-fail-on-empty-changeset \
     --parameter-overrides "BuildId=$COMMIT" "$CODE_PARAMETER" "CodeBucket=$CODE_BUCKET" \
-      "HostedZoneId=$HOSTED_ZONE" "PhotoDistributionId=$1" \
+      "HostedZoneId=$HOSTED_ZONE" "PhotoDistributionId=$1" ${TEAM_PARAMETER[@]+"${TEAM_PARAMETER[@]}"} \
     --tags Application=RoadSignMath Project=roadsignmath.xyz ManagedBy=cloudformation \
            Environment=production Repository=jthingelstad/roadsignmath.xyz >/dev/null; then
     # Which resources failed and why, newest first; identifiers are masked in CI.

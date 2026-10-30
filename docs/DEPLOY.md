@@ -137,6 +137,22 @@ back as they are.
 
 After the first release, every merge to main releases itself.
 
+## The app's links (apple-app-site-association)
+
+The site serves `/.well-known/apple-app-site-association` (and the same file at the root) so the
+sign-in link in the email and a sign's page open the iPhone app ([`src/web/apple.ts`](../src/web/apple.ts)).
+It names the app by the Apple Team ID that signs it, which the stack holds as `AppleTeamId`
+rather than the repository. Set it, or change it, with one release from the Mac:
+
+```sh
+APPLE_TEAM_ID=<team id> ./deploy.sh
+```
+
+The team id is the one in parentheses on the "Apple Development" line of
+`security find-identity -v -p codesigning`. Every later release, GitHub's included, keeps the
+stack's value. While it is empty the site serves no association file and the links open in
+Safari, where `/signin` says to use the link on the iPhone or type the code.
+
 ## Checking a release by hand
 
 Reads only: the `deploy` run's log, the stack's events, the alarms, and `GET /api/v1` through

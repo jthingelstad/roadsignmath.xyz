@@ -14,6 +14,7 @@ import { finishSignIn, signOut, startSignIn, viewerFor, type Viewer } from '../a
 import type { Mailer } from '../mail/mailer.ts';
 import type { Moderator } from '../moderation/moderator.ts';
 import type { PhotoStore } from '../photos.ts';
+import { appSiteAssociation } from '../web/apple.ts';
 import { createSite } from '../web/site.tsx';
 import {
   addWay,
@@ -47,6 +48,8 @@ export type ApiOptions = {
   moderator: Moderator;
   /** The address a request came from, for rate limits. */
   clientIp?: (c: Context) => string;
+  /** The Apple Team ID that signs the iPhone app; without it there is no apple-app-site-association. */
+  appleTeamId?: string;
 };
 
 /** Behind CloudFront the viewer's address arrives as `CloudFront-Viewer-Address: <ip>:<port>`. */
@@ -400,6 +403,13 @@ export function createApi(options: ApiOptions): Hono {
 export function createApp(options: ApiOptions): Hono {
   const app = new Hono();
   app.route('/api/v1', createApi(options));
+  if (options.appleTeamId) {
+    const association = JSON.stringify(appSiteAssociation(options.appleTeamId));
+    const serve = (c: Context) =>
+      c.body(association, 200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' });
+    app.get('/.well-known/apple-app-site-association', serve);
+    app.get('/apple-app-site-association', serve);
+  }
   app.route('/', createSite(options));
   app.notFound((c) => {
     if (!c.req.path.startsWith('/api/')) return c.text('Not found', 404);

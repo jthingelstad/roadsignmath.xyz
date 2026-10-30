@@ -22,7 +22,17 @@ const store = saved ? await MemoryStore.from(JSON.parse(saved)) : new MemoryStor
 const key = process.env.ANTHROPIC_API_KEY;
 const photos = new DirPhotoStore();
 const moderator = key ? new ClaudeModerator(key) : new LenientModerator();
-const app = createApp({ store, urls: { site }, mailer: new FileMailer(), photos, moderator, clientIp: () => 'local' });
+// APPLE_TEAM_ID, when set, serves the apple-app-site-association as the live site does.
+const appleTeamId = process.env.APPLE_TEAM_ID?.trim() || undefined;
+const app = createApp({
+  store,
+  urls: { site },
+  mailer: new FileMailer(),
+  photos,
+  moderator,
+  clientIp: () => 'local',
+  appleTeamId
+});
 app.get('/p/:photo/:file', async (c) => {
   const { photo, file } = c.req.param();
   const size = /^(large|thumb)\.jpg$/.exec(file)?.[1] as 'large' | 'thumb' | undefined;

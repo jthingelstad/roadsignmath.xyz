@@ -53,6 +53,16 @@ test('the first deploy has no distribution yet, and a missing setting stops the 
   assert.throws(() => liveConfig({ ...env, SITE_URL: 'https://example.test/' }), /https origin/);
 });
 
+test("the app's Apple team comes from the stack, when it has one", () => {
+  assert.equal(liveConfig(env).appleTeamId, undefined);
+  assert.equal(liveConfig({ ...env, APPLE_TEAM_ID: '' }).appleTeamId, undefined);
+  const config = liveConfig({ ...env, APPLE_TEAM_ID: 'ABCDE12345' });
+  assert.equal(config.appleTeamId, 'ABCDE12345');
+  assert.equal(liveOptions(config).appleTeamId, 'ABCDE12345');
+  assert.throws(() => liveConfig({ ...env, APPLE_TEAM_ID: 'abcde12345' }), /Team ID/);
+  assert.throws(() => liveConfig({ ...env, APPLE_TEAM_ID: 'ABCDE123456' }), /Team ID/);
+});
+
 test('the server listens where the platform says', () => {
   assert.deepEqual(httpEndpoint('127.0.0.1:8080'), { hostname: '127.0.0.1', port: 8080 });
   assert.deepEqual(httpEndpoint('[::1]:9000'), { hostname: '::1', port: 9000 });
