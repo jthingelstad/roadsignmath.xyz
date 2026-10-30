@@ -236,9 +236,9 @@ export function createApi(options: ApiOptions): Hono {
     },
 
     async getMap(c, { data }) {
-      const { signs } = await data();
+      const { signs, people } = await data();
       const years = [...new Set(signs.map((s) => Number(s.foundOn.slice(0, 4))))].sort((a, b) => a - b);
-      return c.json({ pins: signs.map((s) => pinView(urls, s)), years });
+      return c.json({ pins: signs.map((s) => pinView(urls, people, s)), years });
     },
 
     async listPlayers(c, { data }) {

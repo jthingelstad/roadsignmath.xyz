@@ -131,7 +131,14 @@ const SCHEMAS: Record<string, Schema> = {
     lng: nullable({ type: 'number' }),
     approximate: { type: 'boolean' },
     state: nullable(str),
+    place_label: { type: 'string', description: 'Where it was, as the sign’s `place.label`.' },
     found_on: { type: 'string', format: 'date' },
+    numbers: array({
+      type: 'string',
+      description: 'The values of the sign’s checked numbers, in the sign’s order.',
+      examples: ['7']
+    }),
+    finders: array(object({ name: str, handle: nullable(str) })),
     thumb_url: nullable({ type: 'string', format: 'uri' })
   }),
   MapPins: object({ pins: array(ref('Pin')), years: array({ type: 'integer' }) }),
