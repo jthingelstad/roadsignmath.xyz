@@ -103,7 +103,8 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
 
 The 16 signs posted to the micro.blog from 2021 to 2025 are the first signs. The export stays
 outside this repo; `npm run seed -- --export <folder> --to plan` checks `seed/microblog.json`
-against it, and `--to local` fills `.data/` for `npm run dev`. Their numbers and alt text come
+against it, `--to local` fills `.data/` for `npm run dev`, and `--to live` writes the live
+table and photo bucket (a live write: only on the owner's go; a sign already there is left alone). Their numbers and alt text come
 from looking at each photo. Each pin sits on the town the post or the sign names, so every one
 is approximate, and Gross Vehicle Weight has none. Don't change what a photo shows without
 looking at it.
