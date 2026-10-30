@@ -31,6 +31,7 @@ import {
   playerStats,
   playerView,
   signDetail,
+  isPublic,
   signSummary,
   visibleTo,
   type People,
@@ -166,7 +167,7 @@ export function createApi(options: ApiOptions): Hono {
     },
 
     async listSigns(c, { data }) {
-      const { signs, people } = await data();
+      const { signs, people, blocked } = await data();
       const limit = limitParam(c);
       const raw = c.req.query('cursor');
       let start = 0;
@@ -178,13 +179,13 @@ export function createApi(options: ApiOptions): Hono {
       const page = signs.slice(start, start + limit);
       const more = start + limit < signs.length;
       return c.json({
-        signs: page.map((s) => signSummary(urls, people, s)),
+        signs: page.map((s) => signSummary(urls, people, s, blocked)),
         next_cursor: more ? encodeCursor(page[page.length - 1]) : null
       });
     },
 
     async listSignsNear(c, { data }) {
-      const { signs, people } = await data();
+      const { signs, people, blocked } = await data();
       const lat = numberParam(c, 'lat', -90, 90);
       const lng = numberParam(c, 'lng', -180, 180);
       const near = signs
@@ -193,12 +194,15 @@ export function createApi(options: ApiOptions): Hono {
         .sort((a, b) => a.miles - b.miles)
         .slice(0, LIMITS.nearMax);
       return c.json({
-        signs: near.map((n) => ({ ...signSummary(urls, people, n.sign), miles: Math.round(n.miles * 10) / 10 }))
+        signs: near.map((n) => ({
+          ...signSummary(urls, people, n.sign, blocked),
+          miles: Math.round(n.miles * 10) / 10
+        }))
       });
     },
 
     async listSimilarSigns(c, { data }) {
-      const { signs, people } = await data();
+      const { signs, people, blocked } = await data();
       const lat = numberParam(c, 'lat', -90, 90);
       const lng = numberParam(c, 'lng', -180, 180);
       const raw = (c.req.query('numbers') ?? '')
@@ -217,7 +221,10 @@ export function createApi(options: ApiOptions): Hono {
         .filter((n) => n.miles <= LIMITS.similarMiles && sharedNumbers(wanted, n.sign) * 2 >= wanted.length)
         .sort((a, b) => a.miles - b.miles);
       return c.json({
-        signs: similar.map((n) => ({ ...signSummary(urls, people, n.sign), miles: Math.round(n.miles * 10) / 10 }))
+        signs: similar.map((n) => ({
+          ...signSummary(urls, people, n.sign, blocked),
+          miles: Math.round(n.miles * 10) / 10
+        }))
       });
     },
 
@@ -243,14 +250,14 @@ export function createApi(options: ApiOptions): Hono {
     },
 
     async getPlayer(c, { data }) {
-      const { signs, people } = await data();
+      const { signs, people, blocked } = await data();
       const handle = pathParam(c, 'handle');
       const player =
         [...people.values()].find((p) => p.handle === handle) ?? fail('not_found', 'No player by that handle');
       const stats = playerStats(player, signs);
       return c.json({
         ...playerView(urls, player, signs),
-        signs: stats.signs.map((s) => signSummary(urls, people, s))
+        signs: stats.signs.map((s) => signSummary(urls, people, s, blocked))
       });
     },
 
@@ -292,6 +299,19 @@ export function createApi(options: ApiOptions): Hono {
       const blocks = await store.listBlocks(viewer!.player.id);
       const players = blocks.map((b) => people.get(b.blockedId)).filter((p) => p !== undefined);
       return c.json({ players: players.map((p) => ({ handle: p.handle, name: p.name })) });
+    },
+
+    async getMyPhoto(c, { viewer }) {
+      const photoId = pathParam(c, 'photoId');
+      const size = pathParam(c, 'size');
+      if (size !== 'large' && size !== 'thumb') return fail('bad_request', 'size is large or thumb');
+      const none = () => fail('not_found', 'No photo of yours by that id');
+      const mine =
+        (await store.allSigns()).find(
+          (s) => s.postedBy === viewer!.player.id && s.photos.some((p) => p.id === photoId)
+        ) ?? none();
+      const bytes = (await options.photos.get(photoId, size, isPublic(mine) ? 'shown' : 'held')) ?? none();
+      return c.body(new Uint8Array(bytes), 200, { 'Content-Type': 'image/jpeg' });
     },
 
     async uploadPhoto(c, { viewer }) {

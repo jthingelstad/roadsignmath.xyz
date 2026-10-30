@@ -35,7 +35,7 @@ ids or ARNs, local paths, or photos of plates or faces that weren't meant to be 
 | `src/mail/` | `Mailer`: SES live, files in `.data/mail/` for `npm run dev`, memory in tests. |
 | `src/posting/` | Uploads, posting a sign, ways, deleting, reports and blocks. |
 | `src/moderation/` | `Moderator`: Claude live (`claude-haiku-5-5`), lets everything through in `npm run dev` without a key. |
-| `src/photos.ts` | The two served sizes of a photo (1600 and 480 px JPEGs, no metadata) and `PhotoStore`: S3 live, `.data/` for `npm run dev`, memory in tests. |
+| `src/photos.ts` | The two served sizes of a photo (1600 and 480 px JPEGs, no metadata) and `PhotoStore`: S3 live, `.data/` for `npm run dev`, memory in tests. Only a shown sign's photos are under `p/`, which the site serves; a held or hidden sign's are under `held/`, which only its poster reads, through `GET /me/photos/{id}/{size}`. |
 | `src/seed/` | Builds the launch set from the micro.blog export and `seed/microblog.json`. |
 | `src/dev.ts` | The local server on port 8787, reading `.data/` (ignored by git). |
 | `seed/microblog.json` | The 16 micro.blog signs: titles, finders, numbers, places, alt text. |
@@ -86,7 +86,8 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
 - `DELETE /me` removes the player, the signs they posted (with their photos), their ways and
   reports on other signs, and their place in other signs' finders.
 - **Posting** (`src/posting/`): `POST /photos` takes the photo itself and keeps it under
-  `uploads/` for a day; `POST /signs` posts up to four of them. An `Idempotency-Key` makes a
+  `uploads/` for a day; `POST /signs` posts up to four of them. A held post's photos never go
+  under `p/`, and a hidden sign's leave it (with CloudFront's cached copies). An `Idempotency-Key` makes a
   retried post one sign. A post or report the moderator can't answer is a 503 and changes
   nothing. Daily limits are in `LIMITS` in `src/api/contract.ts`.
 

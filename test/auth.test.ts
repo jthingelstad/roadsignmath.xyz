@@ -231,7 +231,7 @@ test('deleting the account removes what it made and nothing else', async () => {
     ['Ben']
   );
   assert.equal(s2.wayCount, 1);
-  assert.deepEqual(s2.firstWay, { text: '19 − 12 = 7', value: '7' });
+  assert.deepEqual(s2.firstWay, { text: '19 − 12 = 7', value: '7', playerId: ben.id });
   assert.deepEqual(
     (await store.listWays('S2')).map((w) => w.id),
     ['w4']

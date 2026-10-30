@@ -70,8 +70,9 @@ async function setup() {
       body = JSON.stringify(options.body);
     }
     const res = await app.request(`/api/v1${path}`, { method, headers, body });
-    const text = await res.text();
-    return { res, body: (text ? JSON.parse(text) : null) as Json };
+    const bytes = Buffer.from(await res.arrayBuffer());
+    const json = res.headers.get('content-type')?.includes('json') && bytes.length > 0;
+    return { res, body: (json ? JSON.parse(bytes.toString()) : null) as Json, bytes };
   };
   const upload = async (as = 'ada') => {
     const { res, body } = await call('POST', '/photos', { as, raw: await photo() });
@@ -101,8 +102,8 @@ test('an upload is kept at both sizes without its metadata, for a day', async ()
   assert.equal(res.status, 201);
   assert.match(body.id, /^[0-9a-z]{26}$/);
   assert.deepEqual([body.width, body.height], [64, 48]);
-  const large = (await t.photos.get(body.id, 'large', false))!;
-  assert.ok(await t.photos.get(body.id, 'thumb', false));
+  const large = (await t.photos.get(body.id, 'large', 'upload'))!;
+  assert.ok(await t.photos.get(body.id, 'thumb', 'upload'));
   assert.equal((await sharp(large).metadata()).exif, undefined);
   const upload = (await t.store.getUpload(ada.id, body.id))!;
   assert.ok(upload.expiresAt - nowSeconds() <= LIMITS.uploadTtl);
@@ -143,8 +144,8 @@ test('a post goes past the moderator, publishes its photos and uses the alt text
   assert.equal(seen.photos.length, 1);
 
   const id = body.photos[0].id;
-  assert.ok(await t.photos.get(id, 'large', true), 'published');
-  assert.equal(await t.photos.get(id, 'large', false), undefined, 'no longer an upload');
+  assert.ok(await t.photos.get(id, 'large', 'shown'), 'published');
+  assert.equal(await t.photos.get(id, 'large', 'upload'), undefined, 'no longer an upload');
   assert.equal(await t.store.getUpload(ada.id, id), undefined);
 
   const feed = await t.call('GET', '/signs');
@@ -169,6 +170,20 @@ test('a held post is only its poster’s, with the moderator’s note', async ()
   const mine = await t.call('GET', `/signs/${body.slug}`, { as: 'ada' });
   assert.equal(mine.res.status, 200);
   assert.equal(mine.body.moderation_note, 'The photo shows something we keep off the map.');
+
+  // Its photos never reach the public folder; only Ada can fetch them, through the API.
+  const id = body.photos[0].id;
+  assert.equal(await t.photos.get(id, 'large', 'shown'), undefined);
+  assert.ok(await t.photos.get(id, 'large', 'held'));
+  assert.equal(body.photos[0].url, `https://example.test/api/v1/me/photos/${id}/large`);
+  const own = await t.call('GET', `/me/photos/${id}/thumb`, { as: 'ada' });
+  assert.equal(own.res.status, 200);
+  assert.equal(own.res.headers.get('content-type'), 'image/jpeg');
+  assert.equal(own.res.headers.get('cache-control'), 'no-store');
+  assert.ok(own.bytes.length > 0);
+  assert.equal((await t.call('GET', `/me/photos/${id}/large`, { as: 'ben' })).res.status, 404);
+  assert.equal((await t.call('GET', `/me/photos/${id}/large`)).res.status, 401);
+  assert.equal((await t.call('GET', `/me/photos/${id}/huge`, { as: 'ada' })).res.status, 400);
 });
 
 test('when the moderator can’t answer, nothing is posted and the photos wait', async () => {
@@ -322,7 +337,7 @@ test('only its poster can delete a sign, and its photos go with it', async () =>
   assert.equal((await t.call('DELETE', `/signs/${posted.id}`, { as: 'ben' })).res.status, 404);
   assert.equal((await t.call('DELETE', `/signs/${posted.id}`, { as: 'ada' })).res.status, 204);
   assert.equal(await t.store.getSign(posted.id), undefined);
-  assert.equal(await t.photos.get(posted.photos[0].id, 'large', true), undefined);
+  assert.equal(await t.photos.get(posted.photos[0].id, 'large', 'shown'), undefined);
   assert.equal((await t.post()).body.slug, 'exit-7', 'the slug is free again');
 });
 
@@ -346,6 +361,13 @@ test('a report the moderator agrees with hides the sign from everyone but its po
   const mine = await t.call('GET', `/signs/${posted.id}`, { as: 'ada' });
   assert.equal(mine.body.visibility, 'hidden');
   assert.equal(mine.body.moderation_note, 'It is an advertisement.');
+
+  // Its photos leave the public folder with it.
+  const id = posted.photos[0].id;
+  assert.equal(await t.photos.get(id, 'large', 'shown'), undefined);
+  assert.ok(await t.photos.get(id, 'large', 'held'));
+  assert.equal(mine.body.photos[0].thumb_url, `https://example.test/api/v1/me/photos/${id}/thumb`);
+  assert.equal((await t.call('GET', `/me/photos/${id}/large`, { as: 'ada' })).res.status, 200);
 });
 
 test('a kept report is answered once per player', async () => {
@@ -400,6 +422,23 @@ test('blocking a player hides their signs and ways from you alone', async () => 
   assert.equal((await t.call('GET', '/signs', { as: 'ada' })).body.signs.length, 2);
 });
 
+test('a blocked player’s first way is left out of the sign’s summary too', async () => {
+  const t = await setup();
+  const { body: posted } = await t.post({ way: undefined }, 'ada');
+  await t.call('POST', `/signs/${posted.id}/ways`, { as: 'ben', body: { text: '19 − 7 = 12' } });
+  await t.call('POST', `/signs/${posted.id}/ways`, { as: 'cy', body: { text: '7 + 12 = 19' } });
+  await t.call('POST', '/players/ben/block', { as: 'ada' });
+
+  const detail = await t.call('GET', `/signs/${posted.id}`, { as: 'ada' });
+  assert.deepEqual(detail.body.first_way, { text: '7 + 12 = 19', value: '19' });
+  assert.equal(detail.body.way_count, 1);
+  const feed = await t.call('GET', '/signs', { as: 'ada' });
+  assert.equal(feed.body.signs[0].first_way, null);
+  const others = await t.call('GET', '/signs', { as: 'cy' });
+  assert.deepEqual(others.body.signs[0].first_way, { text: '19 − 7 = 12', value: '12' });
+  assert.equal('player_id' in others.body.signs[0].first_way, false, 'who found it stays out');
+});
+
 test('a new way doesn’t bring back a sign a report hid', async () => {
   const t = await setup();
   await t.store.putSign(sign({ id: '01JS0000000000000000000009', title: 'Hidden', postedBy: ben.id }));
@@ -419,9 +458,9 @@ test('deleting an account takes its posted photos and its reports with it', asyn
   await t.call('POST', `/signs/${bens.id}/report`, { as: 'ada', body: { reason: 'Spam' } });
   assert.ok(await t.store.getReport(bens.id, ada.id));
   assert.equal((await t.call('DELETE', '/me', { as: 'ada' })).res.status, 204);
-  assert.equal(await t.photos.get(adas.photos[0].id, 'large', true), undefined);
+  assert.equal(await t.photos.get(adas.photos[0].id, 'large', 'shown'), undefined);
   assert.equal(await t.store.getReport(bens.id, ada.id), undefined);
-  assert.ok(await t.photos.get(bens.photos[0].id, 'large', true));
+  assert.ok(await t.photos.get(bens.photos[0].id, 'large', 'shown'));
 });
 
 test('each kind of post has a daily limit', async () => {

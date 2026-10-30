@@ -27,7 +27,7 @@ app.get('/p/:photo/:file', async (c) => {
   const { photo, file } = c.req.param();
   const size = /^(large|thumb)\.jpg$/.exec(file)?.[1] as 'large' | 'thumb' | undefined;
   if (!/^[\w-]+$/.test(photo) || !size) return c.notFound();
-  const bytes = await photos.get(photo, size, true);
+  const bytes = await photos.get(photo, size, 'shown');
   return bytes ? c.body(new Uint8Array(bytes), 200, { 'Content-Type': 'image/jpeg' }) : c.notFound();
 });
 

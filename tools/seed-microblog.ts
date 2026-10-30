@@ -42,7 +42,7 @@ const signs = new Map(plan.signs.map((s) => [s.id, s]));
 for (const photo of plan.photos) {
   const sized = await renditions(await readFile(join(values.export, photo.source)));
   await photos.putUpload(photo.id, sized);
-  await photos.publish(photo.id);
+  await photos.publish(photo.id, 'shown');
   const entry = signs.get(photo.signId)!.photos.find((p) => p.id === photo.id)!;
   entry.width = sized.width;
   entry.height = sized.height;

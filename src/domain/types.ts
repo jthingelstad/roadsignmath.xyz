@@ -59,8 +59,8 @@ export type Sign = {
   postedBy: string;
   finders: Finder[];
   visibility: Visibility;
-  /** The first way found, for cards. Missing on a sign posted unsolved. */
-  firstWay?: { text: string; value: string };
+  /** The first way found and who found it, for cards. Missing on a sign posted unsolved. */
+  firstWay?: { text: string; value: string; playerId: string };
   wayCount: number;
   /** Why it is held or hidden, in the moderator's words, for its poster. */
   moderation?: { note: string; at: string };

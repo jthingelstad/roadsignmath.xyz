@@ -286,7 +286,7 @@ export async function postSign(
     const uploads = [];
     for (const photoId of input.photoIds) {
       const upload = (await store.getUpload(player.id, photoId)) ?? fail('bad_request', notYours(photoId));
-      const large = (await photos.get(photoId, 'large', false)) ?? fail('bad_request', notYours(photoId));
+      const large = (await photos.get(photoId, 'large', 'upload')) ?? fail('bad_request', notYours(photoId));
       uploads.push({ upload, large });
     }
 
@@ -299,7 +299,9 @@ export async function postSign(
     const verdict = await moderate(() => moderator.reviewPost(post));
 
     const slug = await reserveSlug(store, id, input.title);
-    for (const { upload } of uploads) await photos.publish(upload.photoId);
+    // A held post's photos never reach the public p/ folder.
+    const place = verdict.verdict === 'hold' ? 'held' : 'shown';
+    for (const { upload } of uploads) await photos.publish(upload.photoId, place);
     const signPhotos: Photo[] = uploads.map(({ upload }, i) => ({
       id: upload.photoId,
       width: upload.width,
@@ -327,7 +329,7 @@ export async function postSign(
     }
     const ways: Way[] = [];
     if (way) {
-      sign.firstWay = { text: way.text, value: way.value };
+      sign.firstWay = { text: way.text, value: way.value, playerId: player.id };
       ways.push({ id: ulid(now * 1000), signId: id, playerId: player.id, ...way, createdAt: at });
     }
     await store.putSign(sign);
@@ -369,7 +371,7 @@ export async function addWay(
   const ways = await store.listWays(sign.id);
   await store.updateSign(sign.id, {
     wayCount: ways.length,
-    firstWay: ways[0] ? { text: ways[0].text, value: ways[0].value } : null
+    firstWay: ways[0] ? { text: ways[0].text, value: ways[0].value, playerId: ways[0].playerId } : null
   });
   return ways;
 }
@@ -391,7 +393,7 @@ export async function reportSign(
 
   const larges: Buffer[] = [];
   for (const photo of sign.photos) {
-    const large = await photos.get(photo.id, 'large', true);
+    const large = await photos.get(photo.id, 'large', sign.visibility === 'shown' ? 'shown' : 'held');
     if (large) larges.push(large);
   }
   const post: Post = {
@@ -410,10 +412,13 @@ export async function reportSign(
     note: verdict.reason || (verdict.verdict === 'hide' ? 'Our moderator hid this post.' : 'Our moderator kept it.'),
     createdAt: at
   };
-  await store.putReport(report);
+  // Photos first, then the sign, then the report: a report that fails partway is not saved, so
+  // the player's next try runs it again, and hiding a photo twice is harmless.
   if (report.outcome === 'hidden') {
+    for (const photo of sign.photos) await photos.hide(photo.id);
     await store.updateSign(sign.id, { visibility: 'hidden', moderation: { note: report.note, at } });
   }
+  await store.putReport(report);
   return report;
 }
 

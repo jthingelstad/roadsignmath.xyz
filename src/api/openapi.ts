@@ -284,7 +284,10 @@ export function openApi(): Schema {
         [route.status]: {
           description: route.summary,
           headers: { 'API-Version': { schema: { type: 'string' }, description: 'This server’s API version.' } },
-          ...(route.response ? { content: { 'application/json': { schema: ref(route.response) } } } : {})
+          ...(route.response ? { content: { 'application/json': { schema: ref(route.response) } } } : {}),
+          ...(route.responseMedia
+            ? { content: { [route.responseMedia]: { schema: { type: 'string', format: 'binary' } } } }
+            : {})
         },
         ...Object.fromEntries(
           [...errors]

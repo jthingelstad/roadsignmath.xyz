@@ -35,7 +35,7 @@ export function sign(overrides: Partial<Sign> & { id: string; title: string }): 
     postedBy: ada.id,
     finders: [{ playerId: ada.id, name: ada.name, role: 'found' }],
     visibility: 'shown',
-    firstWay: { text: '7 + 12 = 19', value: '19' },
+    firstWay: { text: '7 + 12 = 19', value: '19', playerId: ada.id },
     wayCount: 1,
     ...overrides
   };

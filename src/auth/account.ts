@@ -73,7 +73,7 @@ export async function deleteAccount(deps: { store: Store; photos: PhotoStore }, 
     await store.updateSign(sign.id, {
       finders,
       wayCount: left.length,
-      firstWay: left[0] ? { text: left[0].text, value: left[0].value } : null
+      firstWay: left[0] ? { text: left[0].text, value: left[0].value, playerId: left[0].playerId } : null
     });
   }
   await store.deletePlayer(player.id);

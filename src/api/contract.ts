@@ -77,6 +77,8 @@ export type Route = {
   status: 200 | 201 | 202 | 204;
   /** The answer's schema name in openapi.ts; none for 204. */
   response?: string;
+  /** The media type of a raw answer (a photo), instead of JSON. */
+  responseMedia?: string;
 };
 
 const lat: Param = {
@@ -330,6 +332,34 @@ export const ROUTES: Route[] = [
     auth: 'signed_in',
     status: 200,
     response: 'Blocks'
+  },
+  {
+    operationId: 'getMyPhoto',
+    method: 'get',
+    path: '/me/photos/{photoId}/{size}',
+    summary: 'A photo of one of your signs',
+    description:
+      'One size of a photo on a sign you posted. A held or hidden sign’s photos are served only here, ' +
+      'to you; the summary’s `url` and `thumb_url` point here for them. Never cached.',
+    params: [
+      {
+        name: 'photoId',
+        in: 'path',
+        required: true,
+        description: 'The photo’s id.',
+        schema: { type: 'string' }
+      },
+      {
+        name: 'size',
+        in: 'path',
+        required: true,
+        description: 'large (1600 px) or thumb (480 px).',
+        schema: { type: 'string', enum: ['large', 'thumb'] }
+      }
+    ],
+    auth: 'signed_in',
+    status: 200,
+    responseMedia: 'image/jpeg'
   },
   {
     operationId: 'uploadPhoto',
