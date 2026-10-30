@@ -16,7 +16,15 @@ export function text(raw: unknown, field: string, max: number, min: number): str
   return value;
 }
 
-/** Counts one more try at `key` and fails with `message` once there are more than `max` in the window. */
+/**
+ * Counts one more try at `key` and fails with `message` once there are more than `max` in the
+ * window. A refusal logs the limit's kind alone (`address`, `network`, `total`, `posts`...), never
+ * the rest of the key, which names an address hash, a network or a player; the live stack counts
+ * `total` refusals, when every sign-in email in the hour is used up, and alarms on them.
+ */
 export async function limit(store: Store, key: string, max: number, seconds: number, now: number, message: string) {
-  if ((await store.bump(key, seconds, now)) > max) fail('rate_limited', message);
+  if ((await store.bump(key, seconds, now)) > max) {
+    console.info({ event: 'limited', limit: key.split(':')[0] });
+    fail('rate_limited', message);
+  }
 }

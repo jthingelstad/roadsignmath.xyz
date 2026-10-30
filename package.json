@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node --import tsx --test \"test/**/*.test.ts\"",
     "contract": "node --import tsx tools/export-api-contract.ts",
+    "build:server": "node --import tsx tools/build-server.ts",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test",
     "seed": "node --import tsx tools/seed-microblog.ts"
   },
@@ -21,6 +22,7 @@
     "@aws-sdk/client-cloudfront": "3.1150.0",
     "@aws-sdk/client-dynamodb": "3.1150.0",
     "@aws-sdk/client-s3": "3.1150.0",
+    "@aws-sdk/client-secrets-manager": "3.1150.0",
     "@aws-sdk/client-sesv2": "3.1150.0",
     "@aws-sdk/lib-dynamodb": "3.1150.0",
     "@hono/node-server": "2.1.4",
@@ -28,10 +30,16 @@
     "sharp": "0.35.5"
   },
   "devDependencies": {
+    "@aws-sdk/client-cloudformation": "3.1150.0",
+    "@aws-sdk/client-lambda-web": "3.1150.0",
+    "@aws-sdk/client-sts": "3.1150.0",
     "@types/node": "^24.19.2",
+    "@types/yazl": "3.3.1",
+    "esbuild": "0.28.2",
     "oxlint": "^1.90.0",
     "prettier": "^3.9.10",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "yazl": "3.3.1"
   }
 }

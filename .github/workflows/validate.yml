@@ -1,6 +1,7 @@
 name: validate
 
-# The check every pull request runs: formatting, lint, types, tests and the API contract.
+# The check every pull request runs: formatting, lint, types, tests and the API contract, and
+# cfn-lint on the stacks in infra/. A green run on main is what releases it (deploy.yml).
 on:
   push:
     branches: [main]
@@ -32,3 +33,5 @@ jobs:
         run: npm ci --ignore-scripts
       - name: verify
         run: npm run verify
+      - name: cfn-lint
+        run: pipx run --spec cfn-lint==1.57.2 cfn-lint infra/template.yaml infra/deploy.yaml infra/backup.yaml

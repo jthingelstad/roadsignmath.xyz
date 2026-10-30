@@ -158,6 +158,44 @@ export class ClaudeModerator implements Moderator {
   }
 }
 
+/**
+ * The live server's moderator, whose key is read when the first post or report needs it and kept
+ * once found. Until there is a key it is unavailable, so posting answers 503 and changes nothing.
+ * A failed read is tried again at the next post.
+ */
+export class KeyedModerator implements Moderator {
+  private live?: Promise<Moderator>;
+
+  constructor(
+    private readonly key: () => Promise<string | undefined>,
+    private readonly make: (key: string) => Moderator = (key) => new ClaudeModerator(key)
+  ) {}
+
+  private async moderator(): Promise<Moderator> {
+    this.live ??= this.key().then((key) => {
+      if (!key) throw new ModeratorUnavailable('The moderator has no key yet');
+      return this.make(key);
+    });
+    try {
+      return await this.live;
+    } catch (err) {
+      this.live = undefined;
+      if (err instanceof ModeratorUnavailable) throw err;
+      // The error's name only: a message from reading the secret is never logged.
+      console.error({ event: 'moderator-key', outcome: (err as Error).name });
+      throw new ModeratorUnavailable('The moderator key could not be read');
+    }
+  }
+
+  async reviewPost(post: Post): Promise<PostVerdict> {
+    return (await this.moderator()).reviewPost(post);
+  }
+
+  async reviewReport(post: Post, report: string): Promise<ReportVerdict> {
+    return (await this.moderator()).reviewReport(post, report);
+  }
+}
+
 /** `npm run dev` without a key: lets everything through and writes plain alt text. */
 export class LenientModerator implements Moderator {
   async reviewPost(post: Post): Promise<PostVerdict> {
