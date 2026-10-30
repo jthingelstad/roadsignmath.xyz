@@ -148,9 +148,11 @@ rather than the repository. Set it, or change it, with one release from the Mac:
 APPLE_TEAM_ID=<team id> ./deploy.sh
 ```
 
-The team id is the one in parentheses on the "Apple Development" line of
-`security find-identity -v -p codesigning`. Every later release, GitHub's included, keeps the
-stack's value. While it is empty the site serves no association file and the links open in
+The team id is the app's `DEVELOPMENT_TEAM`, and the `OU` in the subject of the Mac's signing
+certificate (`security find-certificate -c "Apple Development" -p | openssl x509 -noout -subject`).
+It is not the id in parentheses after the name on that certificate: that one is the person's,
+and an association file naming it opens nothing. Every later release, GitHub's included, keeps
+the stack's value. While it is empty the site serves no association file and the links open in
 Safari, where `/signin` says to use the link on the iPhone or type the code.
 
 ## Checking a release by hand
