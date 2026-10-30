@@ -93,11 +93,16 @@ export class MemoryStore implements Store {
     );
   }
 
-  async countWay(signId: string, first: NonNullable<Sign['firstWay']>): Promise<void> {
-    const sign = this.signs.get(signId);
-    if (!sign) return;
+  async addWay(way: Way): Promise<'added' | 'taken' | 'gone'> {
+    const sign = this.signs.get(way.signId);
+    const held = this.wayTexts.get(`${way.signId}/${way.text}`);
+    if (held !== undefined && held !== way.id) return 'taken';
+    if (!sign) return 'gone';
+    this.wayTexts.set(`${way.signId}/${way.text}`, way.id);
+    await this.putWay(way);
     sign.wayCount = (sign.wayCount ?? 0) + 1;
-    sign.firstWay ??= copy(first);
+    sign.firstWay ??= { text: way.text, value: way.value, playerId: way.playerId };
+    return 'added';
   }
 
   async allPlayers(): Promise<Player[]> {

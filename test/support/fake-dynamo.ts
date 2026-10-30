@@ -80,7 +80,9 @@ export class FakeDynamo {
     const { constructor, input } = command as Command;
     const name = constructor.name;
     this.sent.push({ command: name, input: structuredClone(input) });
-    if (input.TableName !== this.table) throw new Error(`wrong table ${String(input.TableName)}`);
+    if (name !== 'TransactWriteCommand' && input.TableName !== this.table) {
+      throw new Error(`wrong table ${String(input.TableName)}`);
+    }
     switch (name) {
       case 'PutCommand': {
         const item = input.Item as Item;
@@ -127,6 +129,35 @@ export class FakeDynamo {
           .map((i) => structuredClone(i));
         if (input.ScanIndexForward === false) found.reverse();
         return { Items: found };
+      }
+      case 'TransactWriteCommand': {
+        // Every condition is checked before anything is written, as DynamoDB does.
+        const items = input.TransactItems as Record<string, Record<string, unknown>>[];
+        const steps = items.map((entry) => {
+          const [verb, request] = Object.entries(entry)[0];
+          if (request.TableName !== this.table) throw new Error(`wrong table ${String(request.TableName)}`);
+          const key = (verb === 'Put' ? request.Item : request.Key) as Item;
+          return { verb, request, k: this.key(key.pk, key.sk), key };
+        });
+        const reasons = steps.map(({ request, k }) => ({
+          Code: this.holds(this.items.get(k), request.ConditionExpression, request) ? 'None' : 'ConditionalCheckFailed'
+        }));
+        if (reasons.some((r) => r.Code !== 'None')) {
+          throw Object.assign(new Error('Transaction cancelled'), {
+            name: 'TransactionCanceledException',
+            CancellationReasons: reasons
+          });
+        }
+        for (const { verb, request, k, key } of steps) {
+          if (verb === 'Put') this.items.set(k, structuredClone(request.Item as Item));
+          else if (verb === 'Delete') this.items.delete(k);
+          else if (verb === 'Update') {
+            const item = this.items.get(k) ?? { pk: key.pk, sk: key.sk };
+            this.update(item, String(request.UpdateExpression), request);
+            this.items.set(k, item);
+          } else throw new Error(`FakeDynamo does not handle ${verb} in a transaction`);
+        }
+        return {};
       }
       default:
         throw new Error(`FakeDynamo does not handle ${name}`);

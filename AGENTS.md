@@ -69,7 +69,7 @@ The email, handle, slug and math rows are claimed with conditional writes, so tw
 once can't give one address two players, one handle or slug to two, or one sign the same way
 twice. A post takes its uploads the same way, so two posts can't share a photo. A sign changes field by field
 (`updateSign`), so a new way can't undo a report's hide, and a new way counts itself in one
-write (`countWay`). Rows that expire carry `expiresAt` (epoch seconds) for the table's TTL, and every read checks
+write with its math and its row (`addWay`, one transaction). Rows that expire carry `expiresAt` (epoch seconds) for the table's TTL, and every read checks
 it too, since TTL deletes late. `test/docs.test.ts` checks this table against
 `src/store/dynamo.ts`.
 

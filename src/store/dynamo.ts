@@ -28,6 +28,7 @@ import {
   GetCommand,
   PutCommand,
   QueryCommand,
+  TransactWriteCommand,
   UpdateCommand,
   type QueryCommandInput
 } from '@aws-sdk/lib-dynamodb';
@@ -208,16 +209,46 @@ export class DynamoStore implements Store {
     await this.unclaim(`SIGN#${way.signId}`, `MATH#${wayHash(way.text)}`, 'wayId', way.id);
   }
 
-  async countWay(signId: string, first: NonNullable<Sign['firstWay']>): Promise<void> {
-    await this.when(
-      new UpdateCommand({
-        TableName: this.table,
-        Key: { pk: 'SIGNS', sk: `SIGN#${signId}` },
-        UpdateExpression: 'ADD wayCount :one SET firstWay = if_not_exists(firstWay,:first)',
-        ConditionExpression: 'attribute_exists(pk)',
-        ExpressionAttributeValues: { ':one': 1, ':first': first }
-      })
-    );
+  async addWay(way: Way): Promise<'added' | 'taken' | 'gone'> {
+    const first = { text: way.text, value: way.value, playerId: way.playerId };
+    try {
+      await this.client.send(
+        new TransactWriteCommand({
+          TransactItems: [
+            {
+              Put: {
+                TableName: this.table,
+                Item: { pk: `SIGN#${way.signId}`, sk: `MATH#${wayHash(way.text)}`, kind: 'math', wayId: way.id },
+                ConditionExpression: 'attribute_not_exists(pk) OR wayId = :id',
+                ExpressionAttributeValues: { ':id': way.id }
+              }
+            },
+            {
+              Put: {
+                TableName: this.table,
+                Item: { ...way, pk: `SIGN#${way.signId}`, sk: `WAY#${way.createdAt}#${way.id}`, kind: 'way' }
+              }
+            },
+            {
+              Update: {
+                TableName: this.table,
+                Key: { pk: 'SIGNS', sk: `SIGN#${way.signId}` },
+                UpdateExpression: 'ADD wayCount :one SET firstWay = if_not_exists(firstWay,:first)',
+                ConditionExpression: 'attribute_exists(pk)',
+                ExpressionAttributeValues: { ':one': 1, ':first': first }
+              }
+            }
+          ]
+        })
+      );
+      return 'added';
+    } catch (err) {
+      if ((err as Error).name !== 'TransactionCanceledException') throw err;
+      const reasons = (err as { CancellationReasons?: { Code?: string }[] }).CancellationReasons ?? [];
+      if (reasons[0]?.Code === 'ConditionalCheckFailed') return 'taken';
+      if (reasons[2]?.Code === 'ConditionalCheckFailed') return 'gone';
+      throw err;
+    }
   }
 
   async allPlayers(): Promise<Player[]> {

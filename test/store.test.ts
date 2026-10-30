@@ -241,17 +241,31 @@ for (const [name, make] of kinds) {
       assert.equal(await store.claimWay('S2', first.text, 'w4'), true, 'gone with its sign');
     });
 
-    test('a sign counts each new way and keeps its first', async () => {
+    test('a way is added with its math, its count and the first way, or not at all', async () => {
       const store = make();
       await store.putSign(sign({ id: 'S1', title: 'One', wayCount: 0 }));
-      const firstWay = { text: '7 + 12 = 19', value: '19', playerId: ada.id };
-      await store.countWay('S1', firstWay);
-      await store.countWay('S1', { text: '19 − 12 = 7', value: '7', playerId: ben.id });
+      const first = way('S1', { id: 'w1', playerId: ada.id, createdAt: '2026-02-01T00:00:00.000Z' });
+      assert.equal(await store.addWay(first), 'added');
+      assert.equal(await store.addWay({ ...first, id: 'w2' }), 'taken');
+      const other = way('S1', {
+        id: 'w3',
+        playerId: ben.id,
+        text: '19 − 12 = 7',
+        value: '7',
+        createdAt: '2026-02-02T00:00:00.000Z'
+      });
+      assert.equal(await store.addWay(other), 'added');
       const s = (await store.getSign('S1'))!;
       assert.equal(s.wayCount, 2);
-      assert.deepEqual(s.firstWay, firstWay);
-      await store.countWay('gone', firstWay);
+      assert.deepEqual(s.firstWay, { text: first.text, value: first.value, playerId: ada.id });
+      assert.deepEqual(
+        (await store.listWays('S1')).map((w) => w.id),
+        ['w1', 'w3']
+      );
+      assert.equal(await store.addWay(way('gone', { id: 'w4' })), 'gone');
       assert.equal(await store.getSign('gone'), undefined, 'a deleted sign isn’t made again');
+      assert.deepEqual(await store.listWays('gone'), []);
+      assert.equal(await store.claimWay('gone', first.text, 'w5'), true, 'nor its math held');
     });
 
     test('an upload is taken by one post, and given back if that post fails', async () => {
@@ -340,4 +354,26 @@ test('DynamoStore keys follow the documented layout', async () => {
     ]
   );
   assert.ok(!JSON.stringify(puts[3]).includes('ada@example.com'), 'the email index holds a hash, not the address');
+});
+
+test('DynamoStore adds a way in one transaction of the documented shape', async () => {
+  const fake = new FakeDynamo('test-table');
+  const store = new DynamoStore('test-table', fake);
+  await store.putSign(sign({ id: 'S1', title: 'One' }));
+  await store.addWay(way('S1', { id: 'w1' }));
+  const sent = fake.sent.at(-1)!;
+  assert.equal(sent.command, 'TransactWriteCommand');
+  const items = sent.input.TransactItems as Record<string, Record<string, unknown>>[];
+  assert.deepEqual(
+    items.map((i) => Object.keys(i)[0]),
+    ['Put', 'Put', 'Update']
+  );
+  const [math, row, count] = items.map((i) => Object.values(i)[0]);
+  assert.match(String((math.Item as Record<string, string>).sk), /^MATH#[0-9a-f]{64}$/);
+  assert.equal(math.ConditionExpression, 'attribute_not_exists(pk) OR wayId = :id');
+  assert.equal((row.Item as Record<string, string>).sk, 'WAY#2026-01-10T12:00:00.000Z#w1');
+  assert.deepEqual(count.Key, { pk: 'SIGNS', sk: 'SIGN#S1' });
+  assert.equal(count.UpdateExpression, 'ADD wayCount :one SET firstWay = if_not_exists(firstWay,:first)');
+  assert.equal(count.ConditionExpression, 'attribute_exists(pk)');
+  for (const i of items) assert.equal(Object.values(i)[0].TableName, 'test-table');
 });

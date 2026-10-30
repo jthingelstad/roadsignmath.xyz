@@ -392,11 +392,16 @@ export async function addWay(
   if ((await store.listWays(sign.id)).some((w) => w.text === way.text)) fail('conflict', taken);
   const now = nowSeconds();
   await limit(store, `ways:${player.id}`, LIMITS.waysADay, DAY, now, `Too many ways today. ${tomorrow}`);
-  const id = ulid(now * 1000);
-  // The check above answers most repeats; the claim settles two of the same way sent at once.
-  if (!(await store.claimWay(sign.id, way.text, id))) fail('conflict', taken);
-  await store.putWay({ id, signId: sign.id, playerId: player.id, ...way, createdAt: isoNow(now) });
-  await store.countWay(sign.id, { text: way.text, value: way.value, playerId: player.id });
+  // The check above answers most repeats; this one write settles two of the same way sent at once.
+  const added = await store.addWay({
+    id: ulid(now * 1000),
+    signId: sign.id,
+    playerId: player.id,
+    ...way,
+    createdAt: isoNow(now)
+  });
+  if (added === 'taken') fail('conflict', taken);
+  if (added === 'gone') fail('not_found', 'No sign by that id');
   return store.listWays(sign.id);
 }
 

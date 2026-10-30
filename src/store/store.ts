@@ -43,10 +43,11 @@ export interface Store {
   /** Removes the way and frees its math on the sign. */
   deleteWay(way: Way): Promise<void>;
   /**
-   * Counts one more way on the sign, and makes `first` its first way when it has none, in one
-   * write, so ways added at once all count.
+   * Adds a way to a sign that has one already or none, in one all-or-nothing write: reserves its
+   * math, stores it, counts it, and makes it the sign's first way when it has none. `taken` when
+   * another way has its math, `gone` when the sign was deleted; either way nothing is written.
    */
-  countWay(signId: string, first: NonNullable<Sign['firstWay']>): Promise<void>;
+  addWay(way: Way): Promise<'added' | 'taken' | 'gone'>;
   allPlayers(): Promise<Player[]>;
   getPlayer(id: string): Promise<Player | undefined>;
   /** Writes the player's row. The email and handle are claimed separately, first. */
