@@ -6,10 +6,15 @@ import { normalizeNumber } from '../domain/equation.ts';
 import { miles } from '../domain/geo.ts';
 import type { Sign } from '../domain/types.ts';
 import type { Store } from '../store/store.ts';
-import { API_VERSION, LIMITS, ROUTES, type ErrorCode } from './contract.ts';
+import { API_VERSION, LIMITS, ROUTES } from './contract.ts';
+import { ApiError, fail, STATUS } from './errors.ts';
+import { deleteAccount, updateMe } from '../auth/account.ts';
+import { finishSignIn, signOut, startSignIn, viewerFor, type Viewer } from '../auth/auth.ts';
+import type { Mailer } from '../mail/mailer.ts';
 import { openApi } from './openapi.ts';
 import {
   byNewest,
+  meView,
   isPublic,
   pinView,
   playerStats,
@@ -20,22 +25,19 @@ import {
   type Urls
 } from './views.ts';
 
-export type ApiOptions = { store: Store; urls: Urls };
-
-const STATUS: Record<ErrorCode, 400 | 404 | 500> = { bad_request: 400, not_found: 404, internal: 500 };
-
-class ApiError extends Error {
-  constructor(
-    readonly code: ErrorCode,
-    message: string
-  ) {
-    super(message);
-  }
-}
-
-const fail = (code: ErrorCode, message: string): never => {
-  throw new ApiError(code, message);
+export type ApiOptions = {
+  store: Store;
+  urls: Urls;
+  mailer: Mailer;
+  /** The address a request came from, for rate limits. */
+  clientIp?: (c: Context) => string;
 };
+
+/** Behind CloudFront the viewer's address arrives as `CloudFront-Viewer-Address: <ip>:<port>`. */
+export function cloudFrontIp(c: Context): string {
+  const raw = c.req.header('cloudfront-viewer-address');
+  return raw ? raw.slice(0, raw.lastIndexOf(':')).replace(/^\[|\]$/g, '') : 'unknown';
+}
 
 function numberParam(c: Context, name: string, min: number, max: number): number {
   const raw = c.req.query(name);
@@ -87,9 +89,17 @@ function sharedNumbers(wanted: string[], sign: Sign): number {
   return shared;
 }
 
-type Handler = (c: Context, data: { signs: Sign[]; people: People }) => Promise<Response>;
+type Data = { signs: Sign[]; people: People };
+type Handler = (c: Context, ctx: { data: () => Promise<Data>; viewer?: Viewer }) => Promise<Response>;
 
-export function createApi({ store, urls }: ApiOptions): Hono {
+async function jsonBody(c: Context): Promise<Record<string, unknown>> {
+  const body = (await c.req.json().catch(() => undefined)) as unknown;
+  if (!body || typeof body !== 'object' || Array.isArray(body))
+    return fail('bad_request', 'The body must be a JSON object');
+  return body as Record<string, unknown>;
+}
+
+export function createApi({ store, urls, mailer, clientIp = cloudFrontIp }: ApiOptions): Hono {
   const api = new Hono();
 
   /** Every shown sign, newest first, and every player by id. Read whole: there are few. */
@@ -99,7 +109,8 @@ export function createApi({ store, urls }: ApiOptions): Hono {
   }
 
   const handlers: Record<string, Handler> = {
-    async getIndex(c, { signs, people }) {
+    async getIndex(c, { data }) {
+      const { signs, people } = await data();
       const finders = new Set(signs.flatMap((s) => s.finders.map((f) => f.playerId)).filter(Boolean));
       const states = new Set(signs.map((s) => s.place.state).filter(Boolean));
       return c.json({
@@ -115,7 +126,8 @@ export function createApi({ store, urls }: ApiOptions): Hono {
       return c.json(openApi());
     },
 
-    async listSigns(c, { signs, people }) {
+    async listSigns(c, { data }) {
+      const { signs, people } = await data();
       const limit = limitParam(c);
       const raw = c.req.query('cursor');
       let start = 0;
@@ -132,7 +144,8 @@ export function createApi({ store, urls }: ApiOptions): Hono {
       });
     },
 
-    async listSignsNear(c, { signs, people }) {
+    async listSignsNear(c, { data }) {
+      const { signs, people } = await data();
       const lat = numberParam(c, 'lat', -90, 90);
       const lng = numberParam(c, 'lng', -180, 180);
       const near = signs
@@ -145,7 +158,8 @@ export function createApi({ store, urls }: ApiOptions): Hono {
       });
     },
 
-    async listSimilarSigns(c, { signs, people }) {
+    async listSimilarSigns(c, { data }) {
+      const { signs, people } = await data();
       const lat = numberParam(c, 'lat', -90, 90);
       const lng = numberParam(c, 'lng', -180, 180);
       const raw = (c.req.query('numbers') ?? '')
@@ -168,18 +182,21 @@ export function createApi({ store, urls }: ApiOptions): Hono {
       });
     },
 
-    async getSign(c, { signs, people }) {
+    async getSign(c, { data }) {
+      const { signs, people } = await data();
       const key = c.req.param('id');
       const sign = signs.find((s) => s.id === key || s.slug === key) ?? fail('not_found', 'No sign by that id');
       return c.json(signDetail(urls, people, sign, await store.listWays(sign.id)));
     },
 
-    async getMap(c, { signs }) {
+    async getMap(c, { data }) {
+      const { signs } = await data();
       const years = [...new Set(signs.map((s) => Number(s.foundOn.slice(0, 4))))].sort((a, b) => a - b);
       return c.json({ pins: signs.map((s) => pinView(urls, s)), years });
     },
 
-    async listPlayers(c, { signs, people }) {
+    async listPlayers(c, { data }) {
+      const { signs, people } = await data();
       const playing = [...people.values()]
         .map((player) => ({ player, latest: playerStats(player, signs).signs[0] }))
         .filter((p) => p.latest)
@@ -187,7 +204,8 @@ export function createApi({ store, urls }: ApiOptions): Hono {
       return c.json({ players: playing.map((p) => playerView(urls, p.player, signs)) });
     },
 
-    async getPlayer(c, { signs, people }) {
+    async getPlayer(c, { data }) {
+      const { signs, people } = await data();
       const handle = c.req.param('handle');
       const player =
         [...people.values()].find((p) => p.handle === handle) ?? fail('not_found', 'No player by that handle');
@@ -196,13 +214,47 @@ export function createApi({ store, urls }: ApiOptions): Hono {
         ...playerView(urls, player, signs),
         signs: stats.signs.map((s) => signSummary(urls, people, s))
       });
+    },
+
+    async startSignIn(c) {
+      const body = await jsonBody(c);
+      const link = (loginId: string, token: string) =>
+        `${urls.site}/signin?l=${encodeURIComponent(loginId)}&t=${encodeURIComponent(token)}`;
+      const started = await startSignIn({ store, mailer, link }, body.email, clientIp(c));
+      return c.json({ login_id: started.loginId, expires_in: started.expiresIn }, 202);
+    },
+
+    async finishSignIn(c, { data }) {
+      const body = await jsonBody(c);
+      const done = await finishSignIn(store, { loginId: body.login_id, code: body.code, token: body.token });
+      return c.json({ token: done.token, new_player: done.isNew, me: meView(urls, done.player, (await data()).signs) });
+    },
+
+    async signOut(c, { viewer }) {
+      await signOut(store, viewer!);
+      return c.body(null, 204);
+    },
+
+    async getMe(c, { data, viewer }) {
+      return c.json(meView(urls, viewer!.player, (await data()).signs));
+    },
+
+    async updateMe(c, { data, viewer }) {
+      const player = await updateMe(store, viewer!.player, await jsonBody(c));
+      return c.json(meView(urls, player, (await data()).signs));
+    },
+
+    async deleteMe(c, { viewer }) {
+      await deleteAccount(store, viewer!.player);
+      return c.body(null, 204);
     }
   };
 
   api.use('*', async (c, next) => {
     await next();
     c.header('API-Version', API_VERSION);
-    if (c.req.method === 'GET' && c.res.status === 200) c.header('Cache-Control', 'public, max-age=60');
+    const personal = c.req.header('authorization') !== undefined;
+    if (c.req.method === 'GET' && c.res.status === 200 && !personal) c.header('Cache-Control', 'public, max-age=60');
     else c.header('Cache-Control', 'no-store');
   });
 
@@ -210,7 +262,12 @@ export function createApi({ store, urls }: ApiOptions): Hono {
     const handler = handlers[route.operationId];
     if (!handler) throw new Error(`No handler for ${route.operationId}`);
     const path = route.path.replace(/\{(\w+)\}/g, ':$1') || '/';
-    api.on(route.method.toUpperCase(), path, async (c) => handler(c, await load()));
+    api.on(route.method.toUpperCase(), path, async (c) => {
+      const viewer = await viewerFor(store, c.req.header('authorization'));
+      if (route.auth === 'signed_in' && !viewer) fail('unauthorized', 'Sign in first');
+      let loaded: Promise<Data> | undefined;
+      return handler(c, { data: () => (loaded ??= load()), viewer });
+    });
   }
 
   api.onError((err, c) => {

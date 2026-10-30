@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createApp } from '../src/api/app.ts';
 import { API_VERSION, LIMITS, ROUTES } from '../src/api/contract.ts';
+import { MemoryMailer } from '../src/mail/mailer.ts';
 import { MemoryStore } from '../src/store/memory.ts';
 import { ada, ben, sign, way } from './support/fixtures.ts';
 
@@ -52,7 +53,7 @@ async function setup() {
       createdAt: '2026-01-05T00:00:00.000Z'
     })
   );
-  const app = createApp({ store, urls: { site: 'https://example.test' } });
+  const app = createApp({ store, urls: { site: 'https://example.test' }, mailer: new MemoryMailer() });
   const get = async (path: string) => {
     const res = await app.request(path);
     return { res, body: (await res.json()) as Json };
@@ -213,7 +214,9 @@ test('every route in the contract answers', async () => {
       : route.params.some((p) => p.name === 'lat')
         ? '?lat=44.98&lng=-93.27'
         : '';
-    const res = await app.request(`/api/v1${path}${query}`);
-    assert.equal(res.status, 200, route.operationId);
+    const res = await app.request(`/api/v1${path}${query}`, { method: route.method.toUpperCase() });
+    // Public reads answer; the rest refuse a request with no token or no body, but they're there.
+    const expected = route.auth === 'signed_in' ? 401 : route.body ? 400 : 200;
+    assert.equal(res.status, expected, route.operationId);
   }
 });

@@ -2,9 +2,9 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Road Sign Math API",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "summary": "The signs, the map and the players of Road Sign Math.",
-    "description": "Read-only for now: every public sign, the ways people found to make it true, the map and who’s playing. Answers are JSON in UTF-8 with snake_case keys and carry an `API-Version` header. An error is `{\"error\": {\"code\", \"message\"}}`.",
+    "description": "Every public sign, the ways people found to make it true, the map and who’s playing, read by anyone; sign-in by email and your own account for the app. Answers are JSON in UTF-8 with snake_case keys and carry an `API-Version` header. A request with a token is never cached. An error is `{\"error\": {\"code\", \"message\"}}`.",
     "license": {
       "name": "MIT",
       "identifier": "MIT"
@@ -118,7 +118,7 @@
             }
           },
           "400": {
-            "description": "A parameter is missing or out of range; the message says which.",
+            "description": "A parameter or the body is missing or out of range; the message says which.",
             "content": {
               "application/json": {
                 "schema": {
@@ -179,7 +179,7 @@
             }
           },
           "400": {
-            "description": "A parameter is missing or out of range; the message says which.",
+            "description": "A parameter or the body is missing or out of range; the message says which.",
             "content": {
               "application/json": {
                 "schema": {
@@ -252,7 +252,7 @@
             }
           },
           "400": {
-            "description": "A parameter is missing or out of range; the message says which.",
+            "description": "A parameter or the body is missing or out of range; the message says which.",
             "content": {
               "application/json": {
                 "schema": {
@@ -300,7 +300,7 @@
             }
           },
           "400": {
-            "description": "A parameter is missing or out of range; the message says which.",
+            "description": "A parameter or the body is missing or out of range; the message says which.",
             "content": {
               "application/json": {
                 "schema": {
@@ -412,7 +412,7 @@
             }
           },
           "400": {
-            "description": "A parameter is missing or out of range; the message says which.",
+            "description": "A parameter or the body is missing or out of range; the message says which.",
             "content": {
               "application/json": {
                 "schema": {
@@ -423,6 +423,300 @@
           },
           "404": {
             "description": "No such route, sign or player.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/start": {
+      "post": {
+        "operationId": "startSignIn",
+        "summary": "Email a sign-in link and code",
+        "description": "Sends a link that opens the app and a 6-digit code, both good for 15 minutes. The answer is the same whether or not the address has an account; the first sign-in makes one. At most 5 emails an hour to an address.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignInStart"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Email a sign-in link and code",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInStarted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter or the body is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many tries for now; the message says when to try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/verify": {
+      "post": {
+        "operationId": "finishSignIn",
+        "summary": "Trade the link’s token or the code for an app token",
+        "description": "Send `login_id` with either the `token` from the link or the `code` from the email. Five wrong codes end the sign-in. The answer’s `token` goes in `Authorization: Bearer` from then on; it lasts until sign-out, or 180 days without use.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignInFinish"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Trade the link’s token or the code for an app token",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignedIn"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter or the body is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many tries for now; the message says when to try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/signout": {
+      "post": {
+        "operationId": "signOut",
+        "summary": "End this token",
+        "description": "Other devices stay signed in.",
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "End this token",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            }
+          },
+          "401": {
+            "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "operationId": "getMe",
+        "summary": "You",
+        "description": "Your public profile, plus your email and whether you still need to give a name.",
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "You",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateMe",
+        "summary": "Change your name or bio",
+        "description": "The first name you give also sets your handle, the address of your page; it stays after that. A null or empty bio removes it.",
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Change your name or bio",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter or the body is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteMe",
+        "summary": "Delete your account",
+        "description": "Deletes your account and everything it made: the signs you posted (with every way on them), the ways you found on other signs, your name among a sign’s finders, and your email. It can’t be undone.",
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Delete your account",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            }
+          },
+          "401": {
+            "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
             "content": {
               "application/json": {
                 "schema": {
@@ -454,7 +748,9 @@
                 "type": "string",
                 "enum": [
                   "bad_request",
+                  "unauthorized",
                   "not_found",
+                  "rate_limited",
                   "internal"
                 ]
               },
@@ -478,7 +774,7 @@
           "api_version": {
             "type": "string",
             "examples": [
-              "1.0.0"
+              "1.1.0"
             ]
           },
           "signs": {
@@ -1159,6 +1455,134 @@
             }
           }
         ]
+      },
+      "Me": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Player"
+          },
+          {
+            "type": "object",
+            "required": [
+              "email",
+              "needs_name"
+            ],
+            "properties": {
+              "email": {
+                "type": "string",
+                "format": "email",
+                "description": "Only ever sent to you."
+              },
+              "needs_name": {
+                "type": "boolean",
+                "description": "True until you give a name; ask for one before posting."
+              }
+            }
+          }
+        ]
+      },
+      "MeUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "bio": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "SignInStart": {
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          }
+        }
+      },
+      "SignInStarted": {
+        "type": "object",
+        "required": [
+          "login_id",
+          "expires_in"
+        ],
+        "properties": {
+          "login_id": {
+            "type": "string",
+            "description": "Send it back with the code or the link’s token."
+          },
+          "expires_in": {
+            "type": "integer",
+            "description": "Seconds the link and code work for.",
+            "examples": [
+              900
+            ]
+          }
+        }
+      },
+      "SignInFinish": {
+        "type": "object",
+        "required": [
+          "login_id"
+        ],
+        "description": "The login_id and exactly one of code or token.",
+        "properties": {
+          "login_id": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[0-9]{6}$"
+          },
+          "token": {
+            "type": "string",
+            "description": "The `t` parameter of the link in the email."
+          }
+        }
+      },
+      "SignedIn": {
+        "type": "object",
+        "required": [
+          "token",
+          "new_player",
+          "me"
+        ],
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Send as `Authorization: Bearer <token>`.",
+            "pattern": "^rsm_"
+          },
+          "new_player": {
+            "type": "boolean",
+            "description": "True when this sign-in made the account."
+          },
+          "me": {
+            "$ref": "#/components/schemas/Me"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "token": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "The `token` from `POST /api/v1/auth/verify`."
       }
     }
   }

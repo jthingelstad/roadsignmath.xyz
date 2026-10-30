@@ -36,6 +36,21 @@ export class FakeDynamo {
         const item = this.items.get(this.key(key.pk, key.sk));
         return item ? { Item: structuredClone(item) } : {};
       }
+      case 'UpdateCommand': {
+        // Only the rate-limit counter's update.
+        if (input.UpdateExpression !== 'ADD #count :one SET expiresAt = :expires, kind = :kind') {
+          throw new Error(`unknown update ${String(input.UpdateExpression)}`);
+        }
+        const key = input.Key as Item;
+        const values = input.ExpressionAttributeValues as Record<string, unknown>;
+        const k = this.key(key.pk, key.sk);
+        const item = this.items.get(k) ?? { pk: key.pk, sk: key.sk, count: 0 };
+        item.count = (item.count as number) + (values[':one'] as number);
+        item.expiresAt = values[':expires'];
+        item.kind = values[':kind'];
+        this.items.set(k, item);
+        return { Attributes: { count: item.count, expiresAt: item.expiresAt, kind: item.kind } };
+      }
       case 'DeleteCommand': {
         const key = input.Key as Item;
         this.items.delete(this.key(key.pk, key.sk));
