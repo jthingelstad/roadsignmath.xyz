@@ -393,12 +393,14 @@ export async function addWay(
   const now = nowSeconds();
   await limit(store, `ways:${player.id}`, LIMITS.waysADay, DAY, now, `Too many ways today. ${tomorrow}`);
   // The check above answers most repeats; this one write settles two of the same way sent at once.
+  // Its time and id are to the millisecond, so ways keep the order they were sent in.
+  const ms = Date.now();
   const added = await store.addWay({
-    id: ulid(now * 1000),
+    id: ulid(ms),
     signId: sign.id,
     playerId: player.id,
     ...way,
-    createdAt: isoNow(now)
+    createdAt: new Date(ms).toISOString()
   });
   if (added === 'taken') fail('conflict', taken);
   if (added === 'gone') fail('not_found', 'No sign by that id');

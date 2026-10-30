@@ -253,9 +253,14 @@ export class S3PhotoStore implements PhotoStore {
     );
   }
 
+  /** Deletes the keys, and fails if S3 says any one wasn't deleted (it answers 200 even then). */
   private async delete(keys: string[]): Promise<void> {
-    await this.client.send(
+    const out = await this.client.send(
       new DeleteObjectsCommand({ Bucket: this.bucket, Delete: { Objects: keys.map((Key) => ({ Key })), Quiet: true } })
     );
+    if (out.Errors?.length) {
+      const first = out.Errors[0];
+      throw new Error(`S3 kept ${out.Errors.length} of ${keys.length} photo files (${first.Code ?? 'unknown'})`);
+    }
   }
 }

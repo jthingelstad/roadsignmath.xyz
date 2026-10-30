@@ -3,17 +3,36 @@ import { createHash, randomBytes } from 'node:crypto';
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 
 /** A ULID: sorts by time, 26 characters. */
+let last = { time: -1, rand: [] as number[] };
+
+/**
+ * A ULID for the millisecond `now`. Ids made in one process in the same millisecond (or with a
+ * clock that went back) count up from the one before, so they sort in the order they were made.
+ */
 export function ulid(now = Date.now()): string {
+  let rand: number[];
+  if (now <= last.time) {
+    now = last.time;
+    rand = [...last.rand];
+    let i = 15;
+    while (i >= 0 && rand[i] === 31) rand[i--] = 0;
+    if (i >= 0) rand[i] += 1;
+  } else {
+    rand = [...randomBytes(16)].map((b) => b % 32);
+  }
+  last = { time: now, rand };
+  return ulidTime(now) + rand.map((r) => CROCKFORD[r]).join('');
+}
+
+/** The ten characters of a ULID that hold its millisecond. */
+function ulidTime(ms: number): string {
   let time = '';
-  let t = now;
+  let t = ms;
   for (let i = 0; i < 10; i++) {
     time = CROCKFORD[t % 32] + time;
     t = Math.floor(t / 32);
   }
-  const bytes = randomBytes(16);
-  let rand = '';
-  for (let i = 0; i < 16; i++) rand += CROCKFORD[bytes[i] % 32];
-  return time + rand;
+  return time;
 }
 
 export const isUlid = (s: string): boolean => /^[0-9A-HJKMNP-TV-Z]{26}$/.test(s);
@@ -39,9 +58,8 @@ export function uniqueSlug(base: string, taken: (slug: string) => boolean): stri
 
 /** A ULID whose random half comes from `key`, so re-running a seed gives the same ids. */
 export function ulidFrom(time: number, key: string): string {
-  const real = ulid(time);
   const digest = createHash('sha256').update(key).digest();
   let rand = '';
   for (let i = 0; i < 16; i++) rand += CROCKFORD[digest[i] % 32];
-  return real.slice(0, 10) + rand;
+  return ulidTime(time) + rand;
 }

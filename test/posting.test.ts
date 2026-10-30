@@ -393,6 +393,22 @@ test('the same way sent twice at once is added once, and every new way counts', 
   assert.ok(sign.firstWay);
 });
 
+test('ways sent one after another keep their order, even within a second', async () => {
+  const t = await setup();
+  const { body: posted } = await t.post({ way: undefined });
+  const texts = ['19 − 12 = 7', '19 − 7 = 12', '7 + 12 = 19', '12 + 7 = 19'];
+  for (const text of texts) {
+    assert.equal((await t.call('POST', `/signs/${posted.id}/ways`, { as: 'ben', body: { text } })).res.status, 201);
+  }
+  const detail = await t.call('GET', `/signs/${posted.id}`);
+  assert.deepEqual(
+    detail.body.ways.map((w: Json) => w.text),
+    texts
+  );
+  assert.equal(detail.body.first_way.text, texts[0]);
+  assert.equal((await t.call('GET', '/signs')).body.signs[0].first_way.text, texts[0]);
+});
+
 test('an unsolved sign gets its first way from whoever solves it', async () => {
   const t = await setup();
   const { body: posted } = await t.post({ way: undefined });
