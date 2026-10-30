@@ -280,7 +280,11 @@ export async function postSign(
       fail('conflict', 'That post is still being made. Try again in a moment.');
     }
   }
+  // What this post has done so far, undone if it fails, so the same post can be sent again.
   const taken: string[] = [];
+  const published: string[] = [];
+  let slug: string | undefined;
+  let written = false;
   try {
     await limit(store, `posts:${player.id}`, LIMITS.postsADay, DAY, now, `Too many posts today. ${tomorrow}`);
     const notYours = (photoId: string) => `Photo ${photoId} isn’t one of your uploads, or it waited too long`;
@@ -304,10 +308,13 @@ export async function postSign(
     };
     const verdict = await moderate(() => moderator.reviewPost(post));
 
-    const slug = await reserveSlug(store, id, input.title);
+    slug = await reserveSlug(store, id, input.title);
     // A held post's photos never reach the public p/ folder.
     const place = verdict.verdict === 'hold' ? 'held' : 'shown';
-    for (const { upload } of uploads) await photos.publish(upload.photoId, place);
+    for (const { upload } of uploads) {
+      published.push(upload.photoId);
+      await photos.publish(upload.photoId, place);
+    }
     const signPhotos: Photo[] = uploads.map(({ upload }, i) => ({
       id: upload.photoId,
       width: upload.width,
@@ -338,6 +345,7 @@ export async function postSign(
       sign.firstWay = { text: way.text, value: way.value, playerId: player.id };
       ways.push({ id: ulid(now * 1000), signId: id, playerId: player.id, ...way, createdAt: at });
     }
+    written = true;
     await store.putSign(sign);
     for (const w of ways) {
       await store.claimWay(id, w.text, w.id);
@@ -346,8 +354,15 @@ export async function postSign(
     for (const { upload } of uploads) await store.deleteUpload(player.id, upload.photoId);
     return { sign, ways };
   } catch (err) {
-    for (const photoId of taken) await store.releaseUpload(player.id, photoId, id);
-    if (key !== undefined) await store.releasePost(player.id, key);
+    const undo = [
+      ...(written ? [() => store.deleteSign(id)] : []),
+      ...(slug !== undefined && !written ? [() => store.releaseSlug(slug!, id)] : []),
+      ...published.map((photoId) => () => photos.unpublish(photoId)),
+      ...taken.map((photoId) => () => store.releaseUpload(player.id, photoId, id)),
+      ...(key !== undefined ? [() => store.releasePost(player.id, key)] : [])
+    ];
+    // Each step is tried even if one before it fails; the post's own error is what the player sees.
+    for (const step of undo) await step().catch(() => undefined);
     throw err;
   }
 }
@@ -355,8 +370,9 @@ export async function postSign(
 /** Removes a sign the player posted, with its photos and every way on it. */
 export async function deleteSign({ store, photos }: PostingDeps, player: Player, sign: Sign): Promise<void> {
   if (sign.postedBy !== player.id) fail('not_found', 'No sign of yours by that id');
-  await store.deleteSign(sign.id);
+  // The photos go first: if one can't be removed, the sign is still there to delete again.
   for (const photo of sign.photos) await photos.remove(photo.id);
+  await store.deleteSign(sign.id);
 }
 
 /** Adds a way to a sign, keeping the sign's count and first way in step with its ways. */

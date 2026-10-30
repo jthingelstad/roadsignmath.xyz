@@ -255,6 +255,42 @@ test('two posts at once can’t share an upload', async () => {
   assert.equal(await t.photos.get(photoId, 'large', 'shown'), undefined);
 });
 
+test('a post that fails after its photos moved puts them back, so it can be sent again', async () => {
+  const t = await setup();
+  const photoId = await t.upload();
+  const body = {
+    photo_ids: [photoId],
+    title: 'Exit 7',
+    numbers: [{ value: '7' }, { value: '12' }, { value: '19' }],
+    place: { label: 'Testville' },
+    found_on: '2026-06-01',
+    way: '7 + 12 = 19'
+  };
+  const headers = { 'idempotency-key': 'post-key-0003' };
+  t.photos.publish = async () => {
+    throw new Error('the bucket is down');
+  };
+  assert.equal((await t.call('POST', '/signs', { as: 'ada', body, headers })).res.status, 500);
+  t.photos.publish = MemoryPhotoStore.prototype.publish.bind(t.photos);
+
+  const putWay = t.store.putWay.bind(t.store);
+  t.store.putWay = async () => {
+    throw new Error('the table is down');
+  };
+  const failed = await t.call('POST', '/signs', { as: 'ada', body, headers });
+  assert.equal(failed.res.status, 500);
+  assert.equal((await t.store.allSigns()).length, 0);
+  assert.ok(await t.photos.get(photoId, 'large', 'upload'));
+  assert.equal(await t.photos.get(photoId, 'large', 'shown'), undefined);
+
+  t.store.putWay = putWay;
+  const again = await t.call('POST', '/signs', { as: 'ada', body, headers });
+  assert.equal(again.res.status, 201, JSON.stringify(again.body));
+  assert.equal(again.body.slug, 'exit-7');
+  assert.equal(again.body.way_count, 1);
+  assert.ok(await t.photos.get(photoId, 'large', 'shown'));
+});
+
 test('posting needs a name, your own fresh uploads, and true math from the sign', async () => {
   const t = await setup();
   await t.store.updatePlayer(cy.id, { name: '' });
@@ -376,6 +412,20 @@ test('only its poster can delete a sign, and its photos go with it', async () =>
   assert.equal((await t.post()).body.slug, 'exit-7', 'the slug is free again');
 });
 
+test('a sign whose photo can’t be removed stays, to be deleted again', async () => {
+  const t = await setup();
+  const { body: posted } = await t.post();
+  const remove = t.photos.remove.bind(t.photos);
+  t.photos.remove = async () => {
+    throw new Error('the bucket is down');
+  };
+  assert.equal((await t.call('DELETE', `/signs/${posted.id}`, { as: 'ada' })).res.status, 500);
+  assert.ok(await t.store.getSign(posted.id));
+  t.photos.remove = remove;
+  assert.equal((await t.call('DELETE', `/signs/${posted.id}`, { as: 'ada' })).res.status, 204);
+  assert.equal(await t.photos.get(posted.photos[0].id, 'large', 'shown'), undefined);
+});
+
 test('a report the moderator agrees with hides the sign from everyone but its poster', async () => {
   const t = await setup();
   const { body: posted } = await t.post();
@@ -472,6 +522,31 @@ test('a blocked player’s first way is left out of the sign’s summary too', a
   const others = await t.call('GET', '/signs', { as: 'cy' });
   assert.deepEqual(others.body.signs[0].first_way, { text: '19 − 7 = 12', value: '12' });
   assert.equal('player_id' in others.body.signs[0].first_way, false, 'who found it stays out');
+});
+
+test('a replayed post leaves out the ways of players its poster blocked since', async () => {
+  const t = await setup();
+  const headers = { 'idempotency-key': 'post-key-0004' };
+  const { body: posted } = await t.post({}, 'ada', headers);
+  await t.call('POST', `/signs/${posted.id}/ways`, { as: 'ben', body: { text: '19 − 12 = 7' } });
+  assert.equal((await t.call('POST', '/players/ben/block', { as: 'ada' })).res.status < 300, true);
+  const replay = await t.call('POST', '/signs', {
+    as: 'ada',
+    headers,
+    body: {
+      photo_ids: posted.photos.map((p: Json) => p.id),
+      title: 'Exit 7',
+      numbers: [{ value: '7' }],
+      place: { label: 'Testville' },
+      found_on: '2026-06-01'
+    }
+  });
+  assert.equal(replay.res.status, 201);
+  assert.equal(replay.body.id, posted.id);
+  assert.deepEqual(
+    replay.body.ways.map((w: Json) => w.by.handle),
+    ['ada']
+  );
 });
 
 test('a new way doesn’t bring back a sign a report hid', async () => {

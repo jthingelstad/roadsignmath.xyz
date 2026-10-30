@@ -330,7 +330,9 @@ export function createApi(options: ApiOptions): Hono {
       const body = await jsonBody(c);
       const { sign, ways } = await postSign(deps, viewer!.player, body, c.req.header('idempotency-key'));
       const people = new Map((await store.allPlayers()).map((p) => [p.id, p]));
-      return c.json(signDetail(urls, people, sign, ways), 201);
+      // A replayed post can carry ways added since, by players the poster has blocked.
+      const blocked = new Set((await store.listBlocks(viewer!.player.id)).map((b) => b.blockedId));
+      return c.json(detail(people, blocked, sign, ways), 201);
     },
 
     async deleteSign(c, { data, viewer }) {

@@ -59,8 +59,9 @@ export async function deleteAccount(deps: { store: Store; photos: PhotoStore }, 
   const { store, photos } = deps;
   for (const sign of await store.allSigns()) {
     if (sign.postedBy === player.id) {
-      await store.deleteSign(sign.id);
+      // The photos go first, so a failed removal leaves the sign for the next try.
       for (const photo of sign.photos) await photos.remove(photo.id);
+      await store.deleteSign(sign.id);
       continue;
     }
     await store.deleteReport(sign.id, player.id);

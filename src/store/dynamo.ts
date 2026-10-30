@@ -168,6 +168,10 @@ export class DynamoStore implements Store {
     return (await this.claim(`SLUG#${slug}`, 'SLUG', 'slug', 'signId', signId)) === signId;
   }
 
+  async releaseSlug(slug: string, signId: string): Promise<void> {
+    await this.unclaim(`SLUG#${slug}`, 'SLUG', 'signId', signId);
+  }
+
   async deleteSign(id: string): Promise<void> {
     const sign = await this.getSign(id);
     await this.deletePartition(`SIGN#${id}`);

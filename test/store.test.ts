@@ -23,6 +23,15 @@ for (const [name, make] of kinds) {
       assert.equal(await store.getSign('nope'), undefined);
     });
 
+    test('a slug is freed only by the sign holding it', async () => {
+      const store = make();
+      assert.equal(await store.claimSlug('exit-7', 'S1'), true);
+      await store.releaseSlug('exit-7', 'S2');
+      assert.equal(await store.claimSlug('exit-7', 'S2'), false);
+      await store.releaseSlug('exit-7', 'S1');
+      assert.equal(await store.claimSlug('exit-7', 'S2'), true);
+    });
+
     test('ways list oldest first, and go with their sign', async () => {
       const store = make();
       await store.putSign(sign({ id: 'S1', title: 'One' }));

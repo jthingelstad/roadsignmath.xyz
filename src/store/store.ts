@@ -28,6 +28,8 @@ export interface Store {
   updateSign(id: string, changes: SignChanges): Promise<boolean>;
   /** Reserves a slug for the sign; false when another sign has it. */
   claimSlug(slug: string, signId: string): Promise<boolean>;
+  /** Frees the slug if this sign holds it, for a post that failed before its sign was written. */
+  releaseSlug(slug: string, signId: string): Promise<void>;
   /** Removes the sign, its ways, its reports and its slug. */
   deleteSign(id: string): Promise<void>;
   /** Oldest first. */

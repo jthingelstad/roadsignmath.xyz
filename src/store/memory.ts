@@ -55,6 +55,10 @@ export class MemoryStore implements Store {
     return this.slugs.get(slug) === signId;
   }
 
+  async releaseSlug(slug: string, signId: string): Promise<void> {
+    if (this.slugs.get(slug) === signId) this.slugs.delete(slug);
+  }
+
   async deleteSign(id: string): Promise<void> {
     const sign = this.signs.get(id);
     if (sign && this.slugs.get(sign.slug) === id) this.slugs.delete(sign.slug);

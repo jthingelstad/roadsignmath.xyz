@@ -53,6 +53,8 @@ export interface PhotoStore {
   get(id: string, size: PhotoSize, place: PhotoPlace): Promise<Buffer | undefined>;
   /** Moves an upload to `shown` or `held`, as its sign's moderation says. */
   publish(id: string, place: 'shown' | 'held'): Promise<void>;
+  /** Puts a posted photo back with the uploads, when the post that published it fails. */
+  unpublish(id: string): Promise<void>;
   /** Takes a shown photo down to `held`, when its sign is hidden. */
   hide(id: string): Promise<void>;
   /** Removes a posted photo, wherever it is. */
@@ -85,6 +87,11 @@ export class MemoryPhotoStore implements PhotoStore {
 
   async publish(id: string, place: 'shown' | 'held'): Promise<void> {
     this.move(id, 'upload', place);
+  }
+
+  async unpublish(id: string): Promise<void> {
+    this.move(id, 'shown', 'upload');
+    this.move(id, 'held', 'upload');
   }
 
   async hide(id: string): Promise<void> {
@@ -127,6 +134,11 @@ export class DirPhotoStore implements PhotoStore {
 
   async publish(id: string, place: 'shown' | 'held'): Promise<void> {
     await this.move(id, 'upload', place);
+  }
+
+  async unpublish(id: string): Promise<void> {
+    await this.move(id, 'shown', 'upload');
+    await this.move(id, 'held', 'upload');
   }
 
   async hide(id: string): Promise<void> {
@@ -183,8 +195,10 @@ export class S3PhotoStore implements PhotoStore {
 
   /** Moves what is there; a photo already moved is left alone. */
   private async move(id: string, from: PhotoPlace, to: PhotoPlace): Promise<void> {
+    const moved: string[] = [];
     for (const size of SIZES) {
       if (!(await this.exists(this.key(id, size, from)))) continue;
+      moved.push(this.key(id, size, from));
       await this.client.send(
         new CopyObjectCommand({
           Bucket: this.bucket,
@@ -196,11 +210,17 @@ export class S3PhotoStore implements PhotoStore {
         })
       );
     }
-    await this.delete(SIZES.map((size) => this.key(id, size, from)));
+    if (moved.length) await this.delete(moved);
   }
 
   async publish(id: string, place: 'shown' | 'held'): Promise<void> {
     await this.move(id, 'upload', place);
+  }
+
+  async unpublish(id: string): Promise<void> {
+    await this.move(id, 'shown', 'upload');
+    await this.move(id, 'held', 'upload');
+    await this.clearCache(id);
   }
 
   async hide(id: string): Promise<void> {
