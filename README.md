@@ -26,6 +26,11 @@ first deploy.
 - Sign-in for the app: anyone can sign in with an email address, by tapping the
   link in the email or typing its 6-digit code. Players can set their name and
   bio, and delete their account with everything they posted.
+- Posting from the app: upload photos, post a sign with its numbers and its
+  first way (or unsolved), add more ways to anyone's sign, delete your own,
+  report a sign, and block a player. Claude moderates: it holds a post only when
+  it is clearly objectionable, looks again when someone reports one, and writes
+  each photo's alt text.
 
 ## Running it
 
@@ -35,6 +40,7 @@ Node 24.
 npm ci
 npm run seed -- --export <micro.blog export> --to local   # the 16 launch signs, into .data/
 npm run dev      # http://localhost:8787/api/v1; sign-in emails land in .data/mail/
+                 # posts aren't moderated unless ANTHROPIC_API_KEY is set
 npm run verify   # format, lint, types and tests
 ```
 

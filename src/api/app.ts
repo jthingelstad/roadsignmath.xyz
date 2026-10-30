@@ -1,26 +1,38 @@
-// The `/api/v1` read API on Hono. Every answer carries `API-Version`; every error is
-// `{"error": {"code", "message"}}`. Public reads are cached for a minute at the edge.
+// The `/api/v1` API on Hono. Every answer carries `API-Version`; every error is
+// `{"error": {"code", "message"}}`. Public reads are cached for a minute at the edge; a reader
+// with a token also sees their own held signs and not the players they blocked.
 
 import { Hono, type Context } from 'hono';
 import { normalizeNumber } from '../domain/equation.ts';
 import { miles } from '../domain/geo.ts';
-import type { Sign } from '../domain/types.ts';
+import type { Sign, Way } from '../domain/types.ts';
 import type { Store } from '../store/store.ts';
 import { API_VERSION, LIMITS, ROUTES } from './contract.ts';
 import { ApiError, fail, STATUS } from './errors.ts';
 import { deleteAccount, updateMe } from '../auth/account.ts';
 import { finishSignIn, signOut, startSignIn, viewerFor, type Viewer } from '../auth/auth.ts';
 import type { Mailer } from '../mail/mailer.ts';
+import type { Moderator } from '../moderation/moderator.ts';
+import type { PhotoStore } from '../photos.ts';
+import {
+  addWay,
+  blockPlayer,
+  deleteSign,
+  postSign,
+  reportSign,
+  unblockPlayer,
+  uploadPhoto
+} from '../posting/posting.ts';
 import { openApi } from './openapi.ts';
 import {
   byNewest,
   meView,
-  isPublic,
   pinView,
   playerStats,
   playerView,
   signDetail,
   signSummary,
+  visibleTo,
   type People,
   type Urls
 } from './views.ts';
@@ -29,6 +41,8 @@ export type ApiOptions = {
   store: Store;
   urls: Urls;
   mailer: Mailer;
+  photos: PhotoStore;
+  moderator: Moderator;
   /** The address a request came from, for rate limits. */
   clientIp?: (c: Context) => string;
 };
@@ -48,6 +62,8 @@ function numberParam(c: Context, name: string, min: number, max: number): number
   }
   return value;
 }
+
+const pathParam = (c: Context, name: string): string => c.req.param(name) ?? fail('not_found', 'No such route');
 
 function limitParam(c: Context): number {
   const raw = c.req.query('limit');
@@ -89,7 +105,7 @@ function sharedNumbers(wanted: string[], sign: Sign): number {
   return shared;
 }
 
-type Data = { signs: Sign[]; people: People };
+type Data = { signs: Sign[]; people: People; blocked: Set<string> };
 type Handler = (c: Context, ctx: { data: () => Promise<Data>; viewer?: Viewer }) => Promise<Response>;
 
 async function jsonBody(c: Context): Promise<Record<string, unknown>> {
@@ -99,14 +115,37 @@ async function jsonBody(c: Context): Promise<Record<string, unknown>> {
   return body as Record<string, unknown>;
 }
 
-export function createApi({ store, urls, mailer, clientIp = cloudFrontIp }: ApiOptions): Hono {
+export function createApi(options: ApiOptions): Hono {
+  const { store, urls, mailer, clientIp = cloudFrontIp } = options;
+  const deps = { store, photos: options.photos, moderator: options.moderator };
   const api = new Hono();
 
-  /** Every shown sign, newest first, and every player by id. Read whole: there are few. */
-  async function load(): Promise<{ signs: Sign[]; people: People }> {
-    const [signs, players] = await Promise.all([store.allSigns(), store.allPlayers()]);
-    return { signs: signs.filter(isPublic).sort(byNewest), people: new Map(players.map((p) => [p.id, p])) };
+  /** The signs this reader sees, newest first, and every player by id. Read whole: there are few. */
+  async function load(viewer: Viewer | undefined): Promise<Data> {
+    const [signs, players, blocks] = await Promise.all([
+      store.allSigns(),
+      store.allPlayers(),
+      viewer ? store.listBlocks(viewer.player.id) : []
+    ]);
+    const blocked = new Set(blocks.map((b) => b.blockedId));
+    return {
+      signs: signs.filter(visibleTo(viewer?.player.id, blocked)).sort(byNewest),
+      people: new Map(players.map((p) => [p.id, p])),
+      blocked
+    };
   }
+
+  /** A sign this reader can see, by id or slug. */
+  const findSign = (signs: Sign[], key: string): Sign =>
+    signs.find((s) => s.id === key || s.slug === key) ?? fail('not_found', 'No sign by that id');
+
+  const detail = (people: People, blocked: Set<string>, sign: Sign, ways: Way[]) =>
+    signDetail(
+      urls,
+      people,
+      sign,
+      ways.filter((w) => !blocked.has(w.playerId))
+    );
 
   const handlers: Record<string, Handler> = {
     async getIndex(c, { data }) {
@@ -183,10 +222,9 @@ export function createApi({ store, urls, mailer, clientIp = cloudFrontIp }: ApiO
     },
 
     async getSign(c, { data }) {
-      const { signs, people } = await data();
-      const key = c.req.param('id');
-      const sign = signs.find((s) => s.id === key || s.slug === key) ?? fail('not_found', 'No sign by that id');
-      return c.json(signDetail(urls, people, sign, await store.listWays(sign.id)));
+      const { signs, people, blocked } = await data();
+      const sign = findSign(signs, pathParam(c, 'id'));
+      return c.json(detail(people, blocked, sign, await store.listWays(sign.id)));
     },
 
     async getMap(c, { data }) {
@@ -206,7 +244,7 @@ export function createApi({ store, urls, mailer, clientIp = cloudFrontIp }: ApiO
 
     async getPlayer(c, { data }) {
       const { signs, people } = await data();
-      const handle = c.req.param('handle');
+      const handle = pathParam(c, 'handle');
       const player =
         [...people.values()].find((p) => p.handle === handle) ?? fail('not_found', 'No player by that handle');
       const stats = playerStats(player, signs);
@@ -245,7 +283,63 @@ export function createApi({ store, urls, mailer, clientIp = cloudFrontIp }: ApiO
     },
 
     async deleteMe(c, { viewer }) {
-      await deleteAccount(store, viewer!.player);
+      await deleteAccount(deps, viewer!.player);
+      return c.body(null, 204);
+    },
+
+    async listBlocks(c, { data, viewer }) {
+      const { people } = await data();
+      const blocks = await store.listBlocks(viewer!.player.id);
+      const players = blocks.map((b) => people.get(b.blockedId)).filter((p) => p !== undefined);
+      return c.json({ players: players.map((p) => ({ handle: p.handle, name: p.name })) });
+    },
+
+    async uploadPhoto(c, { viewer }) {
+      const length = c.req.header('content-length');
+      const upload = await uploadPhoto(
+        deps,
+        viewer!.player,
+        c.req.header('content-type'),
+        () => c.req.arrayBuffer(),
+        length === undefined ? undefined : Number(length)
+      );
+      return c.json(upload, 201);
+    },
+
+    async postSign(c, { viewer }) {
+      const body = await jsonBody(c);
+      const { sign, ways } = await postSign(deps, viewer!.player, body, c.req.header('idempotency-key'));
+      const people = new Map((await store.allPlayers()).map((p) => [p.id, p]));
+      return c.json(signDetail(urls, people, sign, ways), 201);
+    },
+
+    async deleteSign(c, { data, viewer }) {
+      const sign = findSign((await data()).signs, pathParam(c, 'id'));
+      await deleteSign(deps, viewer!.player, sign);
+      return c.body(null, 204);
+    },
+
+    async addWay(c, { data, viewer }) {
+      const { signs, people, blocked } = await data();
+      const sign = findSign(signs, pathParam(c, 'id'));
+      const ways = await addWay(deps, viewer!.player, sign, await jsonBody(c));
+      const fresh = (await store.getSign(sign.id)) ?? sign;
+      return c.json(detail(people, blocked, fresh, ways), 201);
+    },
+
+    async reportSign(c, { data, viewer }) {
+      const sign = findSign((await data()).signs, pathParam(c, 'id'));
+      const report = await reportSign(deps, viewer!.player, sign, await jsonBody(c));
+      return c.json({ outcome: report.outcome, note: report.note });
+    },
+
+    async blockPlayer(c, { viewer }) {
+      await blockPlayer(store, viewer!.player, pathParam(c, 'handle'));
+      return c.body(null, 204);
+    },
+
+    async unblockPlayer(c, { viewer }) {
+      await unblockPlayer(store, viewer!.player, pathParam(c, 'handle'));
       return c.body(null, 204);
     }
   };
@@ -266,7 +360,7 @@ export function createApi({ store, urls, mailer, clientIp = cloudFrontIp }: ApiO
       const viewer = await viewerFor(store, c.req.header('authorization'));
       if (route.auth === 'signed_in' && !viewer) fail('unauthorized', 'Sign in first');
       let loaded: Promise<Data> | undefined;
-      return handler(c, { data: () => (loaded ??= load()), viewer });
+      return handler(c, { data: () => (loaded ??= load(viewer)), viewer });
     });
   }
 

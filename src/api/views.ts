@@ -15,6 +15,12 @@ export const photoUrl = (urls: Urls, photoId: string, size: 'large' | 'thumb'): 
 
 export const isPublic = (sign: Sign): boolean => sign.visibility === 'shown';
 
+/** What one reader sees: shown signs and their own, less the posts of players they blocked. */
+export const visibleTo =
+  (viewerId: string | undefined, blocked: Set<string>) =>
+  (sign: Sign): boolean =>
+    (isPublic(sign) || sign.postedBy === viewerId) && !blocked.has(sign.postedBy);
+
 /** Newest first; postedAt ties go to the larger id. */
 export const byNewest = (a: Sign, b: Sign): number => b.postedAt.localeCompare(a.postedAt) || b.id.localeCompare(a.id);
 
@@ -58,7 +64,9 @@ export function signSummary(urls: Urls, people: People, sign: Sign) {
     })),
     finders: sign.finders.map((f) => ({ name: f.name, handle: handleOf(people, f.playerId), role: f.role })),
     first_way: sign.firstWay ?? null,
-    way_count: sign.wayCount
+    way_count: sign.wayCount,
+    visibility: sign.visibility,
+    moderation_note: sign.visibility === 'shown' ? null : (sign.moderation?.note ?? null)
   };
 }
 

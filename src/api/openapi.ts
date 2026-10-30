@@ -4,7 +4,8 @@
 import { createHash } from 'node:crypto';
 import { BIO_MAX, NAME_MAX } from '../auth/account.ts';
 import { LOGIN_TTL } from '../auth/auth.ts';
-import { API_VERSION, ERRORS, ROUTES } from './contract.ts';
+import { API_VERSION, ERRORS, LIMITS, ROUTES, type ErrorCode } from './contract.ts';
+import { STATUS } from './errors.ts';
 
 type Schema = Record<string, unknown>;
 
@@ -85,7 +86,13 @@ const SCHEMAS: Record<string, Schema> = {
     numbers: array(ref('SignNumber')),
     finders: array(ref('Finder')),
     first_way: nullable(ref('FirstWay')),
-    way_count: int
+    way_count: int,
+    visibility: {
+      type: 'string',
+      enum: ['shown', 'held', 'hidden'],
+      description: 'Always shown, except on your own signs: held when posted, hidden after a report.'
+    },
+    moderation_note: nullable({ type: 'string', description: 'Why your sign is held or hidden; null when shown.' })
   }),
   Way: object({
     id: str,
@@ -149,6 +156,83 @@ const SCHEMAS: Record<string, Schema> = {
       bio: nullable({ type: 'string', maxLength: BIO_MAX })
     }
   },
+  Blocks: object({ players: array(object({ handle: str, name: str })) }),
+  Upload: object({
+    id: { type: 'string', description: 'Send it in `photo_ids` when posting.' },
+    width: int,
+    height: int
+  }),
+  SignPost: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['photo_ids', 'title', 'numbers', 'place', 'found_on'],
+    properties: {
+      photo_ids: { type: 'array', items: str, minItems: 1, maxItems: LIMITS.photosMax },
+      title: { type: 'string', minLength: 1, maxLength: LIMITS.titleMax },
+      caption: nullable({ type: 'string', maxLength: LIMITS.captionMax }),
+      numbers: {
+        type: 'array',
+        minItems: 1,
+        maxItems: LIMITS.numbersMax,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['value'],
+          properties: {
+            value: { type: 'string', pattern: '^[0-9]*\\.?[0-9]+$', examples: ['7'] },
+            text: nullable({ type: 'string', maxLength: 40 }),
+            why: nullable({ type: 'string', maxLength: 60 }),
+            box: nullable({
+              type: 'array',
+              items: { type: 'number', minimum: 0, maximum: 1 },
+              minItems: 4,
+              maxItems: 4
+            })
+          }
+        }
+      },
+      place: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['label'],
+        properties: {
+          label: { type: 'string', minLength: 1, maxLength: LIMITS.placeMax },
+          state: nullable({ type: 'string', pattern: '^[A-Z]{2}$' }),
+          lat: nullable({ type: 'number', minimum: -90, maximum: 90 }),
+          lng: nullable({ type: 'number', minimum: -180, maximum: 180 }),
+          approximate: { type: 'boolean', default: false }
+        }
+      },
+      found_on: { type: 'string', format: 'date', description: 'The day it was found, in your own time.' },
+      finders: {
+        type: 'array',
+        minItems: 1,
+        maxItems: LIMITS.findersMax,
+        description: 'Who found it: a player by handle, or a name for someone who doesn’t play. Default: you.',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            handle: str,
+            name: { type: 'string', minLength: 1, maxLength: NAME_MAX },
+            role: { type: 'string', enum: ['found', 'took_photo', 'spotted'], default: 'found' }
+          }
+        }
+      },
+      way: {
+        type: 'string',
+        maxLength: LIMITS.wayMax,
+        description: 'The first way to make it true, as math text. Leave it out to post unsolved.',
+        examples: ['90 − 82 = 8']
+      }
+    }
+  },
+  WayPost: object({ text: { type: 'string', maxLength: LIMITS.wayMax, examples: ['7 + 12 = 19'] } }),
+  ReportPost: object({ reason: { type: 'string', minLength: 1, maxLength: LIMITS.reportMax } }),
+  ReportOutcome: object({
+    outcome: { type: 'string', enum: ['hidden', 'kept'] },
+    note: { type: 'string', description: 'The moderator’s reason.' }
+  }),
   SignInStart: object({ email: { type: 'string', format: 'email' } }),
   SignInStarted: object({
     login_id: { type: 'string', description: 'Send it back with the code or the link’s token.' },
@@ -180,8 +264,14 @@ export function openApi(): Schema {
   const paths: Record<string, Record<string, Schema>> = {};
   for (const route of ROUTES) {
     const path = `/api/v1${route.path}`;
-    const hasInput = route.params.length > 0 || route.body !== undefined;
-    const limited = route.operationId === 'startSignIn' || route.operationId === 'finishSignIn';
+    const hasInput = route.params.length > 0 || route.body !== undefined || route.bodyMedia !== undefined;
+    const errors = new Set<ErrorCode>(route.errors);
+    if (hasInput) errors.add('bad_request');
+    if (route.auth === 'signed_in' || route.operationId === 'finishSignIn') errors.add('unauthorized');
+    if (route.path.includes('{')) errors.add('not_found');
+    const content = route.bodyMedia
+      ? Object.fromEntries(route.bodyMedia.map((type) => [type, { schema: { type: 'string', format: 'binary' } }]))
+      : route.body && { 'application/json': { schema: ref(route.body) } };
     paths[path] ??= {};
     paths[path][route.method] = {
       operationId: route.operationId,
@@ -189,21 +279,18 @@ export function openApi(): Schema {
       description: route.description,
       ...(route.auth === 'signed_in' ? { security: [{ token: [] }] } : {}),
       ...(route.params.length ? { parameters: route.params } : {}),
-      ...(route.body
-        ? { requestBody: { required: true, content: { 'application/json': { schema: ref(route.body) } } } }
-        : {}),
+      ...(content ? { requestBody: { required: true, content } } : {}),
       responses: {
         [route.status]: {
           description: route.summary,
           headers: { 'API-Version': { schema: { type: 'string' }, description: 'This server’s API version.' } },
           ...(route.response ? { content: { 'application/json': { schema: ref(route.response) } } } : {})
         },
-        ...(hasInput ? { '400': errorAnswer(ERRORS.bad_request) } : {}),
-        ...(route.auth === 'signed_in' || route.operationId === 'finishSignIn'
-          ? { '401': errorAnswer(ERRORS.unauthorized) }
-          : {}),
-        ...(route.path.includes('{') ? { '404': errorAnswer(ERRORS.not_found) } : {}),
-        ...(limited ? { '429': errorAnswer(ERRORS.rate_limited) } : {})
+        ...Object.fromEntries(
+          [...errors]
+            .sort((a, b) => STATUS[a] - STATUS[b])
+            .map((code) => [String(STATUS[code]), errorAnswer(ERRORS[code])])
+        )
       }
     };
   }
@@ -215,7 +302,7 @@ export function openApi(): Schema {
       summary: 'The signs, the map and the players of Road Sign Math.',
       description:
         'Every public sign, the ways people found to make it true, the map and who’s playing, read by anyone; ' +
-        'sign-in by email and your own account for the app. ' +
+        'sign-in by email, your own account, and posting signs and ways from the app. ' +
         'Answers are JSON in UTF-8 with snake_case keys and carry an `API-Version` header. ' +
         'A request with a token is never cached. ' +
         'An error is `{"error": {"code", "message"}}`.',

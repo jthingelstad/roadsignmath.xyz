@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { createApp } from '../src/api/app.ts';
 import { API_VERSION, LIMITS, ROUTES } from '../src/api/contract.ts';
 import { MemoryMailer } from '../src/mail/mailer.ts';
+import { MemoryPhotoStore } from '../src/photos.ts';
 import { MemoryStore } from '../src/store/memory.ts';
+import { ScriptedModerator } from './support/moderator.ts';
 import { addPlayer } from '../src/store/store.ts';
 import { ada, ben, sign, way } from './support/fixtures.ts';
 
@@ -54,7 +56,13 @@ async function setup() {
       createdAt: '2026-01-05T00:00:00.000Z'
     })
   );
-  const app = createApp({ store, urls: { site: 'https://example.test' }, mailer: new MemoryMailer() });
+  const app = createApp({
+    store,
+    urls: { site: 'https://example.test' },
+    mailer: new MemoryMailer(),
+    photos: new MemoryPhotoStore(),
+    moderator: new ScriptedModerator()
+  });
   const get = async (path: string) => {
     const res = await app.request(path);
     return { res, body: (await res.json()) as Json };

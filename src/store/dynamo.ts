@@ -7,7 +7,12 @@
 //   PLAYERS             PLAYER#<playerId>           a player
 //   EMAIL#<sha256>      EMAIL                       the player id for an email address
 //   HANDLE#<handle>     HANDLE                      the player id holding a handle
+//   SLUG#<slug>         SLUG                        the sign id holding a slug
+//   SIGN#<signId>       REPORT#<playerId>           a player's report of that sign
 //   PLAYER#<playerId>   SESSION#<sha256>            a signed-in app (expires)
+//   PLAYER#<playerId>   UPLOAD#<photoId>            a photo uploaded, not yet posted (expires)
+//   PLAYER#<playerId>   BLOCK#<playerId>            a player they blocked
+//   PLAYER#<playerId>   POST#<idempotencyKey>       the sign a post's key made (expires)
 //   LOGIN#<loginId>     LOGIN                       a sign-in in progress (expires)
 //   LIMIT#<key>         <windowStart>               a rate-limit count (expires)
 //
@@ -25,8 +30,8 @@ import {
   UpdateCommand,
   type QueryCommandInput
 } from '@aws-sdk/lib-dynamodb';
-import type { Login, Player, Session, Sign, Way } from '../domain/types.ts';
-import { emailHash, nowSeconds, type PlayerChanges, type Store } from './store.ts';
+import type { Block, Login, Player, Report, Session, Sign, Upload, Way } from '../domain/types.ts';
+import { emailHash, nowSeconds, type PlayerChanges, type SignChanges, type Store } from './store.ts';
 
 export const KEY_PREFIXES = [
   'SIGNS',
@@ -38,7 +43,13 @@ export const KEY_PREFIXES = [
   'EMAIL',
   'HANDLE#',
   'HANDLE',
+  'SLUG#',
+  'SLUG',
   'SESSION#',
+  'REPORT#',
+  'UPLOAD#',
+  'BLOCK#',
+  'POST#',
   'LOGIN#',
   'LOGIN',
   'LIMIT#'
@@ -121,13 +132,51 @@ export class DynamoStore implements Store {
     await this.put('SIGNS', `SIGN#${sign.id}`, 'sign', sign);
   }
 
+  async updateSign(id: string, changes: SignChanges): Promise<boolean> {
+    const names: Record<string, string> = {};
+    const values: Record<string, unknown> = {};
+    const sets: string[] = [];
+    const removes: string[] = [];
+    for (const [field, value] of Object.entries(changes)) {
+      if (value === undefined) continue;
+      names[`#${field}`] = field;
+      if (value === null) removes.push(`#${field}`);
+      else {
+        sets.push(`#${field} = :${field}`);
+        values[`:${field}`] = value;
+      }
+    }
+    if (!sets.length && !removes.length) return !!(await this.getSign(id));
+    const update = [sets.length ? `SET ${sets.join(', ')}` : '', removes.length ? `REMOVE ${removes.join(', ')}` : '']
+      .filter(Boolean)
+      .join(' ');
+    return this.when(
+      new UpdateCommand({
+        TableName: this.table,
+        Key: { pk: 'SIGNS', sk: `SIGN#${id}` },
+        UpdateExpression: update,
+        ConditionExpression: 'attribute_exists(pk)',
+        ExpressionAttributeNames: names,
+        ...(Object.keys(values).length ? { ExpressionAttributeValues: values } : {})
+      })
+    );
+  }
+
+  async claimSlug(slug: string, signId: string): Promise<boolean> {
+    return (await this.claim(`SLUG#${slug}`, 'SLUG', 'slug', 'signId', signId)) === signId;
+  }
+
   async deleteSign(id: string): Promise<void> {
-    const ways = await this.query({
-      KeyConditionExpression: 'pk = :pk AND begins_with(sk, :sk)',
-      ExpressionAttributeValues: { ':pk': `SIGN#${id}`, ':sk': 'WAY#' }
-    });
-    for (const w of ways) await this.delete(w.pk as string, w.sk as string);
+    const sign = await this.getSign(id);
+    await this.deletePartition(`SIGN#${id}`);
+    if (sign) await this.unclaim(`SLUG#${sign.slug}`, 'SLUG', 'signId', id);
     await this.delete('SIGNS', `SIGN#${id}`);
+  }
+
+  /** Every row under one pk: a sign's ways and reports, or a player's sessions, uploads and the rest. */
+  private async deletePartition(pk: string): Promise<void> {
+    const items = await this.query({ KeyConditionExpression: 'pk = :pk', ExpressionAttributeValues: { ':pk': pk } });
+    for (const item of items) await this.delete(item.pk as string, item.sk as string);
   }
 
   async listWays(signId: string): Promise<Way[]> {
@@ -203,41 +252,41 @@ export class DynamoStore implements Store {
     );
   }
 
-  /** Points an index row at the player unless another player holds it; returns its holder. */
-  private async claim(pk: string, sk: string, kind: string, playerId: string): Promise<string> {
+  /** Points an index row's `field` at `id` unless another holds it; returns its holder. */
+  private async claim(pk: string, sk: string, kind: string, field: string, id: string): Promise<string> {
     const won = await this.when(
       new PutCommand({
         TableName: this.table,
-        Item: { pk, sk, kind, playerId },
-        ConditionExpression: 'attribute_not_exists(pk) OR playerId = :id',
-        ExpressionAttributeValues: { ':id': playerId }
+        Item: { pk, sk, kind, [field]: id },
+        ConditionExpression: `attribute_not_exists(pk) OR ${field} = :id`,
+        ExpressionAttributeValues: { ':id': id }
       })
     );
-    return won ? playerId : ((await this.get(pk, sk))?.playerId as string);
+    return won ? id : ((await this.get(pk, sk))?.[field] as string);
   }
 
-  /** Deletes an index row only while it still points at the player. */
-  private async unclaim(pk: string, sk: string, playerId: string): Promise<void> {
+  /** Deletes an index row only while its `field` still points at `id`. */
+  private async unclaim(pk: string, sk: string, field: string, id: string): Promise<void> {
     await this.when(
       new DeleteCommand({
         TableName: this.table,
         Key: { pk, sk },
-        ConditionExpression: 'playerId = :id',
-        ExpressionAttributeValues: { ':id': playerId }
+        ConditionExpression: `${field} = :id`,
+        ExpressionAttributeValues: { ':id': id }
       })
     );
   }
 
   async claimEmail(email: string, playerId: string): Promise<string> {
-    return this.claim(`EMAIL#${emailHash(email)}`, 'EMAIL', 'email', playerId);
+    return this.claim(`EMAIL#${emailHash(email)}`, 'EMAIL', 'email', 'playerId', playerId);
   }
 
   async claimHandle(handle: string, playerId: string): Promise<boolean> {
-    return (await this.claim(`HANDLE#${handle}`, 'HANDLE', 'handle', playerId)) === playerId;
+    return (await this.claim(`HANDLE#${handle}`, 'HANDLE', 'handle', 'playerId', playerId)) === playerId;
   }
 
   async releaseHandle(handle: string, playerId: string): Promise<void> {
-    await this.unclaim(`HANDLE#${handle}`, 'HANDLE', playerId);
+    await this.unclaim(`HANDLE#${handle}`, 'HANDLE', 'playerId', playerId);
   }
 
   async playerIdForEmail(email: string): Promise<string | undefined> {
@@ -247,12 +296,8 @@ export class DynamoStore implements Store {
 
   async deletePlayer(id: string): Promise<void> {
     const player = await this.getPlayer(id);
-    const sessions = await this.query({
-      KeyConditionExpression: 'pk = :pk AND begins_with(sk, :sk)',
-      ExpressionAttributeValues: { ':pk': `PLAYER#${id}`, ':sk': 'SESSION#' }
-    });
-    for (const s of sessions) await this.delete(s.pk as string, s.sk as string);
-    if (player?.email) await this.unclaim(`EMAIL#${emailHash(player.email)}`, 'EMAIL', id);
+    await this.deletePartition(`PLAYER#${id}`);
+    if (player?.email) await this.unclaim(`EMAIL#${emailHash(player.email)}`, 'EMAIL', 'playerId', id);
     if (player) await this.releaseHandle(player.handle, id);
     await this.delete('PLAYERS', `PLAYER#${id}`);
   }
@@ -332,5 +377,67 @@ export class DynamoStore implements Store {
       })
     );
     return (out.Attributes as { count: number }).count;
+  }
+
+  async putUpload(upload: Upload): Promise<void> {
+    await this.put(`PLAYER#${upload.playerId}`, `UPLOAD#${upload.photoId}`, 'upload', upload);
+  }
+
+  async getUpload(playerId: string, photoId: string): Promise<Upload | undefined> {
+    return this.live<Upload>(await this.get(`PLAYER#${playerId}`, `UPLOAD#${photoId}`));
+  }
+
+  async deleteUpload(playerId: string, photoId: string): Promise<void> {
+    await this.delete(`PLAYER#${playerId}`, `UPLOAD#${photoId}`);
+  }
+
+  async putReport(report: Report): Promise<void> {
+    await this.put(`SIGN#${report.signId}`, `REPORT#${report.playerId}`, 'report', report);
+  }
+
+  async getReport(signId: string, playerId: string): Promise<Report | undefined> {
+    const item = await this.get(`SIGN#${signId}`, `REPORT#${playerId}`);
+    return item && strip<Report>(item);
+  }
+
+  async deleteReport(signId: string, playerId: string): Promise<void> {
+    await this.delete(`SIGN#${signId}`, `REPORT#${playerId}`);
+  }
+
+  async putBlock(block: Block): Promise<void> {
+    await this.put(`PLAYER#${block.playerId}`, `BLOCK#${block.blockedId}`, 'block', block);
+  }
+
+  async deleteBlock(playerId: string, blockedId: string): Promise<void> {
+    await this.delete(`PLAYER#${playerId}`, `BLOCK#${blockedId}`);
+  }
+
+  async listBlocks(playerId: string): Promise<Block[]> {
+    const items = await this.query({
+      KeyConditionExpression: 'pk = :pk AND begins_with(sk, :sk)',
+      ExpressionAttributeValues: { ':pk': `PLAYER#${playerId}`, ':sk': 'BLOCK#' }
+    });
+    return items.map((i) => strip<Block>(i));
+  }
+
+  async claimPost(playerId: string, key: string, signId: string, seconds: number): Promise<string | undefined> {
+    const now = nowSeconds();
+    const pk = `PLAYER#${playerId}`;
+    const sk = `POST#${key}`;
+    const claimed = await this.when(
+      new PutCommand({
+        TableName: this.table,
+        Item: { pk, sk, kind: 'post', signId, expiresAt: now + seconds },
+        ConditionExpression: 'attribute_not_exists(pk) OR expiresAt <= :now',
+        ExpressionAttributeValues: { ':now': now }
+      })
+    );
+    if (claimed) return undefined;
+    // Expired between the put and the read: say the key is busy rather than claim it twice.
+    return this.live<{ signId: string }>(await this.get(pk, sk))?.signId ?? signId;
+  }
+
+  async releasePost(playerId: string, key: string): Promise<void> {
+    await this.delete(`PLAYER#${playerId}`, `POST#${key}`);
   }
 }

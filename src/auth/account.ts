@@ -2,24 +2,14 @@
 // account with everything it made.
 
 import { fail } from '../api/errors.ts';
+import { text } from '../api/input.ts';
 import { slugify } from '../domain/ids.ts';
 import type { Player } from '../domain/types.ts';
+import type { PhotoStore } from '../photos.ts';
 import type { PlayerChanges, Store } from '../store/store.ts';
 
 export const NAME_MAX = 40;
 export const BIO_MAX = 160;
-
-const CONTROL = /\p{Cc}/u;
-
-function text(raw: unknown, field: string, max: number, min: number): string {
-  if (typeof raw !== 'string') return fail('bad_request', `${field} must be text`);
-  const value = raw.trim().replace(/\s+/g, ' ');
-  if (CONTROL.test(raw.replace(/[\n\t]/g, ' '))) fail('bad_request', `${field} can't hold control characters`);
-  if (value.length < min || value.length > max) {
-    fail('bad_request', min ? `${field} is 1 to ${max} characters` : `${field} is at most ${max} characters`);
-  }
-  return value;
-}
 
 /** Reserves the handle a first name makes: the name's slug, or the slug with -2, -3 and so on. */
 async function reserveHandle(store: Store, player: Player, name: string): Promise<string | undefined> {
@@ -60,25 +50,31 @@ export async function updateMe(store: Store, player: Player, body: Record<string
 }
 
 /**
- * Deletes the player and what they made: the signs they posted (with every way on them), the ways
- * they added to other signs, their place among a sign's finders, their sessions and their email.
+ * Deletes the player and what they made: the signs they posted (with their photos and every way
+ * on them), the ways they added to other signs, their place among a sign's finders, their
+ * reports, and everything kept under them (sessions, uploads, blocks) and their email. Photos
+ * uploaded and never posted go when the bucket clears uploads.
  */
-export async function deleteAccount(store: Store, player: Player): Promise<void> {
+export async function deleteAccount(deps: { store: Store; photos: PhotoStore }, player: Player): Promise<void> {
+  const { store, photos } = deps;
   for (const sign of await store.allSigns()) {
     if (sign.postedBy === player.id) {
       await store.deleteSign(sign.id);
+      for (const photo of sign.photos) await photos.remove(photo.id);
       continue;
     }
+    await store.deleteReport(sign.id, player.id);
     const ways = await store.listWays(sign.id);
     const theirs = ways.filter((w) => w.playerId === player.id);
     const finders = sign.finders.filter((f) => f.playerId !== player.id);
     if (!theirs.length && finders.length === sign.finders.length) continue;
     for (const way of theirs) await store.deleteWay(way);
-    const left = ways.filter((w) => w.playerId !== player.id);
-    const next = { ...sign, finders, wayCount: left.length };
-    if (left[0]) next.firstWay = { text: left[0].text, value: left[0].value };
-    else delete next.firstWay;
-    await store.putSign(next);
+    const left = await store.listWays(sign.id);
+    await store.updateSign(sign.id, {
+      finders,
+      wayCount: left.length,
+      firstWay: left[0] ? { text: left[0].text, value: left[0].value } : null
+    });
   }
   await store.deletePlayer(player.id);
 }

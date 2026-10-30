@@ -62,6 +62,8 @@ export type Sign = {
   /** The first way found, for cards. Missing on a sign posted unsolved. */
   firstWay?: { text: string; value: string };
   wayCount: number;
+  /** Why it is held or hidden, in the moderator's words, for its poster. */
+  moderation?: { note: string; at: string };
 };
 
 export type Way = {
@@ -112,3 +114,27 @@ export type Session = {
   lastUsedAt: string;
   expiresAt: number;
 };
+
+/** A photo uploaded for a post that hasn't been posted yet. Its files wait under uploads/. */
+export type Upload = {
+  playerId: string;
+  photoId: string;
+  width: number;
+  height: number;
+  createdAt: string;
+  expiresAt: number;
+};
+
+/** A player's report of a sign, and what the moderator made of it. One per player per sign. */
+export type Report = {
+  signId: string;
+  playerId: string;
+  reason: string;
+  outcome: 'hidden' | 'kept';
+  /** The moderator's reason. */
+  note: string;
+  createdAt: string;
+};
+
+/** A player who `playerId` doesn't want to see: their signs and ways drop out of reads. */
+export type Block = { playerId: string; blockedId: string; createdAt: string };

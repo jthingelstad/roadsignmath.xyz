@@ -4,6 +4,7 @@
 
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { fail } from '../api/errors.ts';
+import { limit } from '../api/input.ts';
 import { ulid } from '../domain/ids.ts';
 import { AVATAR_COLORS, type Login, type Player, type Session } from '../domain/types.ts';
 import type { Mailer } from '../mail/mailer.ts';
@@ -42,10 +43,6 @@ export function network(ip: string): string {
   if (!ip.includes(':')) return ip;
   const groups = ip.split('::')[0].split(':');
   return `${groups.slice(0, 4).join(':')}::/64`;
-}
-
-async function limit(store: Store, key: string, max: number, seconds: number, now: number, message: string) {
-  if ((await store.bump(key, seconds, now)) > max) fail('rate_limited', message);
 }
 
 export type SignInLink = (loginId: string, token: string) => string;

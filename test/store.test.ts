@@ -2,7 +2,7 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { MemoryStore } from '../src/store/memory.ts';
 import { DynamoStore } from '../src/store/dynamo.ts';
-import { addPlayer, nowSeconds, type Store } from '../src/store/store.ts';
+import { addPlayer, addSign, nowSeconds, type Store } from '../src/store/store.ts';
 import { FakeDynamo } from './support/fake-dynamo.ts';
 import { ada, ben, sign, way } from './support/fixtures.ts';
 
@@ -112,6 +112,97 @@ for (const [name, make] of kinds) {
       await store.putLogin({ ...login, id: 'L2', expiresAt: now - 1 });
       assert.equal(await store.consumeLogin('L2'), false);
       assert.equal(await store.addLoginAttempt('L2'), undefined);
+    });
+
+    test('updateSign changes only the fields given, and null removes one', async () => {
+      const store = make();
+      const a = sign({ id: 'S1', title: 'One' });
+      await store.putSign(a);
+      assert.equal(
+        await store.updateSign('S1', { visibility: 'hidden', moderation: { note: 'No.', at: a.postedAt } }),
+        true
+      );
+      assert.equal(await store.updateSign('S1', { wayCount: 0, firstWay: null }), true);
+      const after = (await store.getSign('S1'))!;
+      const expected = { ...a, visibility: 'hidden', moderation: { note: 'No.', at: a.postedAt }, wayCount: 0 };
+      delete expected.firstWay;
+      assert.deepEqual(after, expected);
+      assert.equal('firstWay' in after, false);
+      assert.equal(await store.updateSign('S1', { moderation: null }), true);
+      assert.equal((await store.getSign('S1'))!.moderation, undefined);
+      assert.equal(await store.updateSign('nope', { wayCount: 1 }), false);
+    });
+
+    test('a slug belongs to the first sign to claim it until that sign is deleted', async () => {
+      const store = make();
+      await addSign(store, sign({ id: 'S1', title: 'One' }));
+      assert.equal(await store.claimSlug('one', 'S2'), false);
+      assert.equal(await store.claimSlug('one', 'S1'), true);
+      await store.deleteSign('S1');
+      assert.equal(await store.claimSlug('one', 'S2'), true);
+    });
+
+    test('uploads, reports, blocks and post keys', async () => {
+      const store = make();
+      const now = nowSeconds();
+      const upload = { playerId: ada.id, photoId: 'p1', width: 4, height: 3, createdAt: 'x', expiresAt: now + 60 };
+      await store.putUpload(upload);
+      await store.putUpload({ ...upload, photoId: 'old', expiresAt: now - 1 });
+      assert.deepEqual(await store.getUpload(ada.id, 'p1'), upload);
+      assert.equal(await store.getUpload(ada.id, 'old'), undefined);
+      await store.deleteUpload(ada.id, 'p1');
+      assert.equal(await store.getUpload(ada.id, 'p1'), undefined);
+
+      const report = {
+        signId: 'S1',
+        playerId: ben.id,
+        reason: 'Spam',
+        outcome: 'kept' as const,
+        note: 'Fine.',
+        createdAt: 'x'
+      };
+      await store.putSign(sign({ id: 'S1', title: 'One' }));
+      await store.putReport(report);
+      assert.deepEqual(await store.getReport('S1', ben.id), report);
+      await store.deleteSign('S1');
+      assert.equal(await store.getReport('S1', ben.id), undefined, 'reports go with their sign');
+
+      await store.putBlock({ playerId: ada.id, blockedId: ben.id, createdAt: 'x' });
+      assert.deepEqual(
+        (await store.listBlocks(ada.id)).map((b) => b.blockedId),
+        [ben.id]
+      );
+      assert.deepEqual(await store.listBlocks(ben.id), []);
+      await store.deleteBlock(ada.id, ben.id);
+      assert.deepEqual(await store.listBlocks(ada.id), []);
+
+      assert.equal(await store.claimPost(ada.id, 'key', 'S1', 60), undefined);
+      assert.equal(await store.claimPost(ada.id, 'key', 'S2', 60), 'S1');
+      assert.equal(await store.claimPost(ben.id, 'key', 'S3', 60), undefined, 'keys are per player');
+      await store.releasePost(ada.id, 'key');
+      assert.equal(await store.claimPost(ada.id, 'key', 'S4', 60), undefined);
+      assert.equal(await store.claimPost(ada.id, 'gone', 'S5', -1), undefined);
+      assert.equal(await store.claimPost(ada.id, 'gone', 'S6', 60), undefined, 'an expired key can be claimed again');
+    });
+
+    test('deleting a player clears what is kept under them', async () => {
+      const store = make();
+      await addPlayer(store, ada);
+      const now = nowSeconds();
+      await store.putUpload({
+        playerId: ada.id,
+        photoId: 'p1',
+        width: 4,
+        height: 3,
+        createdAt: 'x',
+        expiresAt: now + 60
+      });
+      await store.putBlock({ playerId: ada.id, blockedId: ben.id, createdAt: 'x' });
+      await store.claimPost(ada.id, 'key', 'S1', 60);
+      await store.deletePlayer(ada.id);
+      assert.equal(await store.getUpload(ada.id, 'p1'), undefined);
+      assert.deepEqual(await store.listBlocks(ada.id), []);
+      assert.equal(await store.claimPost(ada.id, 'key', 'S2', 60), undefined);
     });
 
     test('a way can be deleted on its own', async () => {

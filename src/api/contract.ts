@@ -6,7 +6,7 @@
  * Bump on every change to the surface. tools/export-api-contract.ts refuses a changed surface
  * under a version already in contracts/api-versions.json.
  */
-export const API_VERSION = '1.1.0';
+export const API_VERSION = '1.2.0';
 
 export const LIMITS = {
   /** Signs per page of the feed. */
@@ -17,22 +17,42 @@ export const LIMITS = {
   /** How far "Nobody has posted this sign yet" looks, in miles. */
   similarMiles: 2,
   /** Numbers a similar-sign question may send. */
-  similarNumbersMax: 30
+  similarNumbersMax: 30,
+  /** Posting. */
+  photosMax: 4,
+  photoBytes: 4 * 1024 * 1024,
+  titleMax: 60,
+  captionMax: 500,
+  placeMax: 120,
+  numbersMax: 30,
+  findersMax: 6,
+  wayMax: 400,
+  reportMax: 300,
+  /** Seconds an upload waits to be posted, and an Idempotency-Key is remembered. */
+  uploadTtl: 86400,
+  /** Tries a day per player. */
+  uploadsADay: 60,
+  postsADay: 20,
+  waysADay: 100,
+  reportsADay: 20
 } as const;
 
 export const ERRORS = {
   bad_request: 'A parameter or the body is missing or out of range; the message says which.',
   unauthorized: 'No token, a token that has ended, or a sign-in code that is wrong or too old.',
   not_found: 'No such route, sign or player.',
+  conflict: 'It already exists (that way was found), or the same post is still being made.',
+  too_large: `The photo is over ${LIMITS.photoBytes / 1024 / 1024} MB.`,
   rate_limited: 'Too many tries for now; the message says when to try again.',
-  internal: 'Something broke on the server.'
+  internal: 'Something broke on the server.',
+  unavailable: 'The moderator couldn’t look just now; try again in a minute.'
 } as const;
 
 export type ErrorCode = keyof typeof ERRORS;
 
 export type Param = {
   name: string;
-  in: 'path' | 'query';
+  in: 'path' | 'query' | 'header';
   required: boolean;
   description: string;
   schema: Record<string, unknown>;
@@ -50,7 +70,11 @@ export type Route = {
   auth: 'public' | 'signed_in';
   /** The JSON body's schema name in openapi.ts, when it takes one. */
   body?: string;
-  status: 200 | 202 | 204;
+  /** The media types of a raw body (a photo), instead of JSON. */
+  bodyMedia?: string[];
+  /** Errors beyond the ones every route of its kind can give. */
+  errors?: ErrorCode[];
+  status: 200 | 201 | 202 | 204;
   /** The answer's schema name in openapi.ts; none for 204. */
   response?: string;
 };
@@ -68,6 +92,21 @@ const lng: Param = {
   required: true,
   description: 'Longitude in degrees.',
   schema: { type: 'number', minimum: -180, maximum: 180 }
+};
+
+const signId: Param = {
+  name: 'id',
+  in: 'path',
+  required: true,
+  description: 'The sign’s id or slug.',
+  schema: { type: 'string' }
+};
+const handle: Param = {
+  name: 'handle',
+  in: 'path',
+  required: true,
+  description: 'The player’s handle.',
+  schema: { type: 'string' }
 };
 
 export const ROUTES: Route[] = [
@@ -164,15 +203,7 @@ export const ROUTES: Route[] = [
     summary: 'One sign and its ways',
     description:
       'By id or by slug. The ways are oldest first; the first is the poster’s, unless it was posted unsolved.',
-    params: [
-      {
-        name: 'id',
-        in: 'path',
-        required: true,
-        description: 'The sign’s id or slug.',
-        schema: { type: 'string' }
-      }
-    ],
+    params: [signId],
     auth: 'public',
     status: 200,
     response: 'SignDetail'
@@ -205,15 +236,7 @@ export const ROUTES: Route[] = [
     path: '/players/{handle}',
     summary: 'One player and their signs',
     description: 'A player’s signs are the ones they found, newest first.',
-    params: [
-      {
-        name: 'handle',
-        in: 'path',
-        required: true,
-        description: 'The player’s handle.',
-        schema: { type: 'string' }
-      }
-    ],
+    params: [handle],
     auth: 'public',
     status: 200,
     response: 'PlayerDetail'
@@ -230,6 +253,7 @@ export const ROUTES: Route[] = [
     params: [],
     auth: 'public',
     body: 'SignInStart',
+    errors: ['rate_limited'],
     status: 202,
     response: 'SignInStarted'
   },
@@ -245,6 +269,7 @@ export const ROUTES: Route[] = [
     params: [],
     auth: 'public',
     body: 'SignInFinish',
+    errors: ['rate_limited'],
     status: 200,
     response: 'SignedIn'
   },
@@ -292,6 +317,122 @@ export const ROUTES: Route[] = [
       'Deletes your account and everything it made: the signs you posted (with every way on them), the ways ' +
       'you found on other signs, your name among a sign’s finders, and your email. It can’t be undone.',
     params: [],
+    auth: 'signed_in',
+    status: 204
+  },
+  {
+    operationId: 'listBlocks',
+    method: 'get',
+    path: '/me/blocks',
+    summary: 'Players you blocked',
+    description: 'Their signs and ways are left out of everything you read.',
+    params: [],
+    auth: 'signed_in',
+    status: 200,
+    response: 'Blocks'
+  },
+  {
+    operationId: 'uploadPhoto',
+    method: 'post',
+    path: '/photos',
+    summary: 'Upload a photo for a post',
+    description:
+      `The body is the photo itself, JPEG, PNG or WebP, at most ${LIMITS.photoBytes / 1024 / 1024} MB. ` +
+      'It is kept at two sizes with its metadata (and so its location) removed. Send the answer’s `id` ' +
+      `in \`photo_ids\` when posting, within a day. At most ${LIMITS.uploadsADay} a day.`,
+    params: [],
+    auth: 'signed_in',
+    bodyMedia: ['image/jpeg', 'image/png', 'image/webp'],
+    errors: ['too_large', 'rate_limited'],
+    status: 201,
+    response: 'Upload'
+  },
+  {
+    operationId: 'postSign',
+    method: 'post',
+    path: '/signs',
+    summary: 'Post a sign',
+    description:
+      'Posts the uploaded photos with the numbers you checked, where and when you found it, who found it ' +
+      '(you, unless you say), and optionally the first way to make it true. Without a way it is posted ' +
+      'unsolved. Our moderator looks first: a post that is clearly objectionable is held, and only you see ' +
+      'it, with `moderation_note` saying why. The moderator also writes each photo’s alt text. You need a ' +
+      `name first. At most ${LIMITS.postsADay} a day.`,
+    params: [
+      {
+        name: 'Idempotency-Key',
+        in: 'header',
+        required: false,
+        description:
+          'Any 8 to 128 letters, digits, - or _. Sending the same post again with the same key gives back ' +
+          'the sign it made instead of a second one, for a day.',
+        schema: { type: 'string', pattern: '^[A-Za-z0-9_-]{8,128}$' }
+      }
+    ],
+    auth: 'signed_in',
+    body: 'SignPost',
+    errors: ['conflict', 'rate_limited', 'unavailable'],
+    status: 201,
+    response: 'SignDetail'
+  },
+  {
+    operationId: 'deleteSign',
+    method: 'delete',
+    path: '/signs/{id}',
+    summary: 'Delete a sign you posted',
+    description: 'Removes the sign, its photos and every way on it.',
+    params: [signId],
+    auth: 'signed_in',
+    status: 204
+  },
+  {
+    operationId: 'addWay',
+    method: 'post',
+    path: '/signs/{id}/ways',
+    summary: 'Add another way to make a sign true',
+    description:
+      'The math must be true, and every number in it must be one of the sign’s numbers, each used no more ' +
+      'often than the sign shows it. A way someone already found is a conflict. Answers with the sign and ' +
+      `all its ways. You need a name first. At most ${LIMITS.waysADay} a day.`,
+    params: [signId],
+    auth: 'signed_in',
+    body: 'WayPost',
+    errors: ['conflict', 'rate_limited'],
+    status: 201,
+    response: 'SignDetail'
+  },
+  {
+    operationId: 'reportSign',
+    method: 'post',
+    path: '/signs/{id}/report',
+    summary: 'Report a sign',
+    description:
+      'Our moderator looks at the sign again with your reason, and hides it if it agrees it is objectionable. ' +
+      `One report per sign; sending another gives back the first answer. At most ${LIMITS.reportsADay} a day.`,
+    params: [signId],
+    auth: 'signed_in',
+    body: 'ReportPost',
+    errors: ['rate_limited', 'unavailable'],
+    status: 200,
+    response: 'ReportOutcome'
+  },
+  {
+    operationId: 'blockPlayer',
+    method: 'post',
+    path: '/players/{handle}/block',
+    summary: 'Block a player',
+    description: 'Their signs and ways are left out of everything you read. They aren’t told.',
+    params: [handle],
+    auth: 'signed_in',
+    status: 204
+  },
+  {
+    operationId: 'unblockPlayer',
+    method: 'delete',
+    path: '/players/{handle}/block',
+    summary: 'Unblock a player',
+    description: 'Their signs and ways come back.',
+    params: [handle],
     auth: 'signed_in',
     status: 204
   }

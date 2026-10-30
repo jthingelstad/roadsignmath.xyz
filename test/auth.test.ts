@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { createApp } from '../src/api/app.ts';
 import { LIMITS, MAX_CODE_ATTEMPTS, network } from '../src/auth/auth.ts';
 import { MemoryMailer } from '../src/mail/mailer.ts';
+import { MemoryPhotoStore } from '../src/photos.ts';
 import { MemoryStore } from '../src/store/memory.ts';
+import { ScriptedModerator } from './support/moderator.ts';
 import { addPlayer } from '../src/store/store.ts';
 import { ada, ben, sign, way } from './support/fixtures.ts';
 
@@ -13,7 +15,14 @@ type Json = Record<string, any>;
 function setup(store = new MemoryStore()) {
   const mailer = new MemoryMailer();
   let ip = '192.0.2.1';
-  const app = createApp({ store, urls: { site: 'https://example.test' }, mailer, clientIp: () => ip });
+  const app = createApp({
+    store,
+    urls: { site: 'https://example.test' },
+    mailer,
+    photos: new MemoryPhotoStore(),
+    moderator: new ScriptedModerator(),
+    clientIp: () => ip
+  });
   const call = async (method: string, path: string, body?: unknown, token?: string) => {
     const headers: Record<string, string> = {};
     if (body !== undefined) headers['content-type'] = 'application/json';

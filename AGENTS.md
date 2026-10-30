@@ -14,8 +14,13 @@ ids or ARNs, local paths, or photos of plates or faces that weren't meant to be 
   the sign's checked numbers, each used no more often than the sign shows it. Using every
   number is encouraged, not required. `src/domain/equation.ts` is the checker;
   `contracts/equation-vectors.json` holds the cases the server and the iPhone app both pass.
-- **Public reads, signed-in writes.** Only `shown` signs are public. A player's email never
-  leaves the server.
+- **Public reads, signed-in writes.** Only `shown` signs are public; a player also sees their
+  own held and hidden signs. A player's email never leaves the server.
+- **Moderation is Claude's alone** (`src/moderation/`). No person reviews posts. Claude holds a
+  post only when it is clearly objectionable, looks again when a player reports one (hiding it
+  if it agrees), and writes each photo's alt text in the same call. A block hides a player's
+  signs and ways from the one who blocked them. What counts as objectionable (`POLICY`) is the
+  owner's call: change its words only with the owner's go.
 - Product calls (what counts, moderation, what players are promised, who sees what) are the
   owner's. Ship the factual fix and ask about the policy half.
 
@@ -28,7 +33,9 @@ ids or ARNs, local paths, or photos of plates or faces that weren't meant to be 
 | `src/api/` | `/api/v1` on Hono. `contract.ts` is the route table, limits and errors; `openapi.ts` describes it; `views.ts` makes the JSON. |
 | `src/auth/` | Sign-in by email (link or code), tokens, and the account: name, bio, delete. |
 | `src/mail/` | `Mailer`: SES live, files in `.data/mail/` for `npm run dev`, memory in tests. |
-| `src/photos.ts` | The two served sizes of a photo (1600 and 480 px JPEGs, no metadata). |
+| `src/posting/` | Uploads, posting a sign, ways, deleting, reports and blocks. |
+| `src/moderation/` | `Moderator`: Claude live (`claude-haiku-5-5`), lets everything through in `npm run dev` without a key. |
+| `src/photos.ts` | The two served sizes of a photo (1600 and 480 px JPEGs, no metadata) and `PhotoStore`: S3 live, `.data/` for `npm run dev`, memory in tests. |
 | `src/seed/` | Builds the launch set from the micro.blog export and `seed/microblog.json`. |
 | `src/dev.ts` | The local server on port 8787, reading `.data/` (ignored by git). |
 | `seed/microblog.json` | The 16 micro.blog signs: titles, finders, numbers, places, alt text. |
@@ -48,12 +55,18 @@ and filtered in memory; at this size that is cheaper and simpler than indexes.
 | `PLAYERS` | `PLAYER#<playerId>` | a player |
 | `EMAIL#<sha256>` | `EMAIL` | the player id for an email address |
 | `HANDLE#<handle>` | `HANDLE` | the player id holding a handle |
+| `SLUG#<slug>` | `SLUG` | the sign id holding a slug |
+| `SIGN#<signId>` | `REPORT#<playerId>` | a player's report of that sign |
 | `PLAYER#<playerId>` | `SESSION#<sha256>` | a signed-in app (expires) |
+| `PLAYER#<playerId>` | `UPLOAD#<photoId>` | a photo uploaded, not yet posted (expires) |
+| `PLAYER#<playerId>` | `BLOCK#<playerId>` | a player they blocked |
+| `PLAYER#<playerId>` | `POST#<idempotencyKey>` | the sign a post's key made (expires) |
 | `LOGIN#<loginId>` | `LOGIN` | a sign-in in progress (expires) |
 | `LIMIT#<key>` | `<windowStart>` | a rate-limit count (expires) |
 
-The email and handle rows are claimed with conditional writes, so two requests at once can't
-give one address two players or two players one handle. Rows that expire carry `expiresAt` (epoch seconds) for the table's TTL, and every read checks
+The email, handle and slug rows are claimed with conditional writes, so two requests at once
+can't give one address two players, or one handle or slug to two. A sign changes field by field
+(`updateSign`), so a new way can't undo a report's hide. Rows that expire carry `expiresAt` (epoch seconds) for the table's TTL, and every read checks
 it too, since TTL deletes late. `test/docs.test.ts` checks this table against
 `src/store/dynamo.ts`.
 
@@ -70,8 +83,12 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
   sets the handle, which never changes after. Limits are in `src/auth/auth.ts`.
 - A request with an `Authorization` header is never cached, and a bad token is a 401 even on
   a public read.
-- `DELETE /me` removes the player, the signs they posted, their ways on other signs and their
-  place in other signs' finders.
+- `DELETE /me` removes the player, the signs they posted (with their photos), their ways and
+  reports on other signs, and their place in other signs' finders.
+- **Posting** (`src/posting/`): `POST /photos` takes the photo itself and keeps it under
+  `uploads/` for a day; `POST /signs` posts up to four of them. An `Idempotency-Key` makes a
+  retried post one sign. A post or report the moderator can't answer is a 503 and changes
+  nothing. Daily limits are in `LIMITS` in `src/api/contract.ts`.
 
 ## The launch set
 

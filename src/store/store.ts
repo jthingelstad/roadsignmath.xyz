@@ -1,7 +1,16 @@
 import { createHash } from 'node:crypto';
-import type { Login, Player, Session, Sign, Way } from '../domain/types.ts';
+import type { Block, Login, Player, Report, Session, Sign, Upload, Way } from '../domain/types.ts';
 
 export type PlayerChanges = { name?: string; handle?: string; bio?: string | null };
+
+/** The sign fields that change after posting; null removes one. */
+export type SignChanges = {
+  visibility?: Sign['visibility'];
+  finders?: Sign['finders'];
+  wayCount?: number;
+  firstWay?: Sign['firstWay'] | null;
+  moderation?: Sign['moderation'] | null;
+};
 
 /**
  * Where signs, ways and players live. Two versions: MemoryStore (tests and `npm run dev`) and
@@ -12,7 +21,14 @@ export interface Store {
   allSigns(): Promise<Sign[]>;
   getSign(id: string): Promise<Sign | undefined>;
   putSign(sign: Sign): Promise<void>;
-  /** Removes the sign and its ways. */
+  /**
+   * Changes some of a sign's fields in place, so a new way can't undo a report's hide or the
+   * other way round. False when the sign is gone.
+   */
+  updateSign(id: string, changes: SignChanges): Promise<boolean>;
+  /** Reserves a slug for the sign; false when another sign has it. */
+  claimSlug(slug: string, signId: string): Promise<boolean>;
+  /** Removes the sign, its ways, its reports and its slug. */
   deleteSign(id: string): Promise<void>;
   /** Oldest first. */
   listWays(signId: string): Promise<Way[]>;
@@ -36,8 +52,9 @@ export interface Store {
   /** Frees the handle if this player holds it. */
   releaseHandle(handle: string, playerId: string): Promise<void>;
   /**
-   * Removes the player, their email and handle (when they still point at this player) and their
-   * sessions. Signs and ways are the caller's.
+   * Removes the player, their email and handle (when they still point at this player), and
+   * everything kept under them: sessions, uploads, blocks and post keys. Signs, ways and
+   * reports are the caller's.
    */
   deletePlayer(id: string): Promise<void>;
 
@@ -60,12 +77,38 @@ export interface Store {
    * count so far. Windows start on multiples of `seconds`.
    */
   bump(key: string, seconds: number, now: number): Promise<number>;
+
+  putUpload(upload: Upload): Promise<void>;
+  /** Missing once it has expired. */
+  getUpload(playerId: string, photoId: string): Promise<Upload | undefined>;
+  deleteUpload(playerId: string, photoId: string): Promise<void>;
+
+  putReport(report: Report): Promise<void>;
+  getReport(signId: string, playerId: string): Promise<Report | undefined>;
+  deleteReport(signId: string, playerId: string): Promise<void>;
+
+  putBlock(block: Block): Promise<void>;
+  deleteBlock(playerId: string, blockedId: string): Promise<void>;
+  listBlocks(playerId: string): Promise<Block[]>;
+
+  /**
+   * Claims a post's Idempotency-Key for a sign id, for `seconds`. Returns undefined when this
+   * call made the claim, or the sign id of the live claim already there.
+   */
+  claimPost(playerId: string, key: string, signId: string, seconds: number): Promise<string | undefined>;
+  releasePost(playerId: string, key: string): Promise<void>;
 }
 
 export const nowSeconds = (): number => Math.floor(Date.now() / 1000);
 
 export const normalizeEmail = (email: string): string => email.trim().toLowerCase();
 export const emailHash = (email: string): string => createHash('sha256').update(normalizeEmail(email)).digest('hex');
+
+/** For seeding and tests: claims the sign's slug, then writes the row. */
+export async function addSign(store: Store, sign: Sign): Promise<void> {
+  if (!(await store.claimSlug(sign.slug, sign.id))) throw new Error(`slug ${sign.slug} is taken`);
+  await store.putSign(sign);
+}
 
 /** For seeding and tests: claims the player's handle and email, then writes the row. */
 export async function addPlayer(store: Store, player: Player): Promise<void> {

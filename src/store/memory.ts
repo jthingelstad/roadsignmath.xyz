@@ -1,5 +1,13 @@
-import type { Login, Player, Session, Sign, Way } from '../domain/types.ts';
-import { addPlayer, emailHash, nowSeconds, type PlayerChanges, type Store } from './store.ts';
+import type { Block, Login, Player, Report, Session, Sign, Upload, Way } from '../domain/types.ts';
+import {
+  addPlayer,
+  addSign,
+  emailHash,
+  nowSeconds,
+  type PlayerChanges,
+  type SignChanges,
+  type Store
+} from './store.ts';
 
 const copy = <T>(value: T): T => structuredClone(value);
 
@@ -9,9 +17,14 @@ export class MemoryStore implements Store {
   private players = new Map<string, Player>();
   private emails = new Map<string, string>();
   private handles = new Map<string, string>();
+  private slugs = new Map<string, string>();
   private logins = new Map<string, Login>();
   private sessions = new Map<string, Session>();
   private counters = new Map<string, number>();
+  private uploads = new Map<string, Upload>();
+  private reports = new Map<string, Report>();
+  private blocks = new Map<string, Block>();
+  private claims = new Map<string, { signId: string; expiresAt: number }>();
 
   async allSigns(): Promise<Sign[]> {
     return [...this.signs.values()].map(copy);
@@ -26,9 +39,27 @@ export class MemoryStore implements Store {
     this.signs.set(sign.id, copy(sign));
   }
 
+  async updateSign(id: string, changes: SignChanges): Promise<boolean> {
+    const sign = this.signs.get(id);
+    if (!sign) return false;
+    for (const [field, value] of Object.entries(copy(changes))) {
+      if (value === null) delete (sign as Record<string, unknown>)[field];
+      else if (value !== undefined) (sign as Record<string, unknown>)[field] = value;
+    }
+    return true;
+  }
+
+  async claimSlug(slug: string, signId: string): Promise<boolean> {
+    if (!this.slugs.has(slug)) this.slugs.set(slug, signId);
+    return this.slugs.get(slug) === signId;
+  }
+
   async deleteSign(id: string): Promise<void> {
+    const sign = this.signs.get(id);
+    if (sign && this.slugs.get(sign.slug) === id) this.slugs.delete(sign.slug);
     this.signs.delete(id);
     this.ways.delete(id);
+    for (const [key, report] of this.reports) if (report.signId === id) this.reports.delete(key);
   }
 
   async listWays(signId: string): Promise<Way[]> {
@@ -95,7 +126,10 @@ export class MemoryStore implements Store {
     if (player?.email && this.emails.get(emailHash(player.email)) === id) this.emails.delete(emailHash(player.email));
     if (player) await this.releaseHandle(player.handle, id);
     this.players.delete(id);
-    for (const [key, session] of this.sessions) if (session.playerId === id) this.sessions.delete(key);
+    const prefix = `${id}/`;
+    for (const map of [this.sessions, this.uploads, this.blocks, this.claims]) {
+      for (const key of map.keys()) if (key.startsWith(prefix)) map.delete(key);
+    }
   }
 
   async putLogin(login: Login): Promise<void> {
@@ -145,6 +179,57 @@ export class MemoryStore implements Store {
     return count;
   }
 
+  async putUpload(upload: Upload): Promise<void> {
+    this.uploads.set(`${upload.playerId}/${upload.photoId}`, copy(upload));
+  }
+
+  async getUpload(playerId: string, photoId: string): Promise<Upload | undefined> {
+    const upload = this.uploads.get(`${playerId}/${photoId}`);
+    return upload && upload.expiresAt > nowSeconds() ? copy(upload) : undefined;
+  }
+
+  async deleteUpload(playerId: string, photoId: string): Promise<void> {
+    this.uploads.delete(`${playerId}/${photoId}`);
+  }
+
+  async putReport(report: Report): Promise<void> {
+    this.reports.set(`${report.signId}/${report.playerId}`, copy(report));
+  }
+
+  async getReport(signId: string, playerId: string): Promise<Report | undefined> {
+    const report = this.reports.get(`${signId}/${playerId}`);
+    return report && copy(report);
+  }
+
+  async deleteReport(signId: string, playerId: string): Promise<void> {
+    this.reports.delete(`${signId}/${playerId}`);
+  }
+
+  async putBlock(block: Block): Promise<void> {
+    this.blocks.set(`${block.playerId}/${block.blockedId}`, copy(block));
+  }
+
+  async deleteBlock(playerId: string, blockedId: string): Promise<void> {
+    this.blocks.delete(`${playerId}/${blockedId}`);
+  }
+
+  async listBlocks(playerId: string): Promise<Block[]> {
+    return [...this.blocks.values()].filter((b) => b.playerId === playerId).map(copy);
+  }
+
+  async claimPost(playerId: string, key: string, signId: string, seconds: number): Promise<string | undefined> {
+    const k = `${playerId}/${key}`;
+    const now = nowSeconds();
+    const held = this.claims.get(k);
+    if (held && held.expiresAt > now) return held.signId;
+    this.claims.set(k, { signId, expiresAt: now + seconds });
+    return undefined;
+  }
+
+  async releasePost(playerId: string, key: string): Promise<void> {
+    this.claims.delete(`${playerId}/${key}`);
+  }
+
   /** For `npm run dev`: everything, to save between runs. */
   snapshot(): { signs: Sign[]; ways: Way[]; players: Player[] } {
     return {
@@ -157,7 +242,7 @@ export class MemoryStore implements Store {
   static async from(data: { signs: Sign[]; ways: Way[]; players: Player[] }): Promise<MemoryStore> {
     const store = new MemoryStore();
     for (const p of data.players) await addPlayer(store, p);
-    for (const s of data.signs) await store.putSign(s);
+    for (const s of data.signs) await addSign(store, s);
     for (const w of data.ways) await store.putWay(w);
     return store;
   }
