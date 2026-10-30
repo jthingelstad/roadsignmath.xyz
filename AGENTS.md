@@ -15,7 +15,7 @@ ids or ARNs, local paths, or photos of plates or faces that weren't meant to be 
   number is encouraged, not required. `src/domain/equation.ts` is the checker;
   `contracts/equation-vectors.json` holds the cases the server and the iPhone app both pass,
   including each way's LaTeX (`tex`): ÷ is a stacked fraction. The site draws it as SVG with
-  MathJax on the server (`src/web/math.ts`); the app draws the same math natively in SwiftUI
+  MathJax on the server (`src/web/math.ts`); the app draws the same LaTeX with SwiftMath
   and checks its own LaTeX writer against these vectors.
 - **Public reads, signed-in writes.** Only `shown` signs are public; a player also sees their
   own held and hidden signs. A player's email never leaves the server.
