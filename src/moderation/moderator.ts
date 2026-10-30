@@ -98,35 +98,46 @@ function described(post: Post, extra?: Record<string, string>): string {
   });
 }
 
+/**
+ * How long one review may take, retry included. The live web function has 28 seconds a request
+ * (infra/template.yaml); after this the post still has time to give back its claims and answer
+ * 503, instead of the platform cutting it off with a 504.
+ */
+export const DEADLINE_MS = 20_000;
+
 /** The live moderator: Claude, one call per post or report. */
 export class ClaudeModerator implements Moderator {
   private readonly client: Anthropic;
 
   constructor(apiKey: string, client?: Anthropic) {
-    this.client = client ?? new Anthropic({ apiKey, maxRetries: 2, timeout: 60_000 });
+    this.client = client ?? new Anthropic({ apiKey, maxRetries: 1, timeout: DEADLINE_MS });
   }
 
   private async ask(system: string, schema: Record<string, unknown>, post: Post, text: string): Promise<unknown> {
     let message: Anthropic.Message;
     try {
-      message = await this.client.messages.create({
-        model: MODEL,
-        max_tokens: 4000,
-        system,
-        output_config: { effort: 'low', format: { type: 'json_schema', schema } },
-        messages: [
-          {
-            role: 'user',
-            content: [
-              ...post.photos.map((photo) => ({
-                type: 'image' as const,
-                source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: photo.toString('base64') }
-              })),
-              { type: 'text' as const, text }
-            ]
-          }
-        ]
-      });
+      message = await this.client.messages.create(
+        {
+          model: MODEL,
+          max_tokens: 4000,
+          system,
+          output_config: { effort: 'low', format: { type: 'json_schema', schema } },
+          messages: [
+            {
+              role: 'user',
+              content: [
+                ...post.photos.map((photo) => ({
+                  type: 'image' as const,
+                  source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: photo.toString('base64') }
+                })),
+                { type: 'text' as const, text }
+              ]
+            }
+          ]
+        },
+        // The whole call, retry included; an abort is an APIError like any other.
+        { signal: AbortSignal.timeout(DEADLINE_MS) }
+      );
     } catch (err) {
       if (err instanceof Anthropic.APIError) throw new ModeratorUnavailable(err.message);
       throw err;

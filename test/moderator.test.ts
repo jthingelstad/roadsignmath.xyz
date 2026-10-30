@@ -1,23 +1,32 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import Anthropic from '@anthropic-ai/sdk';
-import { ClaudeModerator, MODEL, ModeratorUnavailable, POLICY, type Post } from '../src/moderation/moderator.ts';
+import {
+  ClaudeModerator,
+  DEADLINE_MS,
+  MODEL,
+  ModeratorUnavailable,
+  POLICY,
+  type Post
+} from '../src/moderation/moderator.ts';
 
 // oxlint-disable-next-line no-explicit-any -- the fake answers loosely
 type Json = Record<string, any>;
 
 function fake(answer: Json | (() => never)) {
   const requests: Json[] = [];
+  const options: Json[] = [];
   const client = {
     messages: {
-      create: async (request: Json) => {
+      create: async (request: Json, given: Json) => {
         requests.push(request);
+        options.push(given);
         if (typeof answer === 'function') return answer();
         return answer;
       }
     }
   } as unknown as Anthropic;
-  return { moderator: new ClaudeModerator('test-key', client), requests };
+  return { moderator: new ClaudeModerator('test-key', client), requests, options };
 }
 
 const reply = (text: string, stop_reason = 'end_turn') => ({
@@ -81,8 +90,19 @@ test('an answer cut short, unreadable, or an API error means try again later', a
     throw new Anthropic.APIError(529, undefined, 'Overloaded', undefined);
   };
   await assert.rejects(fake(down).moderator.reviewPost(post), ModeratorUnavailable);
+  const stalled = () => {
+    throw new Anthropic.APIUserAbortError();
+  };
+  await assert.rejects(fake(stalled).moderator.reviewPost(post), ModeratorUnavailable);
   const bug = () => {
     throw new TypeError('a bug of ours');
   };
   await assert.rejects(fake(bug).moderator.reviewPost(post), TypeError);
+});
+
+test('a review gives up within the web request budget, retry included', async () => {
+  const { moderator, options } = fake(reply(JSON.stringify({ verdict: 'ok', reason: '', alt: [] })));
+  await moderator.reviewPost({ ...post, photos: [] });
+  assert.ok(options[0]?.signal instanceof AbortSignal);
+  assert.ok(DEADLINE_MS <= 20_000, 'leaves the 28-second request time to give the claims back');
 });

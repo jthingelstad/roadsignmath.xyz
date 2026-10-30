@@ -25,8 +25,11 @@ Parameters:
     Type: String
     Default: roadsignmath.xyz
     AllowedValues: [roadsignmath.xyz]
+  # A plain string: an AWS-specific parameter type is checked with the caller's own Route 53
+  # reads, which the deploy role does not have.
   HostedZoneId:
-    Type: AWS::Route53::HostedZone::Id
+    Type: String
+    AllowedPattern: '^Z[A-Z0-9]+$'
     Description: The roadsignmath.xyz zone (projects-sysadmin's dns-roadsignmath-xyz stack). The certificate's validation records go here; scripts/release.sh reads it from that stack.
   FromAddress:
     Type: String
@@ -107,6 +110,8 @@ Resources:
         RuntimeConfig: { Runtime: nodejs24.x }
       ServiceConfig:
         ExecutionRoleArn: !GetAtt WebRole.Arn
+        # Under CloudFront's 30-second origin wait. The moderator gives up after 20 (DEADLINE_MS
+        # in src/moderation/moderator.ts), so a stalled review still answers 503.
         TimeoutSeconds: 28
         MaxConcurrencyPerEnvironment: !Ref WebMaxConcurrency
         EnvironmentVariables:
