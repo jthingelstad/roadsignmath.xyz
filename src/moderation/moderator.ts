@@ -98,35 +98,46 @@ function described(post: Post, extra?: Record<string, string>): string {
   });
 }
 
+/**
+ * How long one review may take, retry included. The live web function has 28 seconds a request
+ * (infra/template.yaml); after this the post still has time to give back its claims and answer
+ * 503, instead of the platform cutting it off with a 504.
+ */
+export const DEADLINE_MS = 20_000;
+
 /** The live moderator: Claude, one call per post or report. */
 export class ClaudeModerator implements Moderator {
   private readonly client: Anthropic;
 
   constructor(apiKey: string, client?: Anthropic) {
-    this.client = client ?? new Anthropic({ apiKey, maxRetries: 2, timeout: 60_000 });
+    this.client = client ?? new Anthropic({ apiKey, maxRetries: 1, timeout: DEADLINE_MS });
   }
 
   private async ask(system: string, schema: Record<string, unknown>, post: Post, text: string): Promise<unknown> {
     let message: Anthropic.Message;
     try {
-      message = await this.client.messages.create({
-        model: MODEL,
-        max_tokens: 4000,
-        system,
-        output_config: { effort: 'low', format: { type: 'json_schema', schema } },
-        messages: [
-          {
-            role: 'user',
-            content: [
-              ...post.photos.map((photo) => ({
-                type: 'image' as const,
-                source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: photo.toString('base64') }
-              })),
-              { type: 'text' as const, text }
-            ]
-          }
-        ]
-      });
+      message = await this.client.messages.create(
+        {
+          model: MODEL,
+          max_tokens: 4000,
+          system,
+          output_config: { effort: 'low', format: { type: 'json_schema', schema } },
+          messages: [
+            {
+              role: 'user',
+              content: [
+                ...post.photos.map((photo) => ({
+                  type: 'image' as const,
+                  source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: photo.toString('base64') }
+                })),
+                { type: 'text' as const, text }
+              ]
+            }
+          ]
+        },
+        // The whole call, retry included; an abort is an APIError like any other.
+        { signal: AbortSignal.timeout(DEADLINE_MS) }
+      );
     } catch (err) {
       if (err instanceof Anthropic.APIError) throw new ModeratorUnavailable(err.message);
       throw err;
@@ -155,6 +166,44 @@ export class ClaudeModerator implements Moderator {
     const answer = (await this.ask(REPORT_PROMPT, REPORT_SCHEMA, post, text)) as ReportVerdict | undefined;
     if (!answer) return { verdict: 'hide', reason: 'Our moderator couldn’t review this post.' };
     return answer;
+  }
+}
+
+/**
+ * The live server's moderator, whose key is read when the first post or report needs it and kept
+ * once found. Until there is a key it is unavailable, so posting answers 503 and changes nothing.
+ * A failed read is tried again at the next post.
+ */
+export class KeyedModerator implements Moderator {
+  private live?: Promise<Moderator>;
+
+  constructor(
+    private readonly key: () => Promise<string | undefined>,
+    private readonly make: (key: string) => Moderator = (key) => new ClaudeModerator(key)
+  ) {}
+
+  private async moderator(): Promise<Moderator> {
+    this.live ??= this.key().then((key) => {
+      if (!key) throw new ModeratorUnavailable('The moderator has no key yet');
+      return this.make(key);
+    });
+    try {
+      return await this.live;
+    } catch (err) {
+      this.live = undefined;
+      if (err instanceof ModeratorUnavailable) throw err;
+      // The error's name only: a message from reading the secret is never logged.
+      console.error({ event: 'moderator-key', outcome: (err as Error).name });
+      throw new ModeratorUnavailable('The moderator key could not be read');
+    }
+  }
+
+  async reviewPost(post: Post): Promise<PostVerdict> {
+    return (await this.moderator()).reviewPost(post);
+  }
+
+  async reviewReport(post: Post, report: string): Promise<ReportVerdict> {
+    return (await this.moderator()).reviewReport(post, report);
   }
 }
 

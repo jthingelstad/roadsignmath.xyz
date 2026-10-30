@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Road Sign Math backups - a monthly AWS Backup recovery point of the roadsignmath-xyz table and photo bucket, kept until removed by hand
+
+# A separate small stack (roadsignmath-xyz-backup), never the application stack, and never
+# deployed from a workflow: the GitHub deploy role and the CloudFormation service role have no AWS
+# Backup permissions and cannot edit this role, whose name does not start with roadsignmath-xyz-.
+# Applied by hand with the cloud-engineer profile, after the application stack exists:
+#
+#   aws cloudformation deploy --stack-name roadsignmath-xyz-backup \
+#     --template-file infra/backup.yaml --capabilities CAPABILITY_NAMED_IAM \
+#     --tags Application=RoadSignMath Project=roadsignmath.xyz ManagedBy=cloudformation
+#
+# The table keeps its own 35-day point-in-time recovery and the photo bucket its versions. This
+# adds one copy of each a month, on the 1st, with no lifecycle, so a recovery point never expires
+# on its own. A restore goes to a new table or bucket, never over the live one.
+
+Parameters:
+  ApplicationStackName:
+    Type: String
+    Default: roadsignmath-xyz
+    AllowedValues: [roadsignmath-xyz]
+
+Resources:
+  Vault:
+    Type: AWS::Backup::BackupVault
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BackupVaultName: roadsignmath-xyz-backups
+
+  # S3 backups need the bucket versioned (it is) and the S3 policies besides the general ones.
+  BackupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: RoadSignMathBackup
+      Description: AWS Backup makes and restores the Road Sign Math table and photo bucket recovery points
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: backup.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForBackup
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForRestores
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AWSBackupServiceRolePolicyForS3Backup
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AWSBackupServiceRolePolicyForS3Restore
+
+  Plan:
+    Type: AWS::Backup::BackupPlan
+    Properties:
+      BackupPlan:
+        BackupPlanName: roadsignmath-xyz-monthly
+        BackupPlanRule:
+          # No Lifecycle: a recovery point is kept until someone deletes it.
+          - RuleName: monthly
+            TargetBackupVault: !Ref Vault
+            ScheduleExpression: cron(0 4 1 * ? *)
+            ScheduleExpressionTimezone: America/Chicago
+            StartWindowMinutes: 60
+            CompletionWindowMinutes: 720
+            RecoveryPointTags:
+              Application: RoadSignMath
+              Project: roadsignmath.xyz
+
+  Selection:
+    Type: AWS::Backup::BackupSelection
+    Properties:
+      BackupPlanId: !Ref Plan
+      BackupSelection:
+        SelectionName: table-and-photos
+        IamRoleArn: !GetAtt BackupRole.Arn
+        Resources:
+          - !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ApplicationStackName}
+          - !Sub arn:${AWS::Partition}:s3:::${ApplicationStackName}-photos-${AWS::AccountId}
+
+Outputs:
+  VaultName:
+    Value: !Ref Vault
+  PlanId:
+    Value: !Ref Plan
+  BackupRoleArn:
+    Value: !GetAtt BackupRole.Arn

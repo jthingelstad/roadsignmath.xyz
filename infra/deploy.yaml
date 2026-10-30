@@ -1,0 +1,383 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Road Sign Math deploy identity - the GitHub Actions deploy role, the CloudFormation service role and the code bucket
+
+# A separate small stack (roadsignmath-xyz-deploy), never the application stack: it holds who may
+# deploy and where the code goes. No workflow deploys it. Applied by hand with the cloud-engineer
+# profile, and only on the owner's go, since it is IAM:
+#
+#   aws cloudformation deploy --stack-name roadsignmath-xyz-deploy \
+#     --template-file infra/deploy.yaml --capabilities CAPABILITY_NAMED_IAM \
+#     --tags Application=RoadSignMath Project=roadsignmath.xyz ManagedBy=cloudformation
+#
+# - RoadSignMathGitHubDeploy: assumed only by this repository's `production` GitHub environment
+#   through the account's OIDC provider. It may call what scripts/release.sh and the release tool
+#   (tools/release-cli.ts) call, and it changes the application stack only through change sets
+#   that name the service role below.
+# - RoadSignMathCloudFormation: the role CloudFormation uses for the application stack, scoped to
+#   the names infra/template.yaml makes. scripts/release.sh names it on every run, from CI and
+#   from the Mac's deploy.sh alike.
+# - The code bucket: each release's code zip at native/app/<sha256>.zip, written once and never
+#   deleted (a revert needs the old zip, and deleting one breaks the revision built from it).
+#   The template goes inline (it is under CloudFormation's 51,200-byte limit), not through here.
+#
+# Neither role name starts with roadsignmath-xyz-, so the service role, which manages
+# roadsignmath-xyz-* roles, cannot edit them.
+
+Parameters:
+  ApplicationStackName:
+    Type: String
+    Default: roadsignmath-xyz
+    AllowedValues: [roadsignmath-xyz]
+  ZoneStackName:
+    Type: String
+    Default: dns-roadsignmath-xyz
+    AllowedValues: [dns-roadsignmath-xyz]
+    Description: The zone stack in projects-sysadmin; a release reads its HostedZoneId output.
+  Domain:
+    Type: String
+    Default: roadsignmath.xyz
+    AllowedValues: [roadsignmath.xyz]
+  CreateOidcProvider:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: The account already has GitHub's OIDC provider, so it is reused. "true" only for an account without one.
+
+Conditions:
+  MakeOidcProvider: !Equals [!Ref CreateOidcProvider, "true"]
+
+Resources:
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: MakeOidcProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+
+  CodeBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub "${ApplicationStackName}-code-${AWS::AccountId}"
+      VersioningConfiguration: { Status: Enabled }
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules: [{ ObjectOwnership: BucketOwnerEnforced }]
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      # Nothing under native/ ever expires.
+      LifecycleConfiguration:
+        Rules:
+          - Id: abandoned-uploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload: { DaysAfterInitiation: 1 }
+
+  CodeBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref CodeBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          # Lambda reads a revision's zip as itself, for the web function only.
+          - Sid: LambdaReadsOnlyWebRevisions
+            Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: [s3:GetObject, s3:GetObjectVersion]
+            Resource: !Sub "${CodeBucket.Arn}/native/*"
+            Condition:
+              StringEquals: { "aws:SourceAccount": !Ref AWS::AccountId }
+              ArnLike:
+                aws:SourceArn: !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:web-function/${ApplicationStackName}-web/*"
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: s3:*
+            Resource: [!GetAtt CodeBucket.Arn, !Sub "${CodeBucket.Arn}/*"]
+            Condition: { Bool: { "aws:SecureTransport": "false" } }
+
+  CloudFormationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: RoadSignMathCloudFormation
+      Description: CloudFormation service role for the roadsignmath-xyz application stack
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: cloudformation.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals: { "aws:SourceAccount": !Ref AWS::AccountId }
+      Policies:
+        # Each statement is one service the application template uses, scoped to the names it
+        # makes (roadsignmath-xyz-*, its table, log groups and domain). Whole-service actions on
+        # those names, so a new property in the template does not fail a deploy halfway and a
+        # rollback can undo what an update did. Its IAM reach is the template's generated
+        # <stack>-<Logical>Role-<suffix> roles, inline policies only.
+        - PolicyName: application-stack
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: Lambda
+                Effect: Allow
+                Action: lambda:*
+                Resource: !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:web-function/${ApplicationStackName}-*"
+              # A revision is built from the zip the release uploaded.
+              - Sid: Code
+                Effect: Allow
+                Action: [s3:GetObject, s3:GetObjectVersion]
+                Resource: !Sub "${CodeBucket.Arn}/native/*"
+              - Sid: Roles
+                Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:GetRole
+                  - iam:UpdateRole
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:ListRolePolicies
+                  - iam:ListAttachedRolePolicies
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:ListRoleTags
+                  - iam:PassRole
+                Resource: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ApplicationStackName}-*Role-*"
+              - Sid: Table
+                Effect: Allow
+                Action: dynamodb:*
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ApplicationStackName}"
+                  - !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ApplicationStackName}/*"
+              # The photo bucket only; the code bucket is this stack's.
+              - Sid: Photos
+                Effect: Allow
+                Action: s3:*
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:s3:::${ApplicationStackName}-photos-*"
+                  - !Sub "arn:${AWS::Partition}:s3:::${ApplicationStackName}-photos-*/*"
+              - Sid: Logs
+                Effect: Allow
+                Action: logs:*
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda-web/${ApplicationStackName}-*"
+                  - !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/${ApplicationStackName}/*"
+              - Sid: LogsUnscoped
+                Effect: Allow
+                Action: [logs:DescribeLogGroups, logs:DescribeMetricFilters, logs:ListTagsForResource]
+                Resource: "*"
+              # The distribution's access log (/<stack>/web-access): a CloudWatch Logs delivery
+              # from CloudFront. A delivery's id is generated, so deliveries are delivery:*; the
+              # Describe calls and the log-group resource policy the delivery writes have no
+              # narrower resource. cloudfront:AllowVendedLogDeliveryForResource is under
+              # Distribution.
+              - Sid: AccessLogDelivery
+                Effect: Allow
+                Action:
+                  - logs:PutDeliverySource
+                  - logs:GetDeliverySource
+                  - logs:DeleteDeliverySource
+                  - logs:PutDeliveryDestination
+                  - logs:GetDeliveryDestination
+                  - logs:DeleteDeliveryDestination
+                  - logs:CreateDelivery
+                  - logs:GetDelivery
+                  - logs:DeleteDelivery
+                  - logs:UpdateDeliveryConfiguration
+                  - logs:TagResource
+                  - logs:UntagResource
+                  - logs:ListTagsForResource
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:delivery-source:${ApplicationStackName}-*"
+                  - !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:delivery-destination:${ApplicationStackName}-*"
+                  - !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:delivery:*"
+              - Sid: AccessLogDeliveryUnscoped
+                Effect: Allow
+                Action:
+                  - logs:DescribeDeliveries
+                  - logs:DescribeDeliverySources
+                  - logs:DescribeDeliveryDestinations
+                  - logs:DescribeResourcePolicies
+                Resource: "*"
+              - Sid: AccessLogGroupPolicy
+                Effect: Allow
+                Action: logs:PutResourcePolicy
+                Resource: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*"
+              - Sid: Alarms
+                Effect: Allow
+                Action: cloudwatch:*
+                Resource: !Sub "arn:${AWS::Partition}:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${ApplicationStackName}-*"
+              - Sid: AlarmsUnscoped
+                Effect: Allow
+                Action: cloudwatch:DescribeAlarms
+                Resource: "*"
+              - Sid: Topics
+                Effect: Allow
+                Action: sns:*
+                Resource: !Sub "arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${ApplicationStackName}-*"
+              # The alarm topic subscribes the sysadmin alerts queue (OpsQueueName).
+              - Sid: OpsQueueRead
+                Effect: Allow
+                Action: [sqs:GetQueueAttributes, sqs:GetQueueUrl]
+                Resource: !Sub "arn:${AWS::Partition}:sqs:${AWS::Region}:${AWS::AccountId}:projects-ops-alerts"
+              # The sending identity is the domain; the stack makes no other SES resource.
+              - Sid: Mail
+                Effect: Allow
+                Action: ses:*
+                Resource: !Sub "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/${Domain}"
+              # The certificate's id is generated. Its validation records are the only ones the
+              # stack writes in the zone: names under _*.roadsignmath.xyz, CNAMEs only.
+              - Sid: Certificate
+                Effect: Allow
+                Action: acm:*
+                Resource: !Sub "arn:${AWS::Partition}:acm:${AWS::Region}:${AWS::AccountId}:certificate/*"
+              - Sid: CertificateUnscoped
+                Effect: Allow
+                Action: [acm:RequestCertificate, acm:ListCertificates, acm:AddTagsToCertificate]
+                Resource: "*"
+              - Sid: ValidationRecords
+                Effect: Allow
+                Action: route53:ChangeResourceRecordSets
+                Resource: !Sub "arn:${AWS::Partition}:route53:::hostedzone/*"
+                Condition:
+                  ForAllValues:StringLike:
+                    route53:ChangeResourceRecordSetsNormalizedRecordNames:
+                      - !Sub "_*.${Domain}"
+                      - !Sub "_*.www.${Domain}"
+                  ForAllValues:StringEquals:
+                    route53:ChangeResourceRecordSetsRecordTypes: [CNAME]
+              - Sid: ZoneReads
+                Effect: Allow
+                Action: [route53:GetChange, route53:ListResourceRecordSets, route53:GetHostedZone]
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:route53:::hostedzone/*"
+                  - !Sub "arn:${AWS::Partition}:route53:::change/*"
+              # CloudFront ids are generated, so its resources are account-wide.
+              - Sid: Distribution
+                Effect: Allow
+                Action: cloudfront:*
+                Resource: !Sub "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:*"
+              - Sid: DistributionUnscoped
+                Effect: Allow
+                Action:
+                  - cloudfront:List*
+                  - cloudfront:GetCachePolicy
+                  - cloudfront:GetOriginRequestPolicy
+                  - cloudfront:GetResponseHeadersPolicy
+                  - cloudfront:GetOriginAccessControl
+                Resource: "*"
+
+  DeployRole:
+    Type: AWS::IAM::Role
+    # cfn-lint 1.57.2 does not yet list the Web Function read actions
+    # lambda:GetWebFunctionEndpoint and lambda:GetWebFunctionRevision, which the Lambda guide
+    # names after their APIs. Drop this when cfn-lint knows them.
+    Metadata:
+      cfn-lint:
+        config:
+          ignore_checks: [W3037]
+    Properties:
+      RoleName: RoadSignMathGitHubDeploy
+      Description: GitHub Actions production deploys of jthingelstad/roadsignmath.xyz
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                # The name form and the immutable-id form (owner 5351, repository 1440064645),
+                # so a change to the repository's OIDC subject setting does not lock CI out.
+                # Only the production environment, which admits only main, gets either.
+                token.actions.githubusercontent.com:sub:
+                  - repo:jthingelstad/roadsignmath.xyz:environment:production
+                  - repo:jthingelstad@5351/roadsignmath.xyz@1440064645:environment:production
+      Policies:
+        # Derived from the release scripts, call by call; nothing else.
+        - PolicyName: release
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # aws cloudformation deploy (DescribeStacks, GetTemplateSummary, change sets), the
+              # release's output reads and, when an update fails, the events it prints.
+              - Sid: ReadApplicationStack
+                Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:GetTemplateSummary
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                Resource: !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ApplicationStackName}/*"
+              # The code bucket's name (this stack) and the zone id (the zone stack).
+              - Sid: ReadOtherStacks
+                Effect: Allow
+                Action: cloudformation:DescribeStacks
+                Resource:
+                  - !Ref AWS::StackId
+                  - !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ZoneStackName}/*"
+              # Every change set CI makes runs as the service role.
+              - Sid: ChangeSetsUseTheServiceRole
+                Effect: Allow
+                Action: cloudformation:CreateChangeSet
+                Resource: !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ApplicationStackName}/*"
+                Condition:
+                  StringEquals:
+                    cloudformation:RoleArn: !GetAtt CloudFormationRole.Arn
+              # The stack's tags ride each change set, which tag-on-create authorizes as
+              # tagging the stack.
+              - Sid: TagApplicationStack
+                Effect: Allow
+                Action: cloudformation:TagResource
+                Resource: !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ApplicationStackName}/*"
+              - Sid: PassTheServiceRole
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !GetAtt CloudFormationRole.Arn
+                Condition:
+                  StringEquals: { "iam:PassedToService": cloudformation.amazonaws.com }
+              # tools/native-artifacts.ts asks for each zip's key first (HeadObject). Without
+              # ListBucket, S3 answers a missing key 403, not 404, and a new zip never uploads.
+              - Sid: CodeBucketList
+                Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt CodeBucket.Arn
+              - Sid: CodeZips
+                Effect: Allow
+                Action: [s3:GetObject, s3:PutObject]
+                Resource: !Sub "${CodeBucket.Arn}/native/*"
+              # tools/web-platform.ts and tools/release-probe.ts: the live endpoint, the revision
+              # it serves and the CloudFront-only endpoint policy. Never DeleteResourcePolicy: no
+              # release step removes the grant.
+              - Sid: WebFunctionReads
+                Effect: Allow
+                Action: [lambda:GetWebFunctionEndpoint, lambda:GetWebFunctionRevision]
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:web-function/${ApplicationStackName}-web/endpoint/*"
+                  - !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:web-function/${ApplicationStackName}-web/revision/*"
+              - Sid: WebFunctionPolicies
+                Effect: Allow
+                Action: [lambda:GetResourcePolicy, lambda:PutResourcePolicy]
+                Resource: !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:web-function/${ApplicationStackName}-web"
+
+Outputs:
+  CodeBucketName:
+    Value: !Ref CodeBucket
+  DeployRoleArn:
+    Description: The production environment's RELEASE_DEPLOY_ROLE_ARN secret.
+    Value: !GetAtt DeployRole.Arn
+  CloudFormationRoleArn:
+    Value: !GetAtt CloudFormationRole.Arn

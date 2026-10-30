@@ -10,7 +10,9 @@ sign-in on the website; playing happens in the
 [iPhone app](https://github.com/jthingelstad/roadsignmath-ios).
 
 Being built. roadsignmath.xyz still serves the 2021-2025 micro.blog until the
-first deploy.
+first deploy. It will run on AWS: a Lambda Web Function behind CloudFront, with
+DynamoDB, S3 for photos and SES for sign-in mail, released on every merge to
+main ([`docs/DEPLOY.md`](docs/DEPLOY.md)).
 
 ## What's here so far
 

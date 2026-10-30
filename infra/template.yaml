@@ -1,0 +1,670 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Road Sign Math - the roadsignmath.xyz API, its table, photos, sign-in mail and the CloudFront distribution in front
+
+# The application stack, roadsignmath-xyz. scripts/release.sh deploys it on every merge to main
+# (from GitHub Actions or the Mac's deploy.sh) through the CloudFormation service role in
+# infra/deploy.yaml. docs/DEPLOY.md is the first deploy, step by step.
+
+Parameters:
+  # A release is one commit on main. BuildId is the revision's description, so each release
+  # builds a new revision and moves `live` to it in one stack update; a rollback is a revert,
+  # released like any other commit.
+  BuildId:
+    Type: String
+    AllowedPattern: '^[a-f0-9]{40}$'
+    Description: The commit on main this release was built from.
+  AppCode:
+    Type: String
+    AllowedPattern: '^[a-f0-9]{64}$'
+    Description: SHA-256 of the code zip, native/app/<hash>.zip in the code bucket.
+  CodeBucket:
+    Type: String
+    AllowedPattern: '^roadsignmath-xyz-code-[0-9]{12}$'
+    Description: The code bucket the deploy stack (infra/deploy.yaml) owns; scripts/release.sh reads it from that stack.
+  Domain:
+    Type: String
+    Default: roadsignmath.xyz
+    AllowedValues: [roadsignmath.xyz]
+  # A plain string: an AWS-specific parameter type is checked with the caller's own Route 53
+  # reads, which the deploy role does not have.
+  HostedZoneId:
+    Type: String
+    AllowedPattern: '^Z[A-Z0-9]+$'
+    Description: The roadsignmath.xyz zone (projects-sysadmin's dns-roadsignmath-xyz stack). The certificate's validation records go here; scripts/release.sh reads it from that stack.
+  FromAddress:
+    Type: String
+    Default: signin@roadsignmath.xyz
+    Description: The sign-in email's sender. Nothing receives mail at this address.
+  MailFromDomain:
+    Type: String
+    Default: bounce.roadsignmath.xyz
+  RuntimeSecretName:
+    Type: String
+    Default: roadsignmath-xyz-runtime
+    Description: The Secrets Manager secret holding ANTHROPIC_API_KEY, the moderator's key. Kept by hand; no deploy writes it and the stack does not own it. Without it, posting answers 503.
+  PhotoDistributionId:
+    Type: String
+    Default: ""
+    AllowedPattern: '^$|^E[A-Z0-9]+$'
+    Description: This stack's own distribution id, from its last release (empty on the first). The server clears a hidden sign's photos from it. A parameter because the function cannot name the distribution in front of it without a cycle.
+  OpsQueueName:
+    Type: String
+    Default: projects-ops-alerts
+    Description: The account's alerts queue. Its policy must list this stack's alarm topic.
+  WebMaxEnvironments:
+    Type: Number
+    Default: 4
+    MinValue: 2
+    MaxValue: 8
+    Description: Budget ceiling for the live endpoint's environments.
+  WebMaxConcurrency:
+    Type: Number
+    Default: 8
+    MinValue: 1
+    MaxValue: 64
+    Description: Requests one environment takes at once. Kept low because an upload decodes a photo of up to 60 megapixels.
+
+Conditions:
+  HasPhotoDistribution: !Not [!Equals [!Ref PhotoDistributionId, ""]]
+
+Resources:
+  # --- the web function -------------------------------------------------------
+
+  # The groups are made before the function. A Web Function wraps console.info(object) under
+  # `message`, so filters read $.message.event.
+  WebLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda-web/${AWS::StackName}-web"
+      RetentionInDays: 90
+
+  WebLocalLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda-web/${AWS::StackName}-web.local"
+      RetentionInDays: 90
+
+  # The function's resource policy has one owner, tools/web-platform.ts: the
+  # AWS::Lambda::ResourcePolicy schema refuses web-function ARNs. Each release installs it if it
+  # is missing and checks an existing one is exactly the distribution/live-endpoint grant.
+  WebFunction:
+    Type: AWS::Lambda::WebFunction
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-web"
+
+  WebRevision:
+    Type: AWS::Lambda::WebFunctionRevision
+    # Each release builds a new one (its Description is the build) and the live endpoint moves
+    # to it in the same update; once that succeeds the one it replaced is deleted.
+    DependsOn: WebFunction
+    Properties:
+      # The bare name, not an ARN: the provider normalizes ARNs to names, which breaks its later
+      # read and rollback.
+      FunctionName: !Sub "${AWS::StackName}-web"
+      Description: !Ref BuildId
+      BuildConfig:
+        CodeConfig:
+          S3Object:
+            Bucket: !Ref CodeBucket
+            Key: !Sub "native/app/${AppCode}.zip"
+        RuntimeConfig: { Runtime: nodejs24.x }
+      ServiceConfig:
+        ExecutionRoleArn: !GetAtt WebRole.Arn
+        # Under CloudFront's 30-second origin wait. The moderator gives up after 20 (DEADLINE_MS
+        # in src/moderation/moderator.ts), so a stalled review still answers 503.
+        TimeoutSeconds: 28
+        MaxConcurrencyPerEnvironment: !Ref WebMaxConcurrency
+        EnvironmentVariables:
+          TABLE: !Ref Table
+          PHOTO_BUCKET: !Ref PhotoBucket
+          PHOTO_DISTRIBUTION_ID: !If [HasPhotoDistribution, !Ref PhotoDistributionId, !Ref AWS::NoValue]
+          FROM_ADDRESS: !Sub "Road Sign Math <${FromAddress}>"
+          SITE_URL: !Sub "https://${Domain}"
+          RUNTIME_SECRET: !Ref RuntimeSecretName
+          APP_VERSION: !Ref BuildId
+        TelemetryConfig:
+          LoggingConfig:
+            LogGroup: !Ref WebLogs
+            ApplicationLogLevel: INFO
+            SystemLogLevel: INFO
+
+  WebLiveEndpoint:
+    Type: AWS::Lambda::WebFunctionEndpoint
+    DependsOn: WebFunction
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-web"
+      EndpointName: live
+      EndpointType: HomeRegion
+      AuthType: IamAuth
+      # Explicit weights turn auto-deployment off: the endpoint serves the revision this stack
+      # names, never a newer one.
+      RevisionWeights:
+        - RevisionId: !GetAtt WebRevision.RevisionId
+          Weight: 100
+      ScalingConfig:
+        MaxEnvironments: !Ref WebMaxEnvironments
+      ThrottleConfig: { RateLimit: 100 }
+
+  WebRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: web
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                # src/store/dynamo.ts: single-item reads and writes, conditional claims and
+                # queries. No scans, batches or transactions.
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                Resource: !GetAtt Table.Arn
+              - Effect: Allow
+                # src/photos.ts: uploads wait under uploads/, a shown sign's photos are under p/
+                # and a held or hidden sign's under held/. Moving one is a copy and a delete.
+                Action: [s3:GetObject, s3:PutObject, s3:DeleteObject]
+                Resource:
+                  - !Sub "${PhotoBucket.Arn}/uploads/*"
+                  - !Sub "${PhotoBucket.Arn}/p/*"
+                  - !Sub "${PhotoBucket.Arn}/held/*"
+              - Effect: Allow
+                # Without it S3 answers a HeadObject for a missing photo 403, not 404, and
+                # moving a photo that is already moved fails. A HeadObject carries no prefix,
+                # so there is no prefix condition.
+                Action: s3:ListBucket
+                Resource: !GetAtt PhotoBucket.Arn
+              - Effect: Allow
+                # Clears a hidden sign's photos (/p/<id>/*) from CloudFront's caches. The
+                # function cannot name this stack's distribution without a cycle (the
+                # distribution names the function), so the grant is every distribution in the
+                # account; the code asks only for the one in PHOTO_DISTRIBUTION_ID.
+                Action: cloudfront:CreateInvalidation
+                Resource: !Sub "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*"
+              - Effect: Allow
+                # The sign-in email, only as Road Sign Math (src/mail/mailer.ts), never as
+                # another identity in this shared account.
+                Action: ses:SendEmail
+                Resource: !Sub "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/*"
+                Condition:
+                  StringLike:
+                    ses:FromAddress:
+                      - !Ref FromAddress
+                      - !Sub "*<${FromAddress}>"
+              - Effect: Allow
+                # The moderator's key (src/secrets.ts), and no other secret.
+                Action: secretsmanager:GetSecretValue
+                Resource: !Sub "arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${RuntimeSecretName}-??????"
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource:
+                  - !GetAtt WebLogs.Arn
+                  - !GetAtt WebLocalLogs.Arn
+
+  # --- data -------------------------------------------------------------------
+
+  # One table, string keys pk and sk, no indexes (AGENTS.md, The table). Rows that expire carry
+  # expiresAt (epoch seconds).
+  Table:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref AWS::StackName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: pk, AttributeType: S }
+        - { AttributeName: sk, AttributeType: S }
+      KeySchema:
+        - { AttributeName: pk, KeyType: HASH }
+        - { AttributeName: sk, KeyType: RANGE }
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      DeletionProtectionEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+
+  # Photos (src/photos.ts). p/ is what CloudFront serves; held/ and uploads/ stay private.
+  # Uploads nobody posted clear after a day, and replaced or deleted photos 30 days later.
+  PhotoBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-photos-${AWS::AccountId}"
+      VersioningConfiguration: { Status: Enabled }
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules: [{ ObjectOwnership: BucketOwnerEnforced }]
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      LifecycleConfiguration:
+        Rules:
+          - Id: uploads-expire
+            Status: Enabled
+            Prefix: uploads/
+            ExpirationInDays: 1
+          - Id: old-versions-expire
+            Status: Enabled
+            NoncurrentVersionExpiration: { NoncurrentDays: 30 }
+            AbortIncompleteMultipartUpload: { DaysAfterInitiation: 1 }
+          - Id: delete-markers
+            Status: Enabled
+            ExpiredObjectDeleteMarker: true
+
+  PhotoBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref PhotoBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: CloudFrontReadsShownPhotos
+            Effect: Allow
+            Principal: { Service: cloudfront.amazonaws.com }
+            Action: s3:GetObject
+            Resource: !Sub "${PhotoBucket.Arn}/p/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${Distribution}"
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: s3:*
+            Resource: [!GetAtt PhotoBucket.Arn, !Sub "${PhotoBucket.Arn}/*"]
+            Condition:
+              Bool:
+                aws:SecureTransport: "false"
+
+  # --- mail -------------------------------------------------------------------
+
+  # Sending only, for the sign-in email. Its DKIM and MAIL FROM records are outputs (DkimRecords,
+  # MailFromRecords) for the zone stack in projects-sysadmin; until they are there, SES cannot
+  # verify the domain and sign-in mail does not go.
+  EmailIdentity:
+    Type: AWS::SES::EmailIdentity
+    Properties:
+      EmailIdentity: !Ref Domain
+      DkimSigningAttributes:
+        NextSigningKeyLength: RSA_2048_BIT
+      MailFromAttributes:
+        MailFromDomain: !Ref MailFromDomain
+        BehaviorOnMxFailure: USE_DEFAULT_VALUE
+
+  # --- CloudFront -------------------------------------------------------------
+
+  # Validated by records this stack writes in the zone (DomainValidationOptions), as the site
+  # stacks do. The zone itself, and the apex and www records, stay in projects-sysadmin.
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref Domain
+      SubjectAlternativeNames: [!Sub "www.${Domain}"]
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref Domain
+          HostedZoneId: !Ref HostedZoneId
+        - DomainName: !Sub "www.${Domain}"
+          HostedZoneId: !Ref HostedZoneId
+
+  # always-amz-auth signs in the X-Amz-* headers and leaves the player's Authorization header as
+  # it came, which `always` would replace with CloudFront's signature.
+  WebOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${AWS::StackName}-web"
+        OriginAccessControlOriginType: lambda
+        SigningBehavior: always-amz-auth
+        SigningProtocol: sigv4
+
+  PhotoOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${AWS::StackName}-photos"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # The server decides what is cached: a public read says `public, max-age=60` and anything
+  # personal or failed says `no-store` (src/api/app.ts). MinTTL and DefaultTTL 0 make CloudFront
+  # follow that, and MaxTTL 60 caps it. Authorization is in the key, which is also how CloudFront
+  # forwards it, so a signed-in answer is never shared; the query is in the key, so
+  # /signs/near?lat=...&lng=... is cached per point.
+  WebCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub "${AWS::StackName}-web"
+        Comment: The server's Cache-Control, at most a minute
+        MinTTL: 0
+        DefaultTTL: 0
+        MaxTTL: 60
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          HeadersConfig:
+            HeaderBehavior: whitelist
+            Headers: [Authorization]
+          CookiesConfig: { CookieBehavior: none }
+          QueryStringsConfig: { QueryStringBehavior: all }
+
+  # What the server reads beyond the key: the body's type, the answer it wants, the origin, a
+  # post's Idempotency-Key, the app's User-Agent, and the viewer's address for rate limits
+  # (cloudFrontIp in src/api/app.ts, trusted only because only CloudFront reaches the function).
+  WebRequestPolicy:
+    Type: AWS::CloudFront::OriginRequestPolicy
+    Properties:
+      OriginRequestPolicyConfig:
+        Name: !Sub "${AWS::StackName}-web"
+        HeadersConfig:
+          HeaderBehavior: whitelist
+          Headers: [Content-Type, Accept, Origin, Idempotency-Key, User-Agent, CloudFront-Viewer-Address]
+        CookiesConfig: { CookieBehavior: none }
+        QueryStringsConfig: { QueryStringBehavior: all }
+
+  # www.roadsignmath.xyz answers with a permanent redirect to the same path on the apex.
+  WwwRedirectFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub "${AWS::StackName}-www"
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Redirect www to the apex
+        Runtime: cloudfront-js-2.0
+      FunctionCode: !Sub |
+        function handler(event) {
+          var request = event.request;
+          var host = request.headers.host ? request.headers.host.value : '';
+          if (host !== 'www.${Domain}') return request;
+          var query = [];
+          Object.keys(request.querystring).forEach(function (key) {
+            var field = request.querystring[key];
+            (field.multiValue || [field]).forEach(function (entry) {
+              query.push(entry.value === '' ? key : key + '=' + entry.value);
+            });
+          });
+          var location = 'https://${Domain}' + request.uri + (query.length ? '?' + query.join('&') : '');
+          return {
+            statusCode: 301,
+            statusDescription: 'Moved Permanently',
+            headers: { location: { value: location }, 'cache-control': { value: 'public, max-age=3600' } }
+          };
+        }
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: Road Sign Math - roadsignmath.xyz
+        Enabled: true
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        PriceClass: PriceClass_100
+        Aliases: [!Ref Domain, !Sub "www.${Domain}"]
+        ViewerCertificate:
+          AcmCertificateArn: !Ref Certificate
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        Origins:
+          - Id: web
+            DomainName: !GetAtt WebLiveEndpoint.DomainName
+            OriginAccessControlId: !Ref WebOriginAccessControl
+            CustomOriginConfig:
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+          - Id: photos
+            DomainName: !GetAtt PhotoBucket.RegionalDomainName
+            OriginAccessControlId: !Ref PhotoOriginAccessControl
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        # Everything not under /api or /p goes to the function too: the website joins it there.
+        DefaultCacheBehavior:
+          TargetOriginId: web
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD]
+          CachedMethods: [GET, HEAD]
+          Compress: true
+          CachePolicyId: !Ref WebCachePolicy
+          OriginRequestPolicyId: !Ref WebRequestPolicy
+          # Managed SecurityHeadersPolicy: HSTS, nosniff, frame DENY, referrer policy.
+          ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt WwwRedirectFunction.FunctionMetadata.FunctionARN
+        CacheBehaviors:
+          - PathPattern: /api/*
+            TargetOriginId: web
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref WebCachePolicy
+            OriginRequestPolicyId: !Ref WebRequestPolicy
+            ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt WwwRedirectFunction.FunctionMetadata.FunctionARN
+          # Shown photos, named by id and never changed (src/photos.ts sets a year's immutable
+          # Cache-Control): managed CachingOptimized. A hidden sign's are invalidated.
+          - PathPattern: /p/*
+            TargetOriginId: photos
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: false
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+            ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt WwwRedirectFunction.FunctionMetadata.FunctionARN
+
+  # The distribution's access log, kept 24 months like the other sites'. The fields leave out
+  # the client IP, the path and the query string, which can carry a sign-in link's token.
+  WebAccessLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/${AWS::StackName}/web-access"
+      RetentionInDays: 731
+
+  WebAccessLogSource:
+    Type: AWS::Logs::DeliverySource
+    Properties:
+      Name: !Sub "${AWS::StackName}-web-access"
+      LogType: ACCESS_LOGS
+      ResourceArn: !Sub "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${Distribution}"
+
+  WebAccessLogDestination:
+    Type: AWS::Logs::DeliveryDestination
+    Properties:
+      Name: !Sub "${AWS::StackName}-web-access"
+      OutputFormat: json
+      DestinationResourceArn: !GetAtt WebAccessLogs.Arn
+
+  WebAccessLogDelivery:
+    Type: AWS::Logs::Delivery
+    Properties:
+      DeliverySourceName: !Ref WebAccessLogSource
+      DeliveryDestinationArn: !GetAtt WebAccessLogDestination.Arn
+      RecordFields:
+        - timestamp(ms)
+        - cs-method
+        - sc-status
+        - sc-bytes
+        - time-taken
+        - time-to-first-byte
+        - x-edge-result-type
+        - x-edge-detailed-result-type
+        - x-edge-location
+        - cs-protocol
+        - cs(User-Agent)
+
+  # --- alarms -----------------------------------------------------------------
+
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "${AWS::StackName}-alarms"
+
+  AlarmTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics: [!Ref AlarmTopic]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: CloudWatchAlarms
+            Effect: Allow
+            Principal: { Service: cloudwatch.amazonaws.com }
+            Action: sns:Publish
+            Resource: !Ref AlarmTopic
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+
+  # Messages reach the queue only once its policy lists this topic (docs/DEPLOY.md).
+  AlarmQueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref AlarmTopic
+      Protocol: sqs
+      Endpoint: !Sub "arn:${AWS::Partition}:sqs:${AWS::Region}:${AWS::AccountId}:${OpsQueueName}"
+      RawMessageDelivery: true
+
+  # Every sign-in email in the hour used up (the `total` limit in src/auth/auth.ts): someone is
+  # sending sign-ins in bulk, or the game got busy. Counts only (src/api/input.ts logs the
+  # limit's kind and nothing else).
+  SignInTotalMetric:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref WebLogs
+      FilterPattern: '{ $.message.event = "limited" && $.message.limit = "total" }'
+      MetricTransformations:
+        - MetricNamespace: RoadSignMath
+          MetricName: SignInTotalLimited
+          MetricValue: "1"
+
+  SignInTotalAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-sign-in-limit"
+      AlarmDescription: Every sign-in email allowed in the hour was used; counts only.
+      Namespace: RoadSignMath
+      MetricName: SignInTotalLimited
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+
+  # A server error, including the 503 a post gets while the moderator has no key or Claude
+  # cannot answer.
+  WebErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-web-errors"
+      AlarmDescription: The web function returned a server error; counts only.
+      Namespace: AWS/Lambda/Web
+      MetricName: HTTPResponseStatusClass5XX
+      Dimensions:
+        - { Name: FunctionName, Value: !Sub "${AWS::StackName}-web" }
+        - { Name: EndpointName, Value: live }
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+
+  WebCapacityAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-web-capacity"
+      AlarmDescription: The web endpoint refused a request at its environment ceiling; counts only.
+      Namespace: AWS/Lambda/Web/Usage
+      MetricName: EndpointActiveEnvironmentThrottles
+      Dimensions:
+        - { Name: FunctionName, Value: !Sub "${AWS::StackName}-web" }
+        - { Name: EndpointName, Value: live }
+        - { Name: ExecutionRegion, Value: !Ref AWS::Region }
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+
+  WebRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-web-rate"
+      AlarmDescription: The web endpoint refused a request at its rate ceiling; counts only.
+      Namespace: AWS/Lambda/Web/Usage
+      MetricName: EndpointRequestThrottles
+      Dimensions:
+        - { Name: FunctionName, Value: !Sub "${AWS::StackName}-web" }
+        - { Name: EndpointName, Value: live }
+        - { Name: ExecutionRegion, Value: !Ref AWS::Region }
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+
+Outputs:
+  DistributionId:
+    Value: !Ref Distribution
+  DistributionDomain:
+    Value: !GetAtt Distribution.DomainName
+  WebFunctionName:
+    Value: !Sub "${AWS::StackName}-web"
+  WebFunctionArn:
+    Value: !GetAtt WebFunction.FunctionArn
+  WebLiveEndpointArn:
+    Value: !GetAtt WebLiveEndpoint.EndpointArn
+  WebLiveEndpointDomain:
+    Value: !GetAtt WebLiveEndpoint.DomainName
+  WebLiveRevisionId:
+    Value: !GetAtt WebRevision.RevisionId
+  TableName:
+    Value: !Ref Table
+  PhotoBucketName:
+    Value: !Ref PhotoBucket
+  AlarmTopicArn:
+    Value: !Ref AlarmTopic
+  # The records the zone stack (projects-sysadmin config/dns-roadsignmath-xyz-stack.yaml) takes.
+  # This stack writes none of them.
+  SiteRecords:
+    Description: Replace the apex A and AAAA and the www CNAME with alias A and AAAA records to the distribution (Z2FDTNDATAQYW2 is CloudFront's alias zone).
+    Value: !Sub "${Domain}. A and AAAA alias ${Distribution.DomainName}. (Z2FDTNDATAQYW2); www.${Domain}. A and AAAA alias ${Distribution.DomainName}. (Z2FDTNDATAQYW2)"
+  DkimRecords:
+    Description: The three DKIM CNAMEs, name then value, for SES (mail records need Jamie's line).
+    Value: !Sub "${EmailIdentity.DkimDNSTokenName1} CNAME ${EmailIdentity.DkimDNSTokenValue1}; ${EmailIdentity.DkimDNSTokenName2} CNAME ${EmailIdentity.DkimDNSTokenValue2}; ${EmailIdentity.DkimDNSTokenName3} CNAME ${EmailIdentity.DkimDNSTokenValue3}"
+  MailFromRecords:
+    Description: The custom MAIL FROM domain's MX and SPF (mail records need Jamie's line).
+    Value: !Sub '${MailFromDomain}. MX "10 feedback-smtp.${AWS::Region}.amazonses.com"; ${MailFromDomain}. TXT "v=spf1 include:amazonses.com -all"'
