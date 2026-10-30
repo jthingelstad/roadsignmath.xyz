@@ -6,7 +6,7 @@
  * Bump on every change to the surface. tools/export-api-contract.ts refuses a changed surface
  * under a version already in contracts/api-versions.json.
  */
-export const API_VERSION = '1.3.0';
+export const API_VERSION = '1.4.0';
 
 export const LIMITS = {
   /** Signs per page of the feed. */
@@ -215,7 +215,10 @@ export const ROUTES: Route[] = [
     method: 'get',
     path: '/map',
     summary: 'Every sign with a pin, for the map',
-    description: 'Every sign, with or without a pin (`lat` and `lng` are null without), and the years they span.',
+    description:
+      'Every sign, with or without a pin (`lat` and `lng` are null without), and the years they span. Each pin ' +
+      'carries its place, numbers and finders, so a map can search every sign by town, state, number or person ' +
+      'from this one answer.',
     params: [],
     auth: 'public',
     status: 200,

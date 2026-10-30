@@ -194,6 +194,31 @@ test('map has every public sign and its years', async () => {
   assert.deepEqual(body.years, [2025, 2026]);
   const noPin = body.pins.find((p: Json) => p.title === 'No Pin');
   assert.equal(noPin.lat, null);
+  assert.equal(noPin.place_label, 'Somewhere on I-90');
+});
+
+test('map pins carry what a search reads: place, numbers and finders', async () => {
+  const { get } = await setup();
+  const { body } = await get('/api/v1/map');
+  const far = body.pins.find((p: Json) => p.title === 'Far Away');
+  assert.deepEqual(far, {
+    id: '01JS0000000000000000000002',
+    slug: 'far-away',
+    title: 'Far Away',
+    url: 'https://example.test/signs/far-away',
+    lat: 44.26,
+    lng: -72.58,
+    approximate: true,
+    state: 'VT',
+    place_label: 'Testburg, Vermont',
+    found_on: '2026-01-10',
+    numbers: ['7', '12', '19'],
+    finders: [
+      { name: 'Ben', handle: 'ben' },
+      { name: 'A friend', handle: null }
+    ],
+    thumb_url: 'https://example.test/p/ph-01JS0000000000000000000002/thumb.jpg'
+  });
 });
 
 test('players: latest sign first, stats from the signs they found', async () => {

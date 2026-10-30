@@ -100,8 +100,12 @@ export function signDetail(urls: Urls, people: People, sign: Sign, ways: Way[]) 
   };
 }
 
-/** A pin on the map: just enough to draw it and fill the sheet. */
-export function pinView(urls: Urls, sign: Sign) {
+/**
+ * A pin on the map: enough to draw it, fill the sheet, and search every pin by town, state,
+ * number or finder without reading each sign. The app reads every pin at once, so the numbers
+ * are bare values and the finders bare names.
+ */
+export function pinView(urls: Urls, people: People, sign: Sign) {
   const photo = sign.photos[0];
   return {
     id: sign.id,
@@ -112,7 +116,10 @@ export function pinView(urls: Urls, sign: Sign) {
     lng: sign.place.lng ?? null,
     approximate: sign.place.approximate,
     state: sign.place.state ?? null,
+    place_label: sign.place.label,
     found_on: sign.foundOn,
+    numbers: sign.numbers.map((n) => n.value),
+    finders: sign.finders.map((f) => ({ name: f.name, handle: handleOf(people, f.playerId) })),
     thumb_url: photo ? (isPublic(sign) ? photoUrl : heldPhotoUrl)(urls, photo.id, 'thumb') : null
   };
 }
