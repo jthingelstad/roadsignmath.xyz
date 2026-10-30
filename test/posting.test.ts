@@ -497,6 +497,20 @@ test('a report the moderator agrees with hides the sign from everyone but its po
   assert.equal((await t.call('GET', `/me/photos/${id}/large`, { as: 'ada' })).res.status, 200);
 });
 
+test('a report after a hide that failed partway sees every photo, and a kept one puts them back', async () => {
+  const t = await setup();
+  const { body: posted } = await t.post();
+  const id = posted.photos[0].id;
+  // A hide that moved the photo, then failed (as a CloudFront invalidation can) before the sign changed.
+  await t.photos.hide(id);
+  t.moderator.report = { verdict: 'keep', reason: 'Fine.' };
+  const sent = await t.call('POST', `/signs/${posted.id}/report`, { as: 'ben', body: { reason: 'Spam' } });
+  assert.equal(sent.body.outcome, 'kept');
+  assert.equal(t.moderator.reports.at(-1)!.post.photos.length, 1);
+  assert.ok(await t.photos.get(id, 'large', 'shown'));
+  assert.equal(await t.photos.get(id, 'large', 'held'), undefined);
+});
+
 test('a kept report is answered once per player', async () => {
   const t = await setup();
   const { body: posted } = await t.post();

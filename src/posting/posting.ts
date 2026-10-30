@@ -425,9 +425,17 @@ export async function reportSign(
   const now = nowSeconds();
   await limit(store, `reports:${player.id}`, LIMITS.reportsADay, DAY, now, `Too many reports today. ${tomorrow}`);
 
+  // Each photo is read from wherever it is: a hide that failed partway can have moved some of a
+  // shown sign's photos to held/ already, and the moderator should see them all.
   const larges: Buffer[] = [];
+  const strays: string[] = [];
+  const expected = sign.visibility === 'shown' ? 'shown' : 'held';
   for (const photo of sign.photos) {
-    const large = await photos.get(photo.id, 'large', sign.visibility === 'shown' ? 'shown' : 'held');
+    let large = await photos.get(photo.id, 'large', expected);
+    if (!large && expected === 'shown') {
+      large = await photos.get(photo.id, 'large', 'held');
+      if (large) strays.push(photo.id);
+    }
     if (large) larges.push(large);
   }
   const post: Post = {
@@ -451,6 +459,8 @@ export async function reportSign(
   if (report.outcome === 'hidden') {
     for (const photo of sign.photos) await photos.hide(photo.id);
     await store.updateSign(sign.id, { visibility: 'hidden', moderation: { note: report.note, at } });
+  } else {
+    for (const id of strays) await photos.show(id);
   }
   await store.putReport(report);
   return report;

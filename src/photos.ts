@@ -57,6 +57,8 @@ export interface PhotoStore {
   unpublish(id: string): Promise<void>;
   /** Takes a shown photo down to `held`, when its sign is hidden. */
   hide(id: string): Promise<void>;
+  /** Puts a held photo back under p/, for a shown sign a hide that failed partway left it out of. */
+  show(id: string): Promise<void>;
   /** Removes a posted photo, wherever it is. */
   remove(id: string): Promise<void>;
 }
@@ -96,6 +98,10 @@ export class MemoryPhotoStore implements PhotoStore {
 
   async hide(id: string): Promise<void> {
     this.move(id, 'shown', 'held');
+  }
+
+  async show(id: string): Promise<void> {
+    this.move(id, 'held', 'shown');
   }
 
   async remove(id: string): Promise<void> {
@@ -143,6 +149,10 @@ export class DirPhotoStore implements PhotoStore {
 
   async hide(id: string): Promise<void> {
     await this.move(id, 'shown', 'held');
+  }
+
+  async show(id: string): Promise<void> {
+    await this.move(id, 'held', 'shown');
   }
 
   async remove(id: string): Promise<void> {
@@ -226,6 +236,10 @@ export class S3PhotoStore implements PhotoStore {
   async hide(id: string): Promise<void> {
     await this.move(id, 'shown', 'held');
     await this.clearCache(id);
+  }
+
+  async show(id: string): Promise<void> {
+    await this.move(id, 'held', 'shown');
   }
 
   async remove(id: string): Promise<void> {
