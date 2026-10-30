@@ -68,7 +68,8 @@ looking at it.
 ## Working here
 
 - `npm run verify` (format, lint, types, tests) before every push; CI runs the same.
-- Tests use fictional players and signs. Real people's details stay out of tests.
+- Tests use fictional players and signs. Real people's details stay out of tests; the one
+  check on `seed/microblog.json` treats it as data and names no one.
 - Work on a branch in a worktree and open a PR; Codex reviews every PR. Read its findings and
   fix or answer each one.
 - Node 24, TypeScript run directly by tsx and Node's type stripping, no build step yet.
