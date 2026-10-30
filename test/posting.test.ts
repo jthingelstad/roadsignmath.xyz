@@ -132,7 +132,7 @@ test('a post goes past the moderator, publishes its photos and uses the alt text
   assert.equal(body.moderation_note, null);
   assert.equal(body.photos[0].alt, 'A green exit sign for Exit 7.');
   assert.deepEqual(body.finders, [{ name: 'Ada', handle: 'ada', role: 'found' }]);
-  assert.deepEqual(body.first_way, { text: '7 + 12 = 19', value: '19' });
+  assert.deepEqual(body.first_way, { text: '7 + 12 = 19', tex: '7 + 12 = 19', value: '19' });
   assert.equal(body.ways.length, 1);
   assert.equal(body.ways[0].by.handle, 'ada');
   assert.deepEqual(body.numbers[2].box, [0.1, 0.2, 0.3, 0.1]);
@@ -392,7 +392,7 @@ test('another way must be true, from the sign, and new', async () => {
   const added = await add('19 − 12 = 7');
   assert.equal(added.res.status, 201);
   assert.equal(added.body.way_count, 2);
-  assert.deepEqual(added.body.first_way, { text: '7 + 12 = 19', value: '19' });
+  assert.deepEqual(added.body.first_way, { text: '7 + 12 = 19', tex: '7 + 12 = 19', value: '19' });
   assert.deepEqual(
     added.body.ways.map((w: Json) => w.by.handle),
     ['ada', 'ben']
@@ -440,7 +440,7 @@ test('an unsolved sign gets its first way from whoever solves it', async () => {
   const { body: posted } = await t.post({ way: undefined });
   assert.equal(posted.way_count, 0);
   const added = await t.call('POST', `/signs/${posted.id}/ways`, { as: 'ben', body: { text: '12 + 7 = 19' } });
-  assert.deepEqual(added.body.first_way, { text: '12 + 7 = 19', value: '19' });
+  assert.deepEqual(added.body.first_way, { text: '12 + 7 = 19', tex: '12 + 7 = 19', value: '19' });
   assert.equal((await t.call('GET', '/signs')).body.signs[0].way_count, 1);
 });
 
@@ -596,12 +596,12 @@ test('a blocked player’s first way is left out of the sign’s summary too', a
   await t.call('POST', '/players/ben/block', { as: 'ada' });
 
   const detail = await t.call('GET', `/signs/${posted.id}`, { as: 'ada' });
-  assert.deepEqual(detail.body.first_way, { text: '7 + 12 = 19', value: '19' });
+  assert.deepEqual(detail.body.first_way, { text: '7 + 12 = 19', tex: '7 + 12 = 19', value: '19' });
   assert.equal(detail.body.way_count, 1);
   const feed = await t.call('GET', '/signs', { as: 'ada' });
   assert.equal(feed.body.signs[0].first_way, null);
   const others = await t.call('GET', '/signs', { as: 'cy' });
-  assert.deepEqual(others.body.signs[0].first_way, { text: '19 − 7 = 12', value: '12' });
+  assert.deepEqual(others.body.signs[0].first_way, { text: '19 − 7 = 12', tex: '19 - 7 = 12', value: '12' });
   assert.equal('player_id' in others.body.signs[0].first_way, false, 'who found it stays out');
 });
 

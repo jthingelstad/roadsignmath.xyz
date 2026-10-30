@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Road Sign Math API",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "summary": "The signs, the map and the players of Road Sign Math.",
     "description": "Every public sign, the ways people found to make it true, the map and who’s playing, read by anyone; sign-in by email, your own account, and posting signs and ways from the app. Answers are JSON in UTF-8 with snake_case keys and carry an `API-Version` header. A request with a token is never cached. An error is `{\"error\": {\"code\", \"message\"}}`.",
     "license": {
@@ -1513,7 +1513,7 @@
           "api_version": {
             "type": "string",
             "examples": [
-              "1.2.0"
+              "1.3.0"
             ]
           },
           "signs": {
@@ -1726,6 +1726,7 @@
         "type": "object",
         "required": [
           "text",
+          "tex",
           "value"
         ],
         "properties": {
@@ -1733,6 +1734,20 @@
             "type": "string",
             "examples": [
               "3 × 33 = 99"
+            ]
+          },
+          "tex": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "LaTeX for drawing the math (÷ as a stacked fraction); null only if the text no longer parses.",
+                "examples": [
+                  "3 \\times 33 = 99"
+                ]
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "value": {
@@ -1867,6 +1882,7 @@
         "required": [
           "id",
           "text",
+          "tex",
           "value",
           "numbers",
           "by",
@@ -1879,6 +1895,20 @@
           "text": {
             "type": "string",
             "description": "Canonical text: Unicode operators, √ for square roots."
+          },
+          "tex": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "LaTeX for drawing the math (÷ as a stacked fraction); null only if the text no longer parses.",
+                "examples": [
+                  "3 \\times 33 = 99"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "value": {
             "type": "string",

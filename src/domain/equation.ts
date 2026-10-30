@@ -360,6 +360,47 @@ export function format(node: Node): string {
   }
 }
 
+const TEX_BINARY: Record<string, string> = { add: '+', sub: '-', mul: '\\times' };
+
+/** What a fraction, root or exponent already groups needs no brackets of its own. */
+const bare = (node: Node): Node => (node.op === 'group' ? bare(node.arg) : node);
+
+/**
+ * LaTeX for drawing the math (MathJax on the site, SwiftMath in the app): ÷ is a stacked
+ * fraction, √ a radical over what it applies to, ^ a raised exponent. Brackets the fraction bar,
+ * radical or exponent already shows are dropped; every other bracket stays as written.
+ */
+export function tex(node: Node): string {
+  switch (node.op) {
+    case 'num':
+      return node.text;
+    case 'group':
+      return `\\left(${tex(node.arg)}\\right)`;
+    case 'neg':
+      return `-${tex(node.arg)}`;
+    case 'sqrt':
+      return `\\sqrt{${tex(bare(node.arg))}}`;
+    case 'fact':
+      return `${tex(node.arg)}!`;
+    case 'pow':
+      return `{${tex(node.left)}}^{${tex(bare(node.right))}}`;
+    case 'div':
+      return `\\frac{${tex(bare(node.left))}}{${tex(bare(node.right))}}`;
+    default:
+      return `${tex(node.left)} ${TEX_BINARY[node.op]} ${tex(node.right)}`;
+  }
+}
+
+/** The LaTeX for a way's text, or undefined when it doesn't parse. */
+export function texOf(text: string): string | undefined {
+  try {
+    return new Parser(tokenize(text)).equation().map(tex).join(' = ');
+  } catch (e) {
+    if (e instanceof ParseError) return undefined;
+    throw e;
+  }
+}
+
 /** Every number literal, in reading order. The 2 of a square root is not one. */
 export function numbersIn(node: Node, out: string[] = []): string[] {
   if (node.op === 'num') out.push(node.text);

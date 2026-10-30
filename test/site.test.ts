@@ -6,7 +6,7 @@ import { MemoryPhotoStore } from '../src/photos.ts';
 import { MemoryStore } from '../src/store/memory.ts';
 import { addPlayer } from '../src/store/store.ts';
 import { ScriptedModerator } from './support/moderator.ts';
-import { ada, sign } from './support/fixtures.ts';
+import { ada, sign, way } from './support/fixtures.ts';
 
 async function setup() {
   const store = new MemoryStore();
@@ -18,6 +18,7 @@ async function setup() {
     sign({ id: '01JS0000000000000000000002', title: 'Newer Sign', postedAt: '2026-02-01T00:00:00.000Z' })
   );
   await store.putSign(sign({ id: '01JS0000000000000000000003', title: 'Held Sign', visibility: 'held' }));
+  await store.addWay(way('01JS0000000000000000000002', { text: '18 ÷ 6 = 3', value: '3', numbers: ['18', '6', '3'] }));
   const app = createApp({
     store,
     urls: { site: 'https://example.test' },
@@ -48,4 +49,12 @@ test('a sign has its own page; a held or unknown one is not found', async () => 
   const missing = await app.request('/signs/nothing-here');
   assert.equal(missing.status, 404);
   assert.equal(missing.headers.get('cache-control'), 'no-store');
+});
+
+test('the math is drawn as SVG, with the text for screen readers', async () => {
+  const { app, slug } = await setup();
+  const drawn = (label: string) =>
+    new RegExp(`<span class="math" role="img" aria-label="${label}"><svg aria-hidden="true" `);
+  assert.match(await (await app.request('/')).text(), drawn('7 \\+ 12 = 19'));
+  assert.match(await (await app.request(`/signs/${slug('Newer Sign')}`)).text(), drawn('18 ÷ 6 = 3'));
 });
