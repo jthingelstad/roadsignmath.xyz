@@ -1,7 +1,16 @@
 import { createHash } from 'node:crypto';
-import type { Login, Player, Session, Sign, Way } from '../domain/types.ts';
+import type { Block, Login, Player, Report, Session, Sign, Upload, Way } from '../domain/types.ts';
 
 export type PlayerChanges = { name?: string; handle?: string; bio?: string | null };
+
+/** The sign fields that change after posting; null removes one. */
+export type SignChanges = {
+  visibility?: Sign['visibility'];
+  finders?: Sign['finders'];
+  wayCount?: number;
+  firstWay?: Sign['firstWay'] | null;
+  moderation?: Sign['moderation'] | null;
+};
 
 /**
  * Where signs, ways and players live. Two versions: MemoryStore (tests and `npm run dev`) and
@@ -12,12 +21,33 @@ export interface Store {
   allSigns(): Promise<Sign[]>;
   getSign(id: string): Promise<Sign | undefined>;
   putSign(sign: Sign): Promise<void>;
-  /** Removes the sign and its ways. */
+  /**
+   * Changes some of a sign's fields in place, so a new way can't undo a report's hide or the
+   * other way round. False when the sign is gone.
+   */
+  updateSign(id: string, changes: SignChanges): Promise<boolean>;
+  /** Reserves a slug for the sign; false when another sign has it. */
+  claimSlug(slug: string, signId: string): Promise<boolean>;
+  /** Frees the slug if this sign holds it, for a post that failed before its sign was written. */
+  releaseSlug(slug: string, signId: string): Promise<void>;
+  /** Removes the sign, its ways, its reports and its slug. */
   deleteSign(id: string): Promise<void>;
   /** Oldest first. */
   listWays(signId: string): Promise<Way[]>;
+  /**
+   * Reserves a way's math on its sign for the way, so two requests at once can't add the same
+   * way twice; false when another way on the sign has it. `deleteWay` frees it.
+   */
+  claimWay(signId: string, text: string, wayId: string): Promise<boolean>;
   putWay(way: Way): Promise<void>;
+  /** Removes the way and frees its math on the sign. */
   deleteWay(way: Way): Promise<void>;
+  /**
+   * Adds a way to a sign that has one already or none, in one all-or-nothing write: reserves its
+   * math, stores it, counts it, and makes it the sign's first way when it has none. `taken` when
+   * another way has its math, `gone` when the sign was deleted; either way nothing is written.
+   */
+  addWay(way: Way): Promise<'added' | 'taken' | 'gone'>;
   allPlayers(): Promise<Player[]>;
   getPlayer(id: string): Promise<Player | undefined>;
   /** Writes the player's row. The email and handle are claimed separately, first. */
@@ -36,8 +66,9 @@ export interface Store {
   /** Frees the handle if this player holds it. */
   releaseHandle(handle: string, playerId: string): Promise<void>;
   /**
-   * Removes the player, their email and handle (when they still point at this player) and their
-   * sessions. Signs and ways are the caller's.
+   * Removes the player, their email and handle (when they still point at this player), and
+   * everything kept under them: sessions, uploads, blocks and post keys. Signs, ways and
+   * reports are the caller's.
    */
   deletePlayer(id: string): Promise<void>;
 
@@ -60,12 +91,55 @@ export interface Store {
    * count so far. Windows start on multiples of `seconds`.
    */
   bump(key: string, seconds: number, now: number): Promise<number>;
+
+  putUpload(upload: Upload): Promise<void>;
+  /** Missing once it has expired. */
+  getUpload(playerId: string, photoId: string): Promise<Upload | undefined>;
+  /**
+   * Takes a live upload for the sign being posted, so two posts can't share a photo; false when
+   * it is gone, expired or already taken.
+   */
+  claimUpload(playerId: string, photoId: string, signId: string): Promise<boolean>;
+  /** Gives the upload back when the post that took it fails. */
+  releaseUpload(playerId: string, photoId: string, signId: string): Promise<void>;
+  deleteUpload(playerId: string, photoId: string): Promise<void>;
+
+  putReport(report: Report): Promise<void>;
+  getReport(signId: string, playerId: string): Promise<Report | undefined>;
+  deleteReport(signId: string, playerId: string): Promise<void>;
+
+  putBlock(block: Block): Promise<void>;
+  deleteBlock(playerId: string, blockedId: string): Promise<void>;
+  listBlocks(playerId: string): Promise<Block[]>;
+
+  /**
+   * Claims a post's Idempotency-Key for a sign id, for `seconds`. Returns undefined when this
+   * call made the claim, or the sign id of the live claim already there.
+   */
+  claimPost(playerId: string, key: string, signId: string, seconds: number): Promise<string | undefined>;
+
+  /**
+   * Takes a lease on `key` for `seconds`, so only one request at a time works on what it names;
+   * false while another live lease holds it. `endLease` gives it back early.
+   */
+  lease(key: string, holder: string, seconds: number): Promise<boolean>;
+  endLease(key: string, holder: string): Promise<void>;
+  releasePost(playerId: string, key: string): Promise<void>;
 }
 
 export const nowSeconds = (): number => Math.floor(Date.now() / 1000);
 
 export const normalizeEmail = (email: string): string => email.trim().toLowerCase();
+/** The key a way's math is reserved under on its sign. */
+export const wayHash = (text: string): string => createHash('sha256').update(text).digest('hex');
+
 export const emailHash = (email: string): string => createHash('sha256').update(normalizeEmail(email)).digest('hex');
+
+/** For seeding and tests: claims the sign's slug, then writes the row. */
+export async function addSign(store: Store, sign: Sign): Promise<void> {
+  if (!(await store.claimSlug(sign.slug, sign.id))) throw new Error(`slug ${sign.slug} is taken`);
+  await store.putSign(sign);
+}
 
 /** For seeding and tests: claims the player's handle and email, then writes the row. */
 export async function addPlayer(store: Store, player: Player): Promise<void> {

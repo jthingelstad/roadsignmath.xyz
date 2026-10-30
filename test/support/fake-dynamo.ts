@@ -53,7 +53,7 @@ export class FakeDynamo {
     throw Object.assign(new Error('The conditional request failed'), { name: 'ConditionalCheckFailedException' });
   }
 
-  /** Applies `SET a = :x, b = :y`, `ADD a :x` and `REMOVE a` clauses, and returns what changed. */
+  /** Applies `SET a = :x, b = if_not_exists(b,:y)`, `ADD a :x` and `REMOVE a` clauses, and returns what changed. */
   private update(item: Item, expression: string, input: Record<string, unknown>): Item {
     const names = (input.ExpressionAttributeNames ?? {}) as Record<string, string>;
     const values = (input.ExpressionAttributeValues ?? {}) as Record<string, unknown>;
@@ -64,7 +64,11 @@ export class FakeDynamo {
         const field = names[path] ?? path;
         if (verb === 'REMOVE') delete item[field];
         else if (verb === 'ADD') item[field] = ((item[field] as number | undefined) ?? 0) + (values[rest[0]] as number);
-        else if (rest[0] === '=') item[field] = values[rest[1]];
+        else if (rest[0] === '=' && rest[1].startsWith('if_not_exists(')) {
+          const [, own, value] = /^if_not_exists\((#?\w+),(:\w+)\)$/.exec(rest[1]) ?? [];
+          if (own === undefined) throw new Error(`unknown update ${part}`);
+          item[field] = item[names[own] ?? own] ?? values[value];
+        } else if (rest[0] === '=') item[field] = values[rest[1]];
         else throw new Error(`unknown update ${part}`);
         if (verb !== 'REMOVE') changed[field] = item[field];
       }
@@ -76,7 +80,9 @@ export class FakeDynamo {
     const { constructor, input } = command as Command;
     const name = constructor.name;
     this.sent.push({ command: name, input: structuredClone(input) });
-    if (input.TableName !== this.table) throw new Error(`wrong table ${String(input.TableName)}`);
+    if (name !== 'TransactWriteCommand' && input.TableName !== this.table) {
+      throw new Error(`wrong table ${String(input.TableName)}`);
+    }
     switch (name) {
       case 'PutCommand': {
         const item = input.Item as Item;
@@ -123,6 +129,35 @@ export class FakeDynamo {
           .map((i) => structuredClone(i));
         if (input.ScanIndexForward === false) found.reverse();
         return { Items: found };
+      }
+      case 'TransactWriteCommand': {
+        // Every condition is checked before anything is written, as DynamoDB does.
+        const items = input.TransactItems as Record<string, Record<string, unknown>>[];
+        const steps = items.map((entry) => {
+          const [verb, request] = Object.entries(entry)[0];
+          if (request.TableName !== this.table) throw new Error(`wrong table ${String(request.TableName)}`);
+          const key = (verb === 'Put' ? request.Item : request.Key) as Item;
+          return { verb, request, k: this.key(key.pk, key.sk), key };
+        });
+        const reasons = steps.map(({ request, k }) => ({
+          Code: this.holds(this.items.get(k), request.ConditionExpression, request) ? 'None' : 'ConditionalCheckFailed'
+        }));
+        if (reasons.some((r) => r.Code !== 'None')) {
+          throw Object.assign(new Error('Transaction cancelled'), {
+            name: 'TransactionCanceledException',
+            CancellationReasons: reasons
+          });
+        }
+        for (const { verb, request, k, key } of steps) {
+          if (verb === 'Put') this.items.set(k, structuredClone(request.Item as Item));
+          else if (verb === 'Delete') this.items.delete(k);
+          else if (verb === 'Update') {
+            const item = this.items.get(k) ?? { pk: key.pk, sk: key.sk };
+            this.update(item, String(request.UpdateExpression), request);
+            this.items.set(k, item);
+          } else throw new Error(`FakeDynamo does not handle ${verb} in a transaction`);
+        }
+        return {};
       }
       default:
         throw new Error(`FakeDynamo does not handle ${name}`);

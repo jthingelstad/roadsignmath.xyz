@@ -119,7 +119,7 @@ export function buildPlan(feed: FeedItem[], seed: SeedFile): Plan {
       postedBy: postedBy ?? '',
       finders: [{ playerId, name: seed.players.find((p) => p.handle === s.finder)?.name ?? s.finder, role: 'found' }],
       visibility: 'shown',
-      firstWay: { text: result.canonical, value: result.value },
+      firstWay: { text: result.canonical, value: result.value, playerId: playerId ?? '' },
       wayCount: 1
     });
     if (!hasPin && (s.place.lat !== undefined || s.place.lng !== undefined)) {

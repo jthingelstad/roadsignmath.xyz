@@ -12,8 +12,17 @@ export const signUrl = (urls: Urls, sign: Sign): string => `${urls.site}/signs/$
 export const playerUrl = (urls: Urls, player: Player): string => `${urls.site}/players/${player.handle}`;
 export const photoUrl = (urls: Urls, photoId: string, size: 'large' | 'thumb'): string =>
   `${urls.site}/p/${photoId}/${size}.jpg`;
+/** A held or hidden sign's photo, which only its poster can fetch, with their token. */
+export const heldPhotoUrl = (urls: Urls, photoId: string, size: 'large' | 'thumb'): string =>
+  `${urls.site}/api/v1/me/photos/${photoId}/${size}`;
 
 export const isPublic = (sign: Sign): boolean => sign.visibility === 'shown';
+
+/** What one reader sees: shown signs and their own, less the posts of players they blocked. */
+export const visibleTo =
+  (viewerId: string | undefined, blocked: Set<string>) =>
+  (sign: Sign): boolean =>
+    (isPublic(sign) || sign.postedBy === viewerId) && !blocked.has(sign.postedBy);
 
 /** Newest first; postedAt ties go to the larger id. */
 export const byNewest = (a: Sign, b: Sign): number => b.postedAt.localeCompare(a.postedAt) || b.id.localeCompare(a.id);
@@ -24,8 +33,10 @@ function handleOf(people: People, playerId: string | undefined): string | null {
   return (playerId && people.get(playerId)?.handle) || null;
 }
 
-/** A sign as the feed, the map sheet and a player's grid show it. */
-export function signSummary(urls: Urls, people: People, sign: Sign) {
+/** A sign as the feed, the map sheet and a player's grid show it, to a reader who blocked `blocked`. */
+export function signSummary(urls: Urls, people: People, sign: Sign, blocked: ReadonlySet<string> = new Set()) {
+  const url = isPublic(sign) ? photoUrl : heldPhotoUrl;
+  const first = sign.firstWay && !blocked.has(sign.firstWay.playerId) ? sign.firstWay : undefined;
   return {
     id: sign.id,
     slug: sign.slug,
@@ -47,8 +58,8 @@ export function signSummary(urls: Urls, people: People, sign: Sign) {
       width: p.width,
       height: p.height,
       alt: p.alt,
-      url: photoUrl(urls, p.id, 'large'),
-      thumb_url: photoUrl(urls, p.id, 'thumb')
+      url: url(urls, p.id, 'large'),
+      thumb_url: url(urls, p.id, 'thumb')
     })),
     numbers: sign.numbers.map((n) => ({
       value: n.value,
@@ -57,8 +68,10 @@ export function signSummary(urls: Urls, people: People, sign: Sign) {
       box: n.box ?? null
     })),
     finders: sign.finders.map((f) => ({ name: f.name, handle: handleOf(people, f.playerId), role: f.role })),
-    first_way: sign.firstWay ?? null,
-    way_count: sign.wayCount
+    first_way: first ? { text: first.text, value: first.value } : null,
+    way_count: sign.wayCount,
+    visibility: sign.visibility,
+    moderation_note: sign.visibility === 'shown' ? null : (sign.moderation?.note ?? null)
   };
 }
 
@@ -74,9 +87,15 @@ export function wayView(people: People, way: Way) {
   };
 }
 
-/** One sign's page: the summary and every way found so far, oldest first. */
+/** One sign's page: the summary and the ways this reader sees, oldest first. */
 export function signDetail(urls: Urls, people: People, sign: Sign, ways: Way[]) {
-  return { ...signSummary(urls, people, sign), ways: ways.map((w) => wayView(people, w)) };
+  const first = ways[0];
+  return {
+    ...signSummary(urls, people, sign),
+    first_way: first ? { text: first.text, value: first.value } : null,
+    way_count: ways.length,
+    ways: ways.map((w) => wayView(people, w))
+  };
 }
 
 /** A pin on the map: just enough to draw it and fill the sheet. */
@@ -92,7 +111,7 @@ export function pinView(urls: Urls, sign: Sign) {
     approximate: sign.place.approximate,
     state: sign.place.state ?? null,
     found_on: sign.foundOn,
-    thumb_url: photo ? photoUrl(urls, photo.id, 'thumb') : null
+    thumb_url: photo ? (isPublic(sign) ? photoUrl : heldPhotoUrl)(urls, photo.id, 'thumb') : null
   };
 }
 

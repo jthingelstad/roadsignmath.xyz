@@ -7,13 +7,13 @@
 // finders, numbers, places, alt text). Ids come from the posts, so running it again changes
 // nothing. Seeding the live table comes with the infrastructure.
 
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
-import { renditions } from '../src/photos.ts';
+import { DirPhotoStore, renditions } from '../src/photos.ts';
 import { buildPlan, type FeedItem, type SeedFile } from '../src/seed/microblog.ts';
 import { MemoryStore } from '../src/store/memory.ts';
-import { addPlayer } from '../src/store/store.ts';
+import { addPlayer, addSign } from '../src/store/store.ts';
 
 const { values } = parseArgs({
   options: { export: { type: 'string' }, to: { type: 'string', default: 'plan' } }
@@ -37,19 +37,21 @@ if (values.to === 'plan') process.exit(0);
 
 const saved = await readFile('.data/store.json', 'utf8').catch(() => undefined);
 const store = saved ? await MemoryStore.from(JSON.parse(saved)) : new MemoryStore();
+const photos = new DirPhotoStore();
 const signs = new Map(plan.signs.map((s) => [s.id, s]));
 for (const photo of plan.photos) {
   const sized = await renditions(await readFile(join(values.export, photo.source)));
-  const dir = join('.data/photos', photo.id);
-  await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, 'large.jpg'), sized.large);
-  await writeFile(join(dir, 'thumb.jpg'), sized.thumb);
+  await photos.putUpload(photo.id, sized);
+  await photos.publish(photo.id, 'shown');
   const entry = signs.get(photo.signId)!.photos.find((p) => p.id === photo.id)!;
   entry.width = sized.width;
   entry.height = sized.height;
 }
 for (const player of plan.players) await addPlayer(store, player);
-for (const sign of plan.signs) await store.putSign(sign);
-for (const way of plan.ways) await store.putWay(way);
+for (const sign of plan.signs) await addSign(store, sign);
+for (const way of plan.ways) {
+  await store.claimWay(way.signId, way.text, way.id);
+  await store.putWay(way);
+}
 await writeFile('.data/store.json', JSON.stringify(store.snapshot(), null, 2) + '\n');
 console.log('Wrote .data/store.json and .data/photos/. Run `npm run dev` to see them.');

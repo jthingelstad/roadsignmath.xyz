@@ -2,9 +2,9 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Road Sign Math API",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "summary": "The signs, the map and the players of Road Sign Math.",
-    "description": "Every public sign, the ways people found to make it true, the map and who’s playing, read by anyone; sign-in by email and your own account for the app. Answers are JSON in UTF-8 with snake_case keys and carry an `API-Version` header. A request with a token is never cached. An error is `{\"error\": {\"code\", \"message\"}}`.",
+    "description": "Every public sign, the ways people found to make it true, the map and who’s playing, read by anyone; sign-in by email, your own account, and posting signs and ways from the app. Answers are JSON in UTF-8 with snake_case keys and carry an `API-Version` header. A request with a token is never cached. An error is `{\"error\": {\"code\", \"message\"}}`.",
     "license": {
       "name": "MIT",
       "identifier": "MIT"
@@ -119,6 +119,108 @@
           },
           "400": {
             "description": "A parameter or the body is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "postSign",
+        "summary": "Post a sign",
+        "description": "Posts the uploaded photos with the numbers you checked, where and when you found it, who found it (you, unless you say), and optionally the first way to make it true. Without a way it is posted unsolved. Our moderator looks first: a post that is clearly objectionable is held, and only you see it, with `moderation_note` saying why. The moderator also writes each photo’s alt text. You need a name first. At most 20 a day.",
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Any 8 to 128 letters, digits, - or _. Sending the same post again with the same key gives back the sign it made instead of a second one, for a day.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignPost"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Post a sign",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter or the body is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "It already exists (that way was found), or the same post is still being made.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many tries for now; the message says when to try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The moderator couldn’t look just now; try again in a minute.",
             "content": {
               "application/json": {
                 "schema": {
@@ -301,6 +403,70 @@
           },
           "400": {
             "description": "A parameter or the body is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such route, sign or player.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSign",
+        "summary": "Delete a sign you posted",
+        "description": "Removes the sign, its photos and every way on it.",
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The sign’s id or slug.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Delete a sign you posted",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter or the body is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
             "content": {
               "application/json": {
                 "schema": {
@@ -727,6 +893,576 @@
           }
         }
       }
+    },
+    "/api/v1/me/blocks": {
+      "get": {
+        "operationId": "listBlocks",
+        "summary": "Players you blocked",
+        "description": "Their signs and ways are left out of everything you read.",
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Players you blocked",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Blocks"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/photos/{photoId}/{size}": {
+      "get": {
+        "operationId": "getMyPhoto",
+        "summary": "A photo of one of your signs",
+        "description": "One size of a photo on a sign you posted. A held or hidden sign’s photos are served only here, to you; the summary’s `url` and `thumb_url` point here for them. Never cached.",
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "photoId",
+            "in": "path",
+            "required": true,
+            "description": "The photo’s id.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "size",
+            "in": "path",
+            "required": true,
+            "description": "large (1600 px) or thumb (480 px).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "large",
+                "thumb"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A photo of one of your signs",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter or the body is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such route, sign or player.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/photos": {
+      "post": {
+        "operationId": "uploadPhoto",
+        "summary": "Upload a photo for a post",
+        "description": "The body is the photo itself, JPEG, PNG or WebP, at most 4 MB. It is kept at two sizes with its metadata (and so its location) removed. Send the answer’s `id` in `photo_ids` when posting, within a day. At most 60 a day.",
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "image/jpeg": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/png": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Upload a photo for a post",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Upload"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter or the body is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The photo is over 4 MB.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many tries for now; the message says when to try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/signs/{id}/ways": {
+      "post": {
+        "operationId": "addWay",
+        "summary": "Add another way to make a sign true",
+        "description": "The math must be true, and every number in it must be one of the sign’s numbers, each used no more often than the sign shows it. A way someone already found is a conflict. Answers with the sign and all its ways. You need a name first. At most 100 a day.",
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The sign’s id or slug.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WayPost"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Add another way to make a sign true",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter or the body is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such route, sign or player.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "It already exists (that way was found), or the same post is still being made.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many tries for now; the message says when to try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/signs/{id}/report": {
+      "post": {
+        "operationId": "reportSign",
+        "summary": "Report a sign",
+        "description": "Our moderator looks at the sign again with your reason, and hides it if it agrees it is objectionable. One report per sign; sending another gives back the first answer. At most 20 a day.",
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The sign’s id or slug.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportPost"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Report a sign",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportOutcome"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter or the body is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such route, sign or player.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "It already exists (that way was found), or the same post is still being made.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many tries for now; the message says when to try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The moderator couldn’t look just now; try again in a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/players/{handle}/block": {
+      "post": {
+        "operationId": "blockPlayer",
+        "summary": "Block a player",
+        "description": "Their signs and ways are left out of everything you read. They aren’t told.",
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "description": "The player’s handle.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Block a player",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter or the body is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such route, sign or player.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "unblockPlayer",
+        "summary": "Unblock a player",
+        "description": "Their signs and ways come back.",
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "description": "The player’s handle.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Unblock a player",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter or the body is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such route, sign or player.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -750,8 +1486,11 @@
                   "bad_request",
                   "unauthorized",
                   "not_found",
+                  "conflict",
+                  "too_large",
                   "rate_limited",
-                  "internal"
+                  "internal",
+                  "unavailable"
                 ]
               },
               "message": {
@@ -774,7 +1513,7 @@
           "api_version": {
             "type": "string",
             "examples": [
-              "1.1.0"
+              "1.2.0"
             ]
           },
           "signs": {
@@ -1020,7 +1759,9 @@
           "numbers",
           "finders",
           "first_way",
-          "way_count"
+          "way_count",
+          "visibility",
+          "moderation_note"
         ],
         "properties": {
           "id": {
@@ -1098,6 +1839,26 @@
           "way_count": {
             "type": "integer",
             "minimum": 0
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "shown",
+              "held",
+              "hidden"
+            ],
+            "description": "Always shown, except on your own signs: held when posted, hidden after a report."
+          },
+          "moderation_note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Why your sign is held or hidden; null when shown."
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },
@@ -1500,6 +2261,294 @@
                 "type": "null"
               }
             ]
+          }
+        }
+      },
+      "Blocks": {
+        "type": "object",
+        "required": [
+          "players"
+        ],
+        "properties": {
+          "players": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "handle",
+                "name"
+              ],
+              "properties": {
+                "handle": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Upload": {
+        "type": "object",
+        "required": [
+          "id",
+          "width",
+          "height"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Send it in `photo_ids` when posting."
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "SignPost": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "photo_ids",
+          "title",
+          "numbers",
+          "place",
+          "found_on"
+        ],
+        "properties": {
+          "photo_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "maxItems": 4
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "numbers": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 30,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "value"
+              ],
+              "properties": {
+                "value": {
+                  "type": "string",
+                  "pattern": "^[0-9]*\\.?[0-9]+$",
+                  "examples": [
+                    "7"
+                  ]
+                },
+                "text": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 40
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "why": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 60
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "box": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "minItems": 4,
+                      "maxItems": 4
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "place": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "label"
+            ],
+            "properties": {
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "state": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Z]{2}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "lat": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": -90,
+                    "maximum": 90
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "lng": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": -180,
+                    "maximum": 180
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "approximate": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          },
+          "found_on": {
+            "type": "string",
+            "format": "date",
+            "description": "The day it was found, in your own time."
+          },
+          "finders": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 6,
+            "description": "Who found it: a player by handle, or a name for someone who doesn’t play. Default: you.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "handle": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                },
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "found",
+                    "took_photo",
+                    "spotted"
+                  ],
+                  "default": "found"
+                }
+              }
+            }
+          },
+          "way": {
+            "type": "string",
+            "maxLength": 400,
+            "description": "The first way to make it true, as math text. Leave it out to post unsolved.",
+            "examples": [
+              "90 − 82 = 8"
+            ]
+          }
+        }
+      },
+      "WayPost": {
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 400,
+            "examples": [
+              "7 + 12 = 19"
+            ]
+          }
+        }
+      },
+      "ReportPost": {
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        }
+      },
+      "ReportOutcome": {
+        "type": "object",
+        "required": [
+          "outcome",
+          "note"
+        ],
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "hidden",
+              "kept"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "description": "The moderator’s reason."
           }
         }
       },
