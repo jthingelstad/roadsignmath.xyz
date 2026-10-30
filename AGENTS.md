@@ -1,0 +1,62 @@
+# Agent guide: roadsignmath.xyz
+
+The server and website for Road Sign Math, a road trip game: find a road sign whose numbers
+make a true equation, photograph it, write the math, post it. `README.md` is the overview for
+people; this file is the working rules. `CLAUDE.md` is a symlink to this file.
+
+This repo is **public**. It never holds secrets, signing files, player emails, cloud account
+ids or ARNs, local paths, or photos of plates or faces that weren't meant to be shared.
+
+## The game, as built
+
+- **No points.** No scores, scoreboards, ranks, judges or rules pages.
+- **A light check.** A way is accepted when the math is true and every number in it is one of
+  the sign's checked numbers, each used no more often than the sign shows it. Using every
+  number is encouraged, not required. `src/domain/equation.ts` is the checker;
+  `contracts/equation-vectors.json` holds the cases the server and the iPhone app both pass.
+- **Public reads, signed-in writes.** Only `shown` signs are public. A player's email never
+  leaves the server.
+- Product calls (what counts, moderation, what players are promised, who sees what) are the
+  owner's. Ship the factual fix and ask about the policy half.
+
+## Layout
+
+| Path | What |
+| --- | --- |
+| `src/domain/` | The data model (`types.ts`), the equation checker, ids and slugs, miles. No I/O. |
+| `src/store/` | `Store`, with `MemoryStore` (tests, `npm run dev`) and `DynamoStore` (the live table). |
+| `src/api/` | `/api/v1` on Hono. `contract.ts` is the route table, limits and errors; `openapi.ts` describes it; `views.ts` makes the JSON. |
+| `src/dev.ts` | The local server on port 8787. |
+| `tools/` | `export-api-contract.ts` (`npm run contract`). |
+| `contracts/` | `api-surface.json` (OpenAPI 3.1), `api-versions.json` (each version's digest), `equation-vectors.json`. |
+| `test/` | `node --test` with tsx. `test/support/` has a fake DynamoDB and fictional fixtures. |
+
+## The table
+
+One DynamoDB table with string keys `pk` and `sk` and no indexes. Every list is read whole
+and filtered in memory; at this size that is cheaper and simpler than indexes.
+
+| pk | sk | holds |
+| --- | --- | --- |
+| `SIGNS` | `SIGN#<signId>` | a sign |
+| `SIGN#<signId>` | `WAY#<createdAt>#<wayId>` | a way to make it true |
+| `PLAYERS` | `PLAYER#<playerId>` | a player |
+| `EMAIL#<sha256>` | `EMAIL` | the player id for an email address |
+
+`test/docs.test.ts` checks this table against `src/store/dynamo.ts`.
+
+## The API
+
+- Everything is under `/api/v1`, JSON with snake_case keys, an `API-Version` header on every
+  answer, and errors as `{"error": {"code", "message"}}`.
+- A route is a row in `src/api/contract.ts` plus a handler in `src/api/app.ts` with the same
+  operation id. Any change to the surface bumps `API_VERSION` and runs `npm run contract`;
+  the tool refuses a changed surface under a recorded version.
+
+## Working here
+
+- `npm run verify` (format, lint, types, tests) before every push; CI runs the same.
+- Tests use fictional players and signs. Real people's details stay out of tests.
+- Work on a branch in a worktree and open a PR; Codex reviews every PR. Read its findings and
+  fix or answer each one.
+- Node 24, TypeScript run directly by tsx and Node's type stripping, no build step yet.
