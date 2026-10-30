@@ -342,6 +342,32 @@
       "ok": false,
       "error": "parse",
       "note": "a letter"
+    },
+    {
+      "text": "√10^400 = 10^200",
+      "ok": true,
+      "canonical": "√10^400 = 10^200",
+      "value": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "numbers": ["10", "400", "10", "200"],
+      "note": "a huge perfect square stays exact"
+    },
+    {
+      "text": "sqrt(50!) = 1",
+      "ok": false,
+      "error": "not-true",
+      "note": "a huge square root finishes quickly"
+    },
+    {
+      "text": "sqrt(2) = 10^400",
+      "ok": false,
+      "error": "not-true",
+      "note": "an approximate side never equals one beyond the float range"
+    },
+    {
+      "text": "sqrt(2) = -10^400",
+      "ok": false,
+      "error": "not-true",
+      "note": "nor a huge negative one"
     }
   ],
   "numbers_on_sign": [

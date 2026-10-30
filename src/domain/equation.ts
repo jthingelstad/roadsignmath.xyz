@@ -217,7 +217,17 @@ function rational(n: bigint, d: bigint): Value {
 }
 
 const bits = (x: bigint): bigint => BigInt((x < 0n ? -x : x).toString(2).length);
-const toFloat = (v: Value): number => (v.exact ? Number(v.n) / Number(v.d) : v.v);
+/** The nearest float. Huge rationals are scaled first so n/d doesn't become ∞/∞; one beyond the float range is ±∞. */
+function toFloat(v: Value): number {
+  if (!v.exact) return v.v;
+  let { n, d } = v;
+  const shift = (bits(n) > bits(d) ? bits(d) : bits(n)) - 1000n;
+  if (shift > 0n) {
+    n >>= shift;
+    d >>= shift;
+  }
+  return Number(n) / Number(d);
+}
 
 function float(v: number): Value {
   if (!Number.isFinite(v)) throw new MathError('too-big', 'The numbers get too big to check');
@@ -229,12 +239,15 @@ function parseNumber(text: string): Value {
   return rational(BigInt(whole + frac), 10n ** BigInt(frac.length));
 }
 
+/** Floor of √n by Newton's method, starting above the root so it only falls: O(log bits) steps. */
 function isqrt(n: bigint): bigint {
   if (n < 2n) return n;
-  let x = BigInt(Math.floor(Math.sqrt(Number(n))));
-  while (x * x > n) x--;
-  while ((x + 1n) * (x + 1n) <= n) x++;
-  return x;
+  let x = 1n << ((bits(n) + 1n) / 2n);
+  for (;;) {
+    const y = (x + n / x) >> 1n;
+    if (y >= x) return x;
+    x = y;
+  }
 }
 
 function evaluate(node: Node): Value {
@@ -267,7 +280,7 @@ function evaluate(node: Node): Value {
     }
     case 'sqrt': {
       const a = evaluate(node.arg);
-      if (toFloat(a) < 0) throw new MathError('not-real', 'There is no square root of a negative number');
+      if (a.exact ? a.n < 0n : a.v < 0) throw new MathError('not-real', 'There is no square root of a negative number');
       if (a.exact) {
         const rn = isqrt(a.n);
         const rd = isqrt(a.d);
@@ -306,6 +319,8 @@ function equal(a: Value, b: Value): boolean {
   if (a.exact && b.exact) return a.n === b.n && a.d === b.d;
   const x = toFloat(a);
   const y = toFloat(b);
+  // An exact side beyond the float range can't equal an approximate one, which is always finite.
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
   return Math.abs(x - y) <= 1e-9 * Math.max(1, Math.abs(x), Math.abs(y));
 }
 
