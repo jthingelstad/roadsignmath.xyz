@@ -122,3 +122,8 @@ export function playerView(urls: Urls, player: Player, signs: Sign[]) {
     first_year: stats.first_year
   };
 }
+
+/** You, as only you see yourself. */
+export function meView(urls: Urls, player: Player, signs: Sign[]) {
+  return { ...playerView(urls, player, signs), email: player.email ?? '', needs_name: !player.name };
+}

@@ -13,6 +13,7 @@ import { parseArgs } from 'node:util';
 import { renditions } from '../src/photos.ts';
 import { buildPlan, type FeedItem, type SeedFile } from '../src/seed/microblog.ts';
 import { MemoryStore } from '../src/store/memory.ts';
+import { addPlayer } from '../src/store/store.ts';
 
 const { values } = parseArgs({
   options: { export: { type: 'string' }, to: { type: 'string', default: 'plan' } }
@@ -47,7 +48,7 @@ for (const photo of plan.photos) {
   entry.width = sized.width;
   entry.height = sized.height;
 }
-for (const player of plan.players) await store.putPlayer(player);
+for (const player of plan.players) await addPlayer(store, player);
 for (const sign of plan.signs) await store.putSign(sign);
 for (const way of plan.ways) await store.putWay(way);
 await writeFile('.data/store.json', JSON.stringify(store.snapshot(), null, 2) + '\n');

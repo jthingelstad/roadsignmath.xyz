@@ -90,3 +90,25 @@ export type Player = {
 };
 
 export const AVATAR_COLORS = ['#006348', '#004C80', '#F2B300', '#B01C33', '#18201C'] as const;
+
+/** A sign-in in progress: the email it was sent to, and hashes of its link token and code. */
+export type Login = {
+  id: string;
+  email: string;
+  tokenHash: string;
+  codeHash: string;
+  /** Wrong codes so far. */
+  attempts: number;
+  createdAt: string;
+  /** Epoch seconds; the table's time-to-live attribute. */
+  expiresAt: number;
+};
+
+/** A signed-in app. The token is `rsm_<playerId>_<secret>`; only the secret's hash is kept. */
+export type Session = {
+  playerId: string;
+  secretHash: string;
+  createdAt: string;
+  lastUsedAt: string;
+  expiresAt: number;
+};

@@ -19,10 +19,13 @@ first deploy.
 - The equation checker. A way counts when the math is true and its numbers come
   from the sign. `contracts/equation-vectors.json` holds the cases the server and
   the app both pass.
-- A read-only API at `/api/v1`: the latest signs, signs near a point, one sign
+- An API at `/api/v1`: the latest signs, signs near a point, one sign
   and its ways, the map, and the players. It's described in OpenAPI 3.1 at
   [`contracts/api-surface.json`](contracts/api-surface.json) and served at
   `/api/v1/openapi.json`.
+- Sign-in for the app: anyone can sign in with an email address, by tapping the
+  link in the email or typing its 6-digit code. Players can set their name and
+  bio, and delete their account with everything they posted.
 
 ## Running it
 
@@ -31,7 +34,7 @@ Node 24.
 ```sh
 npm ci
 npm run seed -- --export <micro.blog export> --to local   # the 16 launch signs, into .data/
-npm run dev      # http://localhost:8787/api/v1
+npm run dev      # http://localhost:8787/api/v1; sign-in emails land in .data/mail/
 npm run verify   # format, lint, types and tests
 ```
 

@@ -12,6 +12,11 @@ test('AGENTS.md lists every key in the table, and only those', async () => {
     .filter((row) => row !== 'pk sk');
   assert.ok(rows.length >= 4, 'the table in AGENTS.md');
   assert.deepEqual(rows, header);
-  const used = new Set(rows.flatMap((r) => r.split(' ')).map((k) => k.replace(/<[^>]+>/g, '').replace(/#.*$/, '#')));
+  const used = new Set(
+    rows
+      .flatMap((r) => r.split(' '))
+      .map((k) => k.replace(/<[^>]+>/g, '').replace(/#.*$/, '#'))
+      .filter(Boolean)
+  );
   assert.deepEqual([...used].sort(), [...KEY_PREFIXES].sort());
 });

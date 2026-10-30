@@ -26,6 +26,8 @@ ids or ARNs, local paths, or photos of plates or faces that weren't meant to be 
 | `src/domain/` | The data model (`types.ts`), the equation checker, ids and slugs, miles. No I/O. |
 | `src/store/` | `Store`, with `MemoryStore` (tests, `npm run dev`) and `DynamoStore` (the live table). |
 | `src/api/` | `/api/v1` on Hono. `contract.ts` is the route table, limits and errors; `openapi.ts` describes it; `views.ts` makes the JSON. |
+| `src/auth/` | Sign-in by email (link or code), tokens, and the account: name, bio, delete. |
+| `src/mail/` | `Mailer`: SES live, files in `.data/mail/` for `npm run dev`, memory in tests. |
 | `src/photos.ts` | The two served sizes of a photo (1600 and 480 px JPEGs, no metadata). |
 | `src/seed/` | Builds the launch set from the micro.blog export and `seed/microblog.json`. |
 | `src/dev.ts` | The local server on port 8787, reading `.data/` (ignored by git). |
@@ -45,8 +47,15 @@ and filtered in memory; at this size that is cheaper and simpler than indexes.
 | `SIGN#<signId>` | `WAY#<createdAt>#<wayId>` | a way to make it true |
 | `PLAYERS` | `PLAYER#<playerId>` | a player |
 | `EMAIL#<sha256>` | `EMAIL` | the player id for an email address |
+| `HANDLE#<handle>` | `HANDLE` | the player id holding a handle |
+| `PLAYER#<playerId>` | `SESSION#<sha256>` | a signed-in app (expires) |
+| `LOGIN#<loginId>` | `LOGIN` | a sign-in in progress (expires) |
+| `LIMIT#<key>` | `<windowStart>` | a rate-limit count (expires) |
 
-`test/docs.test.ts` checks this table against `src/store/dynamo.ts`.
+The email and handle rows are claimed with conditional writes, so two requests at once can't
+give one address two players or two players one handle. Rows that expire carry `expiresAt` (epoch seconds) for the table's TTL, and every read checks
+it too, since TTL deletes late. `test/docs.test.ts` checks this table against
+`src/store/dynamo.ts`.
 
 ## The API
 
@@ -55,6 +64,14 @@ and filtered in memory; at this size that is cheaper and simpler than indexes.
 - A route is a row in `src/api/contract.ts` plus a handler in `src/api/app.ts` with the same
   operation id. Any change to the surface bumps `API_VERSION` and runs `npm run contract`;
   the tool refuses a changed surface under a recorded version.
+- **Sign-in** (`src/auth/`): `POST /auth/start` emails a link and a 6-digit code to anyone;
+  `POST /auth/verify` takes either and returns a bearer token `rsm_<playerId>_<secret>`.
+  Only hashes are stored. The first sign-in makes a player with no name; the first name
+  sets the handle, which never changes after. Limits are in `src/auth/auth.ts`.
+- A request with an `Authorization` header is never cached, and a bad token is a 401 even on
+  a public read.
+- `DELETE /me` removes the player, the signs they posted, their ways on other signs and their
+  place in other signs' finders.
 
 ## The launch set
 
