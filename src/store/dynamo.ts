@@ -6,6 +6,7 @@
 //   SIGN#<signId>       WAY#<createdAt>#<wayId>     a way to make that sign true
 //   PLAYERS             PLAYER#<playerId>           a player
 //   EMAIL#<sha256>      EMAIL                       the player id for an email address
+//   HANDLE#<handle>     HANDLE                      the player id holding a handle
 //   PLAYER#<playerId>   SESSION#<sha256>            a signed-in app (expires)
 //   LOGIN#<loginId>     LOGIN                       a sign-in in progress (expires)
 //   LIMIT#<key>         <windowStart>               a rate-limit count (expires)
@@ -25,7 +26,7 @@ import {
   type QueryCommandInput
 } from '@aws-sdk/lib-dynamodb';
 import type { Login, Player, Session, Sign, Way } from '../domain/types.ts';
-import { emailHash, nowSeconds, type Store } from './store.ts';
+import { emailHash, nowSeconds, type PlayerChanges, type Store } from './store.ts';
 
 export const KEY_PREFIXES = [
   'SIGNS',
@@ -35,6 +36,8 @@ export const KEY_PREFIXES = [
   'PLAYER#',
   'EMAIL#',
   'EMAIL',
+  'HANDLE#',
+  'HANDLE',
   'SESSION#',
   'LOGIN#',
   'LOGIN',
@@ -84,6 +87,17 @@ export class DynamoStore implements Store {
   private async get(pk: string, sk: string): Promise<Item | undefined> {
     const out = await this.client.send(new GetCommand({ TableName: this.table, Key: { pk, sk } }));
     return out.Item as Item | undefined;
+  }
+
+  /** Runs a conditional write; false when its condition failed. */
+  private async when(command: object): Promise<boolean> {
+    try {
+      await this.client.send(command);
+      return true;
+    } catch (err) {
+      if ((err as Error).name === 'ConditionalCheckFailedException') return false;
+      throw err;
+    }
   }
 
   private async put(pk: string, sk: string, kind: string, fields: object): Promise<void> {
@@ -147,7 +161,83 @@ export class DynamoStore implements Store {
 
   async putPlayer(player: Player): Promise<void> {
     await this.put('PLAYERS', `PLAYER#${player.id}`, 'player', player);
-    if (player.email) await this.put(`EMAIL#${emailHash(player.email)}`, 'EMAIL', 'email', { playerId: player.id });
+  }
+
+  async updatePlayer(id: string, changes: PlayerChanges, onlyIfUnnamed = false): Promise<boolean> {
+    const names: Record<string, string> = {};
+    const values: Record<string, unknown> = {};
+    const sets: string[] = [];
+    const removes: string[] = [];
+    for (const field of ['name', 'handle', 'bio'] as const) {
+      const value = changes[field];
+      if (value === undefined) continue;
+      names[`#${field}`] = field;
+      if (value === null) removes.push(`#${field}`);
+      else {
+        sets.push(`#${field} = :${field}`);
+        values[`:${field}`] = value;
+      }
+    }
+    let condition = 'attribute_exists(pk)';
+    if (onlyIfUnnamed) {
+      condition = '#name = :unnamed';
+      names['#name'] = 'name';
+      values[':unnamed'] = '';
+    }
+    const update = [sets.length ? `SET ${sets.join(', ')}` : '', removes.length ? `REMOVE ${removes.join(', ')}` : '']
+      .filter(Boolean)
+      .join(' ');
+    if (!update) {
+      const player = await this.getPlayer(id);
+      return !!player && !(onlyIfUnnamed && player.name);
+    }
+    return this.when(
+      new UpdateCommand({
+        TableName: this.table,
+        Key: { pk: 'PLAYERS', sk: `PLAYER#${id}` },
+        UpdateExpression: update,
+        ConditionExpression: condition,
+        ExpressionAttributeNames: names,
+        ...(Object.keys(values).length ? { ExpressionAttributeValues: values } : {})
+      })
+    );
+  }
+
+  /** Points an index row at the player unless another player holds it; returns its holder. */
+  private async claim(pk: string, sk: string, kind: string, playerId: string): Promise<string> {
+    const won = await this.when(
+      new PutCommand({
+        TableName: this.table,
+        Item: { pk, sk, kind, playerId },
+        ConditionExpression: 'attribute_not_exists(pk) OR playerId = :id',
+        ExpressionAttributeValues: { ':id': playerId }
+      })
+    );
+    return won ? playerId : ((await this.get(pk, sk))?.playerId as string);
+  }
+
+  /** Deletes an index row only while it still points at the player. */
+  private async unclaim(pk: string, sk: string, playerId: string): Promise<void> {
+    await this.when(
+      new DeleteCommand({
+        TableName: this.table,
+        Key: { pk, sk },
+        ConditionExpression: 'playerId = :id',
+        ExpressionAttributeValues: { ':id': playerId }
+      })
+    );
+  }
+
+  async claimEmail(email: string, playerId: string): Promise<string> {
+    return this.claim(`EMAIL#${emailHash(email)}`, 'EMAIL', 'email', playerId);
+  }
+
+  async claimHandle(handle: string, playerId: string): Promise<boolean> {
+    return (await this.claim(`HANDLE#${handle}`, 'HANDLE', 'handle', playerId)) === playerId;
+  }
+
+  async releaseHandle(handle: string, playerId: string): Promise<void> {
+    await this.unclaim(`HANDLE#${handle}`, 'HANDLE', playerId);
   }
 
   async playerIdForEmail(email: string): Promise<string | undefined> {
@@ -162,7 +252,8 @@ export class DynamoStore implements Store {
       ExpressionAttributeValues: { ':pk': `PLAYER#${id}`, ':sk': 'SESSION#' }
     });
     for (const s of sessions) await this.delete(s.pk as string, s.sk as string);
-    if (player?.email) await this.delete(`EMAIL#${emailHash(player.email)}`, 'EMAIL');
+    if (player?.email) await this.unclaim(`EMAIL#${emailHash(player.email)}`, 'EMAIL', id);
+    if (player) await this.releaseHandle(player.handle, id);
     await this.delete('PLAYERS', `PLAYER#${id}`);
   }
 
@@ -184,6 +275,36 @@ export class DynamoStore implements Store {
 
   async deleteLogin(id: string): Promise<void> {
     await this.delete(`LOGIN#${id}`, 'LOGIN');
+  }
+
+  async addLoginAttempt(id: string): Promise<number | undefined> {
+    try {
+      const out = await this.client.send(
+        new UpdateCommand({
+          TableName: this.table,
+          Key: { pk: `LOGIN#${id}`, sk: 'LOGIN' },
+          UpdateExpression: 'ADD attempts :one',
+          ConditionExpression: 'attribute_exists(pk) AND expiresAt > :now',
+          ExpressionAttributeValues: { ':one': 1, ':now': nowSeconds() },
+          ReturnValues: 'UPDATED_NEW'
+        })
+      );
+      return (out.Attributes as { attempts: number }).attempts;
+    } catch (err) {
+      if ((err as Error).name === 'ConditionalCheckFailedException') return undefined;
+      throw err;
+    }
+  }
+
+  async consumeLogin(id: string): Promise<boolean> {
+    return this.when(
+      new DeleteCommand({
+        TableName: this.table,
+        Key: { pk: `LOGIN#${id}`, sk: 'LOGIN' },
+        ConditionExpression: 'attribute_exists(pk) AND expiresAt > :now',
+        ExpressionAttributeValues: { ':now': nowSeconds() }
+      })
+    );
   }
 
   async putSession(session: Session): Promise<void> {

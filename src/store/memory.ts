@@ -1,5 +1,5 @@
 import type { Login, Player, Session, Sign, Way } from '../domain/types.ts';
-import { emailHash, nowSeconds, type Store } from './store.ts';
+import { addPlayer, emailHash, nowSeconds, type PlayerChanges, type Store } from './store.ts';
 
 const copy = <T>(value: T): T => structuredClone(value);
 
@@ -8,6 +8,7 @@ export class MemoryStore implements Store {
   private ways = new Map<string, Way[]>();
   private players = new Map<string, Player>();
   private emails = new Map<string, string>();
+  private handles = new Map<string, string>();
   private logins = new Map<string, Login>();
   private sessions = new Map<string, Session>();
   private counters = new Map<string, number>();
@@ -58,7 +59,31 @@ export class MemoryStore implements Store {
 
   async putPlayer(player: Player): Promise<void> {
     this.players.set(player.id, copy(player));
-    if (player.email) this.emails.set(emailHash(player.email), player.id);
+  }
+
+  async updatePlayer(id: string, changes: PlayerChanges, onlyIfUnnamed = false): Promise<boolean> {
+    const player = this.players.get(id);
+    if (!player || (onlyIfUnnamed && player.name)) return false;
+    if (changes.name !== undefined) player.name = changes.name;
+    if (changes.handle !== undefined) player.handle = changes.handle;
+    if (changes.bio === null) delete player.bio;
+    else if (changes.bio !== undefined) player.bio = changes.bio;
+    return true;
+  }
+
+  async claimEmail(email: string, playerId: string): Promise<string> {
+    const key = emailHash(email);
+    if (!this.emails.has(key)) this.emails.set(key, playerId);
+    return this.emails.get(key)!;
+  }
+
+  async claimHandle(handle: string, playerId: string): Promise<boolean> {
+    if (!this.handles.has(handle)) this.handles.set(handle, playerId);
+    return this.handles.get(handle) === playerId;
+  }
+
+  async releaseHandle(handle: string, playerId: string): Promise<void> {
+    if (this.handles.get(handle) === playerId) this.handles.delete(handle);
   }
 
   async playerIdForEmail(email: string): Promise<string | undefined> {
@@ -67,7 +92,8 @@ export class MemoryStore implements Store {
 
   async deletePlayer(id: string): Promise<void> {
     const player = this.players.get(id);
-    if (player?.email) this.emails.delete(emailHash(player.email));
+    if (player?.email && this.emails.get(emailHash(player.email)) === id) this.emails.delete(emailHash(player.email));
+    if (player) await this.releaseHandle(player.handle, id);
     this.players.delete(id);
     for (const [key, session] of this.sessions) if (session.playerId === id) this.sessions.delete(key);
   }
@@ -83,6 +109,20 @@ export class MemoryStore implements Store {
 
   async deleteLogin(id: string): Promise<void> {
     this.logins.delete(id);
+  }
+
+  async addLoginAttempt(id: string): Promise<number | undefined> {
+    const login = this.logins.get(id);
+    if (!login || login.expiresAt <= nowSeconds()) return undefined;
+    login.attempts += 1;
+    return login.attempts;
+  }
+
+  async consumeLogin(id: string): Promise<boolean> {
+    const login = this.logins.get(id);
+    if (!login || login.expiresAt <= nowSeconds()) return false;
+    this.logins.delete(id);
+    return true;
   }
 
   async putSession(session: Session): Promise<void> {
@@ -116,7 +156,7 @@ export class MemoryStore implements Store {
 
   static async from(data: { signs: Sign[]; ways: Way[]; players: Player[] }): Promise<MemoryStore> {
     const store = new MemoryStore();
-    for (const p of data.players) await store.putPlayer(p);
+    for (const p of data.players) await addPlayer(store, p);
     for (const s of data.signs) await store.putSign(s);
     for (const w of data.ways) await store.putWay(w);
     return store;

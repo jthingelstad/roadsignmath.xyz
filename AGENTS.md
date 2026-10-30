@@ -47,11 +47,13 @@ and filtered in memory; at this size that is cheaper and simpler than indexes.
 | `SIGN#<signId>` | `WAY#<createdAt>#<wayId>` | a way to make it true |
 | `PLAYERS` | `PLAYER#<playerId>` | a player |
 | `EMAIL#<sha256>` | `EMAIL` | the player id for an email address |
+| `HANDLE#<handle>` | `HANDLE` | the player id holding a handle |
 | `PLAYER#<playerId>` | `SESSION#<sha256>` | a signed-in app (expires) |
 | `LOGIN#<loginId>` | `LOGIN` | a sign-in in progress (expires) |
 | `LIMIT#<key>` | `<windowStart>` | a rate-limit count (expires) |
 
-Rows that expire carry `expiresAt` (epoch seconds) for the table's TTL, and every read checks
+The email and handle rows are claimed with conditional writes, so two requests at once can't
+give one address two players or two players one handle. Rows that expire carry `expiresAt` (epoch seconds) for the table's TTL, and every read checks
 it too, since TTL deletes late. `test/docs.test.ts` checks this table against
 `src/store/dynamo.ts`.
 

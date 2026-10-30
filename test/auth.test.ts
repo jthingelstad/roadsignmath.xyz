@@ -4,6 +4,7 @@ import { createApp } from '../src/api/app.ts';
 import { LIMITS, MAX_CODE_ATTEMPTS, network } from '../src/auth/auth.ts';
 import { MemoryMailer } from '../src/mail/mailer.ts';
 import { MemoryStore } from '../src/store/memory.ts';
+import { addPlayer } from '../src/store/store.ts';
 import { ada, ben, sign, way } from './support/fixtures.ts';
 
 // oxlint-disable-next-line no-explicit-any -- test bodies are read loosely
@@ -166,7 +167,7 @@ test('a public read with a token is not cached', async () => {
 
 test('the first name sets the handle; later names keep it', async () => {
   const t = setup();
-  await t.store.putPlayer({ ...ada, handle: 'ada-lovelace' });
+  await addPlayer(t.store, { ...ada, handle: 'ada-lovelace' });
   const done = await signIn(t, 'another.ada@example.com');
   const named = await t.call('PATCH', '/me', { name: '  Ada   Lovelace ', bio: 'Counts.' }, done.token);
   assert.equal(named.res.status, 200);
@@ -184,8 +185,8 @@ test('the first name sets the handle; later names keep it', async () => {
 
 test('deleting the account removes what it made and nothing else', async () => {
   const store = new MemoryStore();
-  await store.putPlayer(ada);
-  await store.putPlayer(ben);
+  await addPlayer(store, ada);
+  await addPlayer(store, ben);
   // Ada's own sign, with a way Ben found.
   await store.putSign(sign({ id: 'S1', title: 'Ada Posted' }));
   await store.putWay(way('S1', { id: 'w1', createdAt: '2026-01-01T00:00:00.000Z' }));
@@ -232,6 +233,60 @@ test('deleting the account removes what it made and nothing else', async () => {
   assert.equal((await t.call('GET', '/me', undefined, done.token)).res.status, 401);
   // Signing in again with the address starts afresh.
   assert.equal((await signIn(t, ada.email!)).new_player, true);
+});
+
+test('two first sign-ins at once with one address make one player', async () => {
+  const t = setup();
+  await t.call('POST', '/auth/start', { email: 'twice@example.com' });
+  const first = t.lastMail();
+  await t.call('POST', '/auth/start', { email: 'twice@example.com' });
+  const second = t.lastMail();
+  const [a, b] = await Promise.all([
+    t.call('POST', '/auth/verify', { login_id: first.loginId, code: first.code }),
+    t.call('POST', '/auth/verify', { login_id: second.loginId, code: second.code })
+  ]);
+  assert.equal(a.res.status, 200);
+  assert.equal(b.res.status, 200);
+  assert.equal(a.body.me.handle, b.body.me.handle);
+  assert.deepEqual([a.body.new_player, b.body.new_player].sort(), [false, true]);
+  assert.equal((await t.store.allPlayers()).length, 1);
+});
+
+test('one code signs in once, even when sent twice at once', async () => {
+  const t = setup();
+  await t.call('POST', '/auth/start', { email: 'race@example.com' });
+  const { loginId, code } = t.lastMail();
+  const answers = await Promise.all([
+    t.call('POST', '/auth/verify', { login_id: loginId, code }),
+    t.call('POST', '/auth/verify', { login_id: loginId, code })
+  ]);
+  assert.deepEqual(answers.map((a) => a.res.status).sort(), [200, 401]);
+});
+
+test('two players naming themselves the same at once get different handles', async () => {
+  const t = setup();
+  const one = await signIn(t, 'one@example.com');
+  const two = await signIn(t, 'two@example.com');
+  const [a, b] = await Promise.all([
+    t.call('PATCH', '/me', { name: 'Same Name' }, one.token),
+    t.call('PATCH', '/me', { name: 'Same Name' }, two.token)
+  ]);
+  assert.deepEqual([a.body.handle, b.body.handle].sort(), ['same-name', 'same-name-2']);
+});
+
+test("one player's two first names at once leave one handle, and the other name", async () => {
+  const t = setup();
+  const done = await signIn(t, 'quick@example.com');
+  await Promise.all([
+    t.call('PATCH', '/me', { name: 'First Try' }, done.token),
+    t.call('PATCH', '/me', { name: 'Second Try' }, done.token)
+  ]);
+  const me = (await t.call('GET', '/me', undefined, done.token)).body;
+  assert.ok(['first-try', 'second-try'].includes(me.handle), me.handle);
+  // The handle the other request reserved is free again; the kept one and the random one are not.
+  const other = me.handle === 'first-try' ? 'second-try' : 'first-try';
+  assert.equal(await t.store.claimHandle(other, 'SOMEONE'), true);
+  assert.equal(await t.store.claimHandle(me.handle, 'SOMEONE'), false);
 });
 
 test('networks: IPv4 as is, IPv6 by /64', () => {

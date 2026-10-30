@@ -2,7 +2,7 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { MemoryStore } from '../src/store/memory.ts';
 import { DynamoStore } from '../src/store/dynamo.ts';
-import { nowSeconds, type Store } from '../src/store/store.ts';
+import { addPlayer, nowSeconds, type Store } from '../src/store/store.ts';
 import { FakeDynamo } from './support/fake-dynamo.ts';
 import { ada, ben, sign, way } from './support/fixtures.ts';
 
@@ -39,8 +39,8 @@ for (const [name, make] of kinds) {
 
     test('players and email lookup', async () => {
       const store = make();
-      await store.putPlayer(ada);
-      await store.putPlayer(ben);
+      await addPlayer(store, ada);
+      await addPlayer(store, ben);
       assert.deepEqual(await store.getPlayer(ada.id), ada);
       assert.equal((await store.allPlayers()).length, 2);
       assert.equal(await store.playerIdForEmail('  ADA@example.com '), ada.id);
@@ -49,6 +49,69 @@ for (const [name, make] of kinds) {
       assert.equal(await store.getPlayer(ada.id), undefined);
       assert.equal(await store.playerIdForEmail('ada@example.com'), undefined);
       assert.ok(await store.getPlayer(ben.id));
+    });
+
+    test('an email and a handle belong to the first player to claim them', async () => {
+      const store = make();
+      assert.equal(await store.claimEmail('Same@example.com', 'P1'), 'P1');
+      assert.equal(await store.claimEmail('same@example.com', 'P2'), 'P1');
+      assert.equal(await store.claimEmail('same@example.com', 'P1'), 'P1');
+      assert.equal(await store.claimHandle('ada', 'P1'), true);
+      assert.equal(await store.claimHandle('ada', 'P2'), false);
+      await store.releaseHandle('ada', 'P2');
+      assert.equal(await store.claimHandle('ada', 'P2'), false, 'only the holder can free a handle');
+      await store.releaseHandle('ada', 'P1');
+      assert.equal(await store.claimHandle('ada', 'P2'), true);
+    });
+
+    test("deleting a player frees their email and handle, and no one else's", async () => {
+      const store = make();
+      await addPlayer(store, ada);
+      await store.putPlayer({ ...ben, email: ada.email, handle: 'loser' });
+      await store.deletePlayer(ben.id);
+      assert.equal(await store.playerIdForEmail(ada.email!), ada.id);
+      assert.equal(await store.claimHandle(ada.handle, ben.id), false);
+      await store.deletePlayer(ada.id);
+      assert.equal(await store.playerIdForEmail(ada.email!), undefined);
+      assert.equal(await store.claimHandle(ada.handle, ben.id), true);
+    });
+
+    test('updatePlayer changes fields in place, and only an unnamed player when asked', async () => {
+      const store = make();
+      await addPlayer(store, { ...ben, name: '', bio: 'Old.' });
+      assert.equal(await store.updatePlayer(ben.id, { name: 'Ben', handle: 'ben-2' }, true), true);
+      assert.equal(await store.updatePlayer(ben.id, { name: 'Benjamin', handle: 'nope' }, true), false);
+      assert.equal(await store.updatePlayer(ben.id, { bio: null }), true);
+      const after = (await store.getPlayer(ben.id))!;
+      assert.equal(after.name, 'Ben');
+      assert.equal(after.handle, 'ben-2');
+      assert.equal(after.bio, undefined);
+      assert.equal(after.email, ben.email);
+      assert.equal(await store.updatePlayer('nobody', { name: 'X' }), false);
+    });
+
+    test('a login is used once, and wrong codes count until it is gone', async () => {
+      const store = make();
+      const now = nowSeconds();
+      const login = {
+        id: 'L1',
+        email: 'a@example.com',
+        tokenHash: 't',
+        codeHash: 'c',
+        attempts: 0,
+        createdAt: '2026-02-01T00:00:00.000Z',
+        expiresAt: now + 60
+      };
+      await store.putLogin(login);
+      assert.equal(await store.addLoginAttempt('L1'), 1);
+      assert.equal(await store.addLoginAttempt('L1'), 2);
+      const both = await Promise.all([store.consumeLogin('L1'), store.consumeLogin('L1')]);
+      assert.deepEqual(both.sort(), [false, true]);
+      assert.equal(await store.addLoginAttempt('L1'), undefined, 'a wrong code never brings a used login back');
+      assert.equal(await store.getLogin('L1'), undefined);
+      await store.putLogin({ ...login, id: 'L2', expiresAt: now - 1 });
+      assert.equal(await store.consumeLogin('L2'), false);
+      assert.equal(await store.addLoginAttempt('L2'), undefined);
     });
 
     test('a way can be deleted on its own', async () => {
@@ -114,17 +177,17 @@ test('DynamoStore keys follow the documented layout', async () => {
   const store = new DynamoStore('test-table', fake);
   await store.putSign(sign({ id: 'S1', title: 'One' }));
   await store.putWay(way('S1', { id: 'w1' }));
-  await store.putPlayer(ada);
+  await addPlayer(store, ada);
   const puts = fake.sent.filter((s) => s.command === 'PutCommand').map((s) => s.input.Item as Record<string, string>);
   assert.deepEqual(
-    puts.map((i) => [i.pk, i.sk.replace(/[0-9a-f]{64}/, '<hash>'), i.kind]),
+    puts.map((i) => [i.pk.replace(/[0-9a-f]{64}/, '<hash>'), i.sk, i.kind]),
     [
       ['SIGNS', 'SIGN#S1', 'sign'],
       ['SIGN#S1', 'WAY#2026-01-10T12:00:00.000Z#w1', 'way'],
-      ['PLAYERS', `PLAYER#${ada.id}`, 'player'],
-      [puts[3].pk, 'EMAIL', 'email']
+      [`HANDLE#${ada.handle}`, 'HANDLE', 'handle'],
+      ['EMAIL#<hash>', 'EMAIL', 'email'],
+      ['PLAYERS', `PLAYER#${ada.id}`, 'player']
     ]
   );
-  assert.match(puts[3].pk, /^EMAIL#[0-9a-f]{64}$/);
   assert.ok(!JSON.stringify(puts[3]).includes('ada@example.com'), 'the email index holds a hash, not the address');
 });

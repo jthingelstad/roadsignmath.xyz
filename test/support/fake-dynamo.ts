@@ -18,6 +18,60 @@ export class FakeDynamo {
     return `${String(pk)}\u0000${String(sk)}`;
   }
 
+  /** Evaluates the few condition shapes DynamoStore writes: terms joined by all-AND or all-OR. */
+  private holds(item: Item | undefined, condition: unknown, input: Record<string, unknown>): boolean {
+    if (condition === undefined) return true;
+    const names = (input.ExpressionAttributeNames ?? {}) as Record<string, string>;
+    const values = (input.ExpressionAttributeValues ?? {}) as Record<string, unknown>;
+    const text = String(condition);
+    const joiner = text.includes(' OR ') ? ' OR ' : ' AND ';
+    const results = text.split(joiner).map((term) => {
+      const exists = /^attribute_(not_)?exists\((\w+)\)$/.exec(term);
+      if (exists) return Boolean(exists[1]) !== (item !== undefined && item[exists[2]] !== undefined);
+      const compare = /^(#?\w+) (=|<=|>=|<|>) (:\w+)$/.exec(term);
+      if (!compare) throw new Error(`unknown condition ${term}`);
+      if (!item) return false;
+      const left = item[names[compare[1]] ?? compare[1]] as number | string;
+      const right = values[compare[3]] as number | string;
+      switch (compare[2]) {
+        case '=':
+          return left === right;
+        case '<=':
+          return left <= right;
+        case '>=':
+          return left >= right;
+        case '<':
+          return left < right;
+        default:
+          return left > right;
+      }
+    });
+    return joiner === ' OR ' ? results.some(Boolean) : results.every(Boolean);
+  }
+
+  private fail(): never {
+    throw Object.assign(new Error('The conditional request failed'), { name: 'ConditionalCheckFailedException' });
+  }
+
+  /** Applies `SET a = :x, b = :y`, `ADD a :x` and `REMOVE a` clauses, and returns what changed. */
+  private update(item: Item, expression: string, input: Record<string, unknown>): Item {
+    const names = (input.ExpressionAttributeNames ?? {}) as Record<string, string>;
+    const values = (input.ExpressionAttributeValues ?? {}) as Record<string, unknown>;
+    const changed: Item = {};
+    for (const [, verb, body] of expression.matchAll(/(SET|ADD|REMOVE) (.*?)(?= SET | ADD | REMOVE |$)/g)) {
+      for (const part of body.split(', ')) {
+        const [path, ...rest] = part.split(' ');
+        const field = names[path] ?? path;
+        if (verb === 'REMOVE') delete item[field];
+        else if (verb === 'ADD') item[field] = ((item[field] as number | undefined) ?? 0) + (values[rest[0]] as number);
+        else if (rest[0] === '=') item[field] = values[rest[1]];
+        else throw new Error(`unknown update ${part}`);
+        if (verb !== 'REMOVE') changed[field] = item[field];
+      }
+    }
+    return changed;
+  }
+
   async send(command: object): Promise<Record<string, unknown>> {
     const { constructor, input } = command as Command;
     const name = constructor.name;
@@ -28,7 +82,9 @@ export class FakeDynamo {
         const item = input.Item as Item;
         if (typeof item.pk !== 'string' || typeof item.sk !== 'string') throw new Error('Put without string keys');
         for (const [k, v] of Object.entries(item)) if (v === undefined) throw new Error(`undefined attribute ${k}`);
-        this.items.set(this.key(item.pk, item.sk), structuredClone(item));
+        const k = this.key(item.pk, item.sk);
+        if (!this.holds(this.items.get(k), input.ConditionExpression, input)) this.fail();
+        this.items.set(k, structuredClone(item));
         return {};
       }
       case 'GetCommand': {
@@ -37,23 +93,20 @@ export class FakeDynamo {
         return item ? { Item: structuredClone(item) } : {};
       }
       case 'UpdateCommand': {
-        // Only the rate-limit counter's update.
-        if (input.UpdateExpression !== 'ADD #count :one SET expiresAt = :expires, kind = :kind') {
-          throw new Error(`unknown update ${String(input.UpdateExpression)}`);
-        }
         const key = input.Key as Item;
-        const values = input.ExpressionAttributeValues as Record<string, unknown>;
         const k = this.key(key.pk, key.sk);
-        const item = this.items.get(k) ?? { pk: key.pk, sk: key.sk, count: 0 };
-        item.count = (item.count as number) + (values[':one'] as number);
-        item.expiresAt = values[':expires'];
-        item.kind = values[':kind'];
+        const current = this.items.get(k);
+        if (!this.holds(current, input.ConditionExpression, input)) this.fail();
+        const item = current ?? { pk: key.pk, sk: key.sk };
+        const changed = this.update(item, String(input.UpdateExpression), input);
         this.items.set(k, item);
-        return { Attributes: { count: item.count, expiresAt: item.expiresAt, kind: item.kind } };
+        return { Attributes: changed };
       }
       case 'DeleteCommand': {
         const key = input.Key as Item;
-        this.items.delete(this.key(key.pk, key.sk));
+        const k = this.key(key.pk, key.sk);
+        if (!this.holds(this.items.get(k), input.ConditionExpression, input)) this.fail();
+        this.items.delete(k);
         return {};
       }
       case 'QueryCommand': {

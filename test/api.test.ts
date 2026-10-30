@@ -4,6 +4,7 @@ import { createApp } from '../src/api/app.ts';
 import { API_VERSION, LIMITS, ROUTES } from '../src/api/contract.ts';
 import { MemoryMailer } from '../src/mail/mailer.ts';
 import { MemoryStore } from '../src/store/memory.ts';
+import { addPlayer } from '../src/store/store.ts';
 import { ada, ben, sign, way } from './support/fixtures.ts';
 
 // oxlint-disable-next-line no-explicit-any -- test bodies are read loosely
@@ -11,8 +12,8 @@ type Json = Record<string, any>;
 
 async function setup() {
   const store = new MemoryStore();
-  await store.putPlayer(ada);
-  await store.putPlayer(ben);
+  await addPlayer(store, ada);
+  await addPlayer(store, ben);
   await store.putSign(
     sign({
       id: '01JS0000000000000000000001',

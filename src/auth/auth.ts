@@ -88,6 +88,30 @@ export async function startSignIn(
 
 const randomHandle = (): string => `p${randomBytes(5).toString('hex')}`;
 
+/**
+ * The player for an address, made on its first sign-in. Two first sign-ins at once both write a
+ * player, but only one claims the address; the other removes its player and uses the winner.
+ */
+async function playerFor(store: Store, email: string, now: number): Promise<{ player: Player; isNew: boolean }> {
+  const known = await store.playerIdForEmail(email);
+  const existing = known && (await store.getPlayer(known));
+  if (existing) return { player: existing, isNew: false };
+  const fresh: Player = {
+    id: ulid(),
+    handle: randomHandle(),
+    name: '',
+    avatarColor: AVATAR_COLORS[randomInt(AVATAR_COLORS.length)],
+    email,
+    createdAt: new Date(now * 1000).toISOString()
+  };
+  if (!(await store.claimHandle(fresh.handle, fresh.id))) fail('internal', 'Try signing in again');
+  await store.putPlayer(fresh);
+  const owner = await store.claimEmail(email, fresh.id);
+  if (owner === fresh.id) return { player: fresh, isNew: true };
+  await store.deletePlayer(fresh.id);
+  return { player: (await store.getPlayer(owner)) ?? fail('internal', 'Try signing in again'), isNew: false };
+}
+
 /** Checks the link token or the code and returns a new token, making the player on first sign-in. */
 export async function finishSignIn(
   store: Store,
@@ -106,30 +130,17 @@ export async function finishSignIn(
     if (!same(sha256(input.token as string), login.tokenHash)) fail('unauthorized', expired);
   } else if (!same(sha256(input.code as string), login.codeHash)) {
     const wrongToday = await store.bump(`wrong:${emailHash(login.email)}`, DAY, now);
-    login.attempts += 1;
-    if (login.attempts >= MAX_CODE_ATTEMPTS || wrongToday > LIMITS.wrongCodesADay) {
+    const attempts = (await store.addLoginAttempt(login.id)) ?? fail('unauthorized', expired);
+    if (attempts >= MAX_CODE_ATTEMPTS || wrongToday > LIMITS.wrongCodesADay) {
       await store.deleteLogin(login.id);
       fail('unauthorized', 'Too many wrong codes. Ask for a new one.');
     }
-    await store.putLogin(login);
     fail('unauthorized', "That code isn't right.");
   }
-  await store.deleteLogin(login.id);
+  // Only one request gets to use a login, however many arrive at once.
+  if (!(await store.consumeLogin(login.id))) fail('unauthorized', expired);
 
-  const known = await store.playerIdForEmail(login.email);
-  let player = known ? await store.getPlayer(known) : undefined;
-  const isNew = !player;
-  if (!player) {
-    player = {
-      id: ulid(),
-      handle: randomHandle(),
-      name: '',
-      avatarColor: AVATAR_COLORS[randomInt(AVATAR_COLORS.length)],
-      email: login.email,
-      createdAt: new Date(now * 1000).toISOString()
-    };
-    await store.putPlayer(player);
-  }
+  const { player, isNew } = await playerFor(store, login.email, now);
   const secret = randomBytes(32).toString('base64url');
   const at = new Date(now * 1000).toISOString();
   await store.putSession({

@@ -2,9 +2,9 @@
 // account with everything it made.
 
 import { fail } from '../api/errors.ts';
-import { slugify, uniqueSlug } from '../domain/ids.ts';
+import { slugify } from '../domain/ids.ts';
 import type { Player } from '../domain/types.ts';
-import type { Store } from '../store/store.ts';
+import type { PlayerChanges, Store } from '../store/store.ts';
 
 export const NAME_MAX = 40;
 export const BIO_MAX = 160;
@@ -21,29 +21,42 @@ function text(raw: unknown, field: string, max: number, min: number): string {
   return value;
 }
 
+/** Reserves the handle a first name makes: the name's slug, or the slug with -2, -3 and so on. */
+async function reserveHandle(store: Store, player: Player, name: string): Promise<string | undefined> {
+  const base = slugify(name).slice(0, 30).replace(/-+$/, '');
+  if (!base || base === 'sign') return undefined;
+  const others = new Set((await store.allPlayers()).filter((p) => p.id !== player.id).map((p) => p.handle));
+  for (let n = 1; n <= 100; n++) {
+    const handle = n === 1 ? base : `${base}-${n}`;
+    if (!others.has(handle) && (await store.claimHandle(handle, player.id))) return handle;
+  }
+  return undefined;
+}
+
 /**
  * Sets the name and bio. The first name a player gives also sets their handle (their page's
- * address), which stays put after that so links keep working.
+ * address), which stays put after that so links keep working. Each field is changed in place,
+ * so two requests at once can't undo each other, and only one of them can set the handle.
  */
 export async function updateMe(store: Store, player: Player, body: Record<string, unknown>): Promise<Player> {
   const unknown = Object.keys(body).filter((k) => k !== 'name' && k !== 'bio');
   if (unknown.length) fail('bad_request', `Only name and bio can change, not ${unknown.join(', ')}`);
-  const next = { ...player };
-  if ('name' in body) {
-    next.name = text(body.name, 'name', NAME_MAX, 1);
-    const base = slugify(next.name).slice(0, 30).replace(/-+$/, '');
-    if (!player.name && base && base !== 'sign') {
-      const others = new Set((await store.allPlayers()).filter((p) => p.id !== player.id).map((p) => p.handle));
-      next.handle = uniqueSlug(base, (h) => others.has(h));
+  const changes: PlayerChanges = {};
+  if ('name' in body) changes.name = text(body.name, 'name', NAME_MAX, 1);
+  if ('bio' in body) changes.bio = (body.bio === null ? '' : text(body.bio, 'bio', BIO_MAX, 0)) || null;
+
+  let done = false;
+  if (changes.name && !player.name) {
+    const handle = await reserveHandle(store, player, changes.name);
+    if (handle) {
+      done = await store.updatePlayer(player.id, { ...changes, handle }, true);
+      if (done) await store.releaseHandle(player.handle, player.id);
+      // Another request of this player's named them first, maybe with this same handle.
+      else if ((await store.getPlayer(player.id))?.handle !== handle) await store.releaseHandle(handle, player.id);
     }
   }
-  if ('bio' in body) {
-    const bio = body.bio === null ? '' : text(body.bio, 'bio', BIO_MAX, 0);
-    if (bio) next.bio = bio;
-    else delete next.bio;
-  }
-  await store.putPlayer(next);
-  return next;
+  if (!done) await store.updatePlayer(player.id, changes);
+  return (await store.getPlayer(player.id)) ?? fail('unauthorized', 'That account is gone');
 }
 
 /**
