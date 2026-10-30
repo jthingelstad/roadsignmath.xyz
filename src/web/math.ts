@@ -1,5 +1,5 @@
 // Draws a way's math as SVG on the server with MathJax, so pages show stacked fractions and
-// real roots without any script in the browser. The app draws the same math natively.
+// real roots without any script in the browser. The app draws the same LaTeX with SwiftMath.
 
 import { mathjax } from 'mathjax-full/js/mathjax.js';
 import { TeX } from 'mathjax-full/js/input/tex.js';

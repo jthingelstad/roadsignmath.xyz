@@ -366,7 +366,7 @@ const TEX_BINARY: Record<string, string> = { add: '+', sub: '-', mul: '\\times' 
 const bare = (node: Node): Node => (node.op === 'group' ? bare(node.arg) : node);
 
 /**
- * LaTeX for drawing the math (MathJax on the site; the app writes the same): ÷ is a stacked
+ * LaTeX for drawing the math (MathJax on the site, SwiftMath in the app): ÷ is a stacked
  * fraction, √ a radical over what it applies to, ^ a raised exponent. Brackets the fraction bar,
  * radical or exponent already shows are dropped; every other bracket stays as written.
  */
