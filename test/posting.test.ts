@@ -511,6 +511,21 @@ test('a report after a hide that failed partway sees every photo, and a kept one
   assert.equal(await t.photos.get(id, 'large', 'held'), undefined);
 });
 
+test('a kept report puts back a thumbnail a failed hide left in held/', async () => {
+  const t = await setup();
+  const { body: posted } = await t.post();
+  const id = posted.photos[0].id;
+  // S3 moved the thumbnail and failed on the large photo, so the large one is still public.
+  t.photos.files.set(`held/${id}/thumb`, t.photos.files.get(`p/${id}/thumb`)!);
+  t.photos.files.delete(`p/${id}/thumb`);
+  t.moderator.report = { verdict: 'keep', reason: 'Fine.' };
+  const sent = await t.call('POST', `/signs/${posted.id}/report`, { as: 'ben', body: { reason: 'Spam' } });
+  assert.equal(sent.body.outcome, 'kept');
+  assert.ok(await t.photos.get(id, 'thumb', 'shown'));
+  assert.ok(await t.photos.get(id, 'large', 'shown'));
+  assert.equal(await t.photos.get(id, 'thumb', 'held'), undefined);
+});
+
 test('two reports of one sign at once are looked at one after the other', async () => {
   const t = await setup();
   const { body: posted } = await t.post();

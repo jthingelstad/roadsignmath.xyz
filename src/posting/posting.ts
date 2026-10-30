@@ -445,16 +445,12 @@ async function judgeReport(
   now: number
 ): Promise<Report> {
   // Each photo is read from wherever it is: a hide that failed partway can have moved some of a
-  // shown sign's photos to held/ already, and the moderator should see them all.
+  // shown sign's photo files to held/ already, and the moderator should see them all.
   const larges: Buffer[] = [];
-  const strays: string[] = [];
   const expected = sign.visibility === 'shown' ? 'shown' : 'held';
   for (const photo of sign.photos) {
     let large = await photos.get(photo.id, 'large', expected);
-    if (!large && expected === 'shown') {
-      large = await photos.get(photo.id, 'large', 'held');
-      if (large) strays.push(photo.id);
-    }
+    if (!large && expected === 'shown') large = await photos.get(photo.id, 'large', 'held');
     if (large) larges.push(large);
   }
   const post: Post = {
@@ -478,8 +474,9 @@ async function judgeReport(
   if (report.outcome === 'hidden') {
     for (const photo of sign.photos) await photos.hide(photo.id);
     await store.updateSign(sign.id, { visibility: 'hidden', moderation: { note: report.note, at } });
-  } else {
-    for (const id of strays) await photos.show(id);
+  } else if (sign.visibility === 'shown') {
+    // Kept: every file a failed hide left under held/ goes back (show moves only what is there).
+    for (const photo of sign.photos) await photos.show(photo.id);
   }
   await store.putReport(report);
   return report;
