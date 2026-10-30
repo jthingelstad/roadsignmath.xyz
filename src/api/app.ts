@@ -14,6 +14,7 @@ import { finishSignIn, signOut, startSignIn, viewerFor, type Viewer } from '../a
 import type { Mailer } from '../mail/mailer.ts';
 import type { Moderator } from '../moderation/moderator.ts';
 import type { PhotoStore } from '../photos.ts';
+import { createSite } from '../web/site.tsx';
 import {
   addWay,
   blockPlayer,
@@ -395,10 +396,11 @@ export function createApi(options: ApiOptions): Hono {
   return api;
 }
 
-/** The whole server: the API under /api/v1. The website joins it in a later step. */
+/** The whole server: the API under /api/v1 and the website's pages beside it. */
 export function createApp(options: ApiOptions): Hono {
   const app = new Hono();
   app.route('/api/v1', createApi(options));
+  app.route('/', createSite(options));
   app.notFound((c) => {
     if (!c.req.path.startsWith('/api/')) return c.text('Not found', 404);
     c.header('API-Version', API_VERSION);

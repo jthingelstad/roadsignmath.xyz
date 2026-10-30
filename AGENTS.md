@@ -31,6 +31,7 @@ ids or ARNs, local paths, or photos of plates or faces that weren't meant to be 
 | `src/domain/` | The data model (`types.ts`), the equation checker, ids and slugs, miles. No I/O. |
 | `src/store/` | `Store`, with `MemoryStore` (tests, `npm run dev`) and `DynamoStore` (the live table). |
 | `src/api/` | `/api/v1` on Hono. `contract.ts` is the route table, limits and errors; `openapi.ts` describes it; `views.ts` makes the JSON. |
+| `src/web/` | The website's pages (`site.tsx`, Hono JSX): every shown sign at `/` and one page per sign at `/signs/<slug>`, public and cached a minute. The designed pages (map, players, sign-in) come later. |
 | `src/auth/` | Sign-in by email (link or code), tokens, and the account: name, bio, delete. |
 | `src/mail/` | `Mailer`: SES live, files in `.data/mail/` for `npm run dev`, memory in tests. |
 | `src/posting/` | Uploads, posting a sign, ways, deleting, reports and blocks. |
