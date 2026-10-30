@@ -26,8 +26,11 @@ ids or ARNs, local paths, or photos of plates or faces that weren't meant to be 
 | `src/domain/` | The data model (`types.ts`), the equation checker, ids and slugs, miles. No I/O. |
 | `src/store/` | `Store`, with `MemoryStore` (tests, `npm run dev`) and `DynamoStore` (the live table). |
 | `src/api/` | `/api/v1` on Hono. `contract.ts` is the route table, limits and errors; `openapi.ts` describes it; `views.ts` makes the JSON. |
-| `src/dev.ts` | The local server on port 8787. |
-| `tools/` | `export-api-contract.ts` (`npm run contract`). |
+| `src/photos.ts` | The two served sizes of a photo (1600 and 480 px JPEGs, no metadata). |
+| `src/seed/` | Builds the launch set from the micro.blog export and `seed/microblog.json`. |
+| `src/dev.ts` | The local server on port 8787, reading `.data/` (ignored by git). |
+| `seed/microblog.json` | The 16 micro.blog signs: titles, finders, numbers, places, alt text. |
+| `tools/` | `export-api-contract.ts` (`npm run contract`), `seed-microblog.ts` (`npm run seed`). |
 | `contracts/` | `api-surface.json` (OpenAPI 3.1), `api-versions.json` (each version's digest), `equation-vectors.json`. |
 | `test/` | `node --test` with tsx. `test/support/` has a fake DynamoDB and fictional fixtures. |
 
@@ -53,10 +56,20 @@ and filtered in memory; at this size that is cheaper and simpler than indexes.
   operation id. Any change to the surface bumps `API_VERSION` and runs `npm run contract`;
   the tool refuses a changed surface under a recorded version.
 
+## The launch set
+
+The 16 signs posted to the micro.blog from 2021 to 2025 are the first signs. The export stays
+outside this repo; `npm run seed -- --export <folder> --to plan` checks `seed/microblog.json`
+against it, and `--to local` fills `.data/` for `npm run dev`. Their numbers and alt text come
+from looking at each photo. Each pin sits on the town the post or the sign names, so every one
+is approximate, and Gross Vehicle Weight has none. Don't change what a photo shows without
+looking at it.
+
 ## Working here
 
 - `npm run verify` (format, lint, types, tests) before every push; CI runs the same.
-- Tests use fictional players and signs. Real people's details stay out of tests.
+- Tests use fictional players and signs. Real people's details stay out of tests; the one
+  check on `seed/microblog.json` treats it as data and names no one.
 - Work on a branch in a worktree and open a PR; Codex reviews every PR. Read its findings and
   fix or answer each one.
 - Node 24, TypeScript run directly by tsx and Node's type stripping, no build step yet.

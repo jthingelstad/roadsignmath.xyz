@@ -30,6 +30,7 @@ Node 24.
 
 ```sh
 npm ci
+npm run seed -- --export <micro.blog export> --to local   # the 16 launch signs, into .data/
 npm run dev      # http://localhost:8787/api/v1
 npm run verify   # format, lint, types and tests
 ```
