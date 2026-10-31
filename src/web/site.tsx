@@ -321,6 +321,7 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
     const changed = (s: Sign) => [s.postedAt, ...(ways.get(s.id) ?? []).map((w) => w.createdAt)].sort().at(-1)!;
     const entries: [string, string | undefined][] = [
       [`${urls.site}/`, shown.map(changed).sort().at(-1)],
+      [`${urls.site}/privacy`, undefined],
       ...shown.map((s): [string, string] => [`${urls.site}/signs/${s.slug}`, changed(s)]),
       // The same test as the player's page: a name, and a sign or a badge on the map.
       ...[...everyone.values()]
@@ -338,6 +339,59 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
       '</urlset>\n';
     return c.body(xml, 200, { 'Content-Type': 'application/xml; charset=utf-8' });
   });
+
+  // Privacy: what the game keeps and who sees it, in plain words. Text drafted for Jamie.
+  site.get('/privacy', (c) =>
+    c.html(
+      <Page
+        title="Privacy · Road Sign Math"
+        description="What Road Sign Math keeps, what is public, and how to delete your account."
+      >
+        <main class="wrap" style="padding-top: 32px; padding-bottom: 48px; max-width: 720px">
+          <h1>Privacy</h1>
+          <p>
+            Road Sign Math is a small road trip game Jamie Thingelstad runs for fun. This is what it keeps and who sees
+            it.
+          </p>
+          <h2>What’s public</h2>
+          <p>
+            What you post is public, in the app and on this website: your signs’ photos, where each sign was found, the
+            math, your caption, the ways you find on any sign, your name, your profile photo and your badges.
+          </p>
+          <p>
+            Every photo is saved again without its hidden details (camera, time and location) before anyone sees it. A
+            sign’s place is shown on its map on purpose; a profile photo’s never is.
+          </p>
+          <h2>What stays private</h2>
+          <p>
+            Your email address. It is only used to send you sign-in codes, and it is never shown or shared with other
+            players.
+          </p>
+          <h2>Who helps run it</h2>
+          <ul>
+            <li>Claude, Anthropic’s AI, looks at each photo and post before it goes up.</li>
+            <li>
+              Amazon Web Services hosts this website, the app’s server and the photos, and sends the sign-in emails.
+            </li>
+            <li>
+              Tinylytics counts visits to this website and screens viewed in the app, and keeps the hearts. It uses no
+              cookies.
+            </li>
+          </ul>
+          <h2>Leaving</h2>
+          <p>
+            Delete my account, in the app’s settings, deletes your account and everything you made: your signs and their
+            photos, the ways you added, your hearts, your profile photo and your email address.
+          </p>
+          <h2>Questions</h2>
+          <p>
+            Email Jamie at <a href="mailto:jamie@thingelstad.com">jamie@thingelstad.com</a>.
+          </p>
+          <p class="soft">Updated 31 October 2026.</p>
+        </main>
+      </Page>
+    )
+  );
 
   // The sign-in link opens the app on an iPhone that has it (src/web/apple.ts). Anywhere else it
   // lands here, which says where to use it. The link's token never appears in the page, and the
