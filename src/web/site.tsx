@@ -34,6 +34,9 @@ const US_MAP_SVG =
   `@media (prefers-color-scheme:dark){.l{fill:#2A3831}.b{stroke:#18221D}}</style>` +
   `<path class="l" d="${US_LAND}"/><path class="b" d="${US_BORDERS}"/></svg>`;
 
+const escapeXml = (text: string): string =>
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
 const finderNames = (s: Summary): string => s.finders.map((f) => f.name).join(', ');
 
 /** The finders by name, each player's name a link to their page. */
@@ -299,6 +302,38 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
   const DAY = 'public, max-age=86400';
   site.get('/us-map.svg', (c) => c.body(US_MAP_SVG, 200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': DAY }));
   site.get('/favicon.svg', (c) => c.body(logoSvg(), 200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': DAY }));
+
+  // For search engines: every page that answers 200. The API and the sign-in link's landing
+  // are not pages to index.
+  site.get('/robots.txt', (c) =>
+    c.text(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /signin\n\nSitemap: ${urls.site}/sitemap.xml\n`)
+  );
+  site.get('/sitemap.xml', async (c) => {
+    const [signs, everyone] = await Promise.all([store.allSigns(), people()]);
+    const shown = signs.filter(isPublic);
+    const lists = await Promise.all(shown.map((s) => store.listWays(s.id)));
+    const ways = new Map<string, Way[]>(shown.map((s, i) => [s.id, lists[i]]));
+    // A sign changes when it is posted and when a way is added; that is its lastmod.
+    const changed = (s: Sign) => [s.postedAt, ...(ways.get(s.id) ?? []).map((w) => w.createdAt)].sort().at(-1)!;
+    const entries: [string, string | undefined][] = [
+      [`${urls.site}/`, shown.map(changed).sort().at(-1)],
+      ...shown.map((s): [string, string] => [`${urls.site}/signs/${s.slug}`, changed(s)]),
+      // The same test as the player's page: a name, and a sign or a badge on the map.
+      ...[...everyone.values()]
+        .filter((p) => p.name && (playerStats(p, shown).sign_count || earnedBadges(p.id, shown, ways).length))
+        .map((p): [string, undefined] => [`${urls.site}/players/${p.handle}`, undefined])
+    ];
+    const xml =
+      '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+      entries
+        .map(
+          ([loc, lastmod]) =>
+            `  <url><loc>${escapeXml(loc)}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ''}</url>\n`
+        )
+        .join('') +
+      '</urlset>\n';
+    return c.body(xml, 200, { 'Content-Type': 'application/xml; charset=utf-8' });
+  });
 
   // The sign-in link opens the app on an iPhone that has it (src/web/apple.ts). Anywhere else it
   // lands here, which says where to use it. The link's token never appears in the page, and the
