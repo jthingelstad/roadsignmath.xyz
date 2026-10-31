@@ -6,7 +6,7 @@
  * Bump on every change to the surface. tools/export-api-contract.ts refuses a changed surface
  * under a version already in contracts/api-versions.json.
  */
-export const API_VERSION = '1.7.0';
+export const API_VERSION = '1.8.0';
 
 export const LIMITS = {
   /** Signs per page of the feed. */
@@ -14,6 +14,8 @@ export const LIMITS = {
   pageMax: 50,
   /** Signs in a "Near you" answer. */
   nearMax: 50,
+  /** Signs in a "Popular" answer. */
+  popularMax: 50,
   /** How far "Nobody has posted this sign yet" looks, in miles. */
   similarMiles: 2,
   /** Numbers a similar-sign question may send. */
@@ -183,6 +185,21 @@ export const ROUTES: Route[] = [
     auth: 'public',
     status: 200,
     response: 'NearSigns'
+  },
+  {
+    operationId: 'listSignsPopular',
+    method: 'get',
+    path: '/signs/popular',
+    summary: 'The most hearted signs',
+    description:
+      `At most ${LIMITS.popularMax} signs, the most hearts first, counting every heart a sign has had (app and ` +
+      'website). Signs with as many hearts as each other come newest first, and signs nobody has hearted ' +
+      'last, newest first. When the counts can’t be read just now, every `hearts` is null and the signs ' +
+      'come newest first.',
+    params: [],
+    auth: 'public',
+    status: 200,
+    response: 'PopularSigns'
   },
   {
     operationId: 'listSimilarSigns',
