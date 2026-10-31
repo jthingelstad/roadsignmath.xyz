@@ -88,23 +88,49 @@ export async function setAvatar(
   const verdict = await moderate(() => moderator.reviewAvatar(sized.large));
   if (verdict.verdict !== 'ok') fail('refused', verdict.reason || 'That photo can’t be your profile photo.');
   const id = ulid().toLowerCase();
-  await photos.putUpload(id, sized);
-  await photos.publish(id, 'shown');
-  const set = await store.setAvatar(player.id, id);
-  if (!set) {
-    await dropPhoto(photos, id);
-    return fail('unauthorized', 'That account is gone');
+  // Under the player's lease, which deleting the account holds too: a delete either sees this
+  // photo on the player and removes it, or runs after and finds it there.
+  return underLease(store, player, async () => {
+    let set: { previous?: string } | false;
+    try {
+      await photos.putUpload(id, sized);
+      await photos.publish(id, 'shown');
+      set = await store.setAvatar(player.id, id);
+    } catch (err) {
+      // The update may have landed before the error: keep the photo only if the player has it.
+      const now = await store.getPlayer(player.id, true).catch(() => undefined);
+      if (now?.avatar !== id) await dropPhoto(photos, id);
+      throw err;
+    }
+    if (!set) {
+      await dropPhoto(photos, id);
+      return fail('unauthorized', 'That account is gone');
+    }
+    await dropPhoto(photos, set.previous);
+    return (await store.getPlayer(player.id)) ?? fail('unauthorized', 'That account is gone');
+  });
+}
+
+/** Runs a profile photo change under the player's lease (see `setAvatar`). */
+async function underLease<T>(store: Store, player: Player, work: () => Promise<T>): Promise<T> {
+  const lease = heartLease(player.id);
+  const holder = randomUUID();
+  if (!(await store.lease(lease, holder, 30))) fail('conflict', 'Your account is changing. Try again in a minute.');
+  try {
+    return await work();
+  } finally {
+    await store.endLease(lease, holder).catch(() => undefined);
   }
-  await dropPhoto(photos, set.previous);
-  return (await store.getPlayer(player.id)) ?? fail('unauthorized', 'That account is gone');
 }
 
 /** Takes the profile photo down; the player shows their first letter again. */
 export async function removeAvatar(deps: { store: Store; photos: PhotoStore }, player: Player): Promise<Player> {
-  const set = await deps.store.setAvatar(player.id, null);
-  if (!set) return fail('unauthorized', 'That account is gone');
-  await dropPhoto(deps.photos, set.previous);
-  return (await deps.store.getPlayer(player.id)) ?? fail('unauthorized', 'That account is gone');
+  return underLease(deps.store, player, async () => {
+    const set = await deps.store.setAvatar(player.id, null);
+    if (!set) return fail('unauthorized', 'That account is gone');
+    await dropPhoto(deps.photos, set.previous);
+    return (await deps.store.getPlayer(player.id)) ?? fail('unauthorized', 'That account is gone');
+  });
 }
 
 /**
@@ -119,7 +145,7 @@ export async function deleteAccount(
   player: Player
 ): Promise<void> {
   const { store } = deps;
-  // The player's heart lease, held to the end, so no heart of theirs is made while this runs.
+  // The player's lease, held to the end, so no heart or profile photo of theirs changes meanwhile.
   const lease = heartLease(player.id);
   const holder = randomUUID();
   if (!(await store.lease(lease, holder, 300))) {
@@ -161,7 +187,7 @@ async function deleteEverything(
       firstWay: left[0] ? { text: left[0].text, value: left[0].value, playerId: left[0].playerId } : null
     });
   }
-  // Read again: a profile photo set since this request began goes too.
+  // Read again under the lease: a profile photo set since this request began goes too.
   const avatar = (await store.getPlayer(player.id, true))?.avatar ?? player.avatar;
   if (avatar) await photos.remove(avatar);
   await store.deletePlayer(player.id);

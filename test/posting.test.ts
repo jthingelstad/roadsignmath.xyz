@@ -809,3 +809,42 @@ test('deleting an account takes its profile photo with it', async () => {
   assert.equal((await t.call('DELETE', '/me', { as: 'cy' })).res.status, 204);
   assert.equal(await t.photos.get(id, 'large', 'shown'), undefined);
 });
+
+/** The public (p/) and held keys: what a failed change must not leave behind. Uploads expire. */
+const shown = (photos: MemoryPhotoStore) => [...photos.files.keys()].filter((k) => !k.startsWith('uploads/'));
+
+test('a profile photo that fails to save leaves no public files, and one saved before the error stays', async () => {
+  const t = await setup();
+  t.photos.publish = async () => {
+    throw new Error('the bucket is down');
+  };
+  assert.equal((await t.call('PUT', '/me/avatar', { as: 'ada', raw: await photo() })).res.status, 500);
+  t.photos.publish = MemoryPhotoStore.prototype.publish.bind(t.photos);
+  assert.deepEqual(shown(t.photos), []);
+
+  const setAvatar = t.store.setAvatar.bind(t.store);
+  t.store.setAvatar = async () => {
+    throw new Error('the table is down');
+  };
+  assert.equal((await t.call('PUT', '/me/avatar', { as: 'ada', raw: await photo() })).res.status, 500);
+  assert.deepEqual(shown(t.photos), []);
+  assert.equal((await t.store.getPlayer(ada.id))!.avatar, undefined);
+
+  // The update landed and only its answer was lost: the photo is the player's, so it stays.
+  t.store.setAvatar = async (id, avatar) => {
+    await setAvatar(id, avatar);
+    throw new Error('the answer was lost');
+  };
+  assert.equal((await t.call('PUT', '/me/avatar', { as: 'ada', raw: await photo() })).res.status, 500);
+  const kept = (await t.store.getPlayer(ada.id))!.avatar!;
+  assert.ok(await t.photos.get(kept, 'large', 'shown'));
+});
+
+test('a profile photo waits for an account delete that is under way', async () => {
+  const t = await setup();
+  assert.ok(await t.store.lease(`heart:${cy.id}`, 'a delete', 300));
+  const set = await t.call('PUT', '/me/avatar', { as: 'cy', raw: await photo() });
+  assert.equal(set.res.status, 409);
+  assert.equal((await t.call('DELETE', '/me/avatar', { as: 'cy' })).res.status, 409);
+  assert.equal(t.photos.files.size, 0);
+});

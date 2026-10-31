@@ -36,7 +36,7 @@ const COUNTS_STALE = 10 * 60_000;
 /** How long a page waits on Tinylytics for the counts. */
 const COUNTS_TIMEOUT = 2500;
 
-/** The lease a player's heart changes and their account's delete hold. */
+/** The lease a player's heart changes, profile photo changes and account delete hold. */
 export const heartLease = (playerId: string): string => `heart:${playerId}`;
 
 /** The kudo uid for a player's heart on a sign. */

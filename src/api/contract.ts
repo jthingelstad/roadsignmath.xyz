@@ -49,7 +49,7 @@ export const ERRORS = {
   bad_request: 'A parameter or the body is missing or out of range; the message says which.',
   unauthorized: 'No token, a token that has ended, or a sign-in code that is wrong or too old.',
   not_found: 'No such route, sign or player.',
-  conflict: 'It already exists (that way was found), or the same post is still being made.',
+  conflict: 'It already exists (that way was found), or the same post or account change is still being made.',
   too_large: `The photo is over ${LIMITS.photoBytes / 1024 / 1024} MB.`,
   refused: 'The moderator wouldn’t show that profile photo; the message says why, for the player.',
   rate_limited: 'Too many tries for now; the message says when to try again.',
@@ -363,11 +363,12 @@ export const ROUTES: Route[] = [
       'cropped square from its middle (send it already cropped), kept at two sizes with its metadata (and so its ' +
       'location) removed, and shown to everyone at once in place of your first letter. The moderator looks ' +
       'first: a 422 means it wouldn’t show the photo, and its message says why. The photo it replaces is ' +
-      `removed. At most ${LIMITS.avatarsADay} a day.`,
+      `removed. At most ${LIMITS.avatarsADay} a day. A 409 means your account was changing (being deleted, or ` +
+      'another photo going up); try again.',
     params: [],
     auth: 'signed_in',
     bodyMedia: ['image/jpeg', 'image/png', 'image/webp'],
-    errors: ['too_large', 'refused', 'rate_limited', 'unavailable'],
+    errors: ['too_large', 'refused', 'conflict', 'rate_limited', 'unavailable'],
     status: 200,
     response: 'Me'
   },
@@ -376,9 +377,12 @@ export const ROUTES: Route[] = [
     method: 'delete',
     path: '/me/avatar',
     summary: 'Remove your profile photo',
-    description: 'Removes your profile photo; your first letter shows again. Removing none is fine.',
+    description:
+      'Removes your profile photo; your first letter shows again. Removing none is fine. A 409 means your ' +
+      'account was changing; try again.',
     params: [],
     auth: 'signed_in',
+    errors: ['conflict'],
     status: 200,
     response: 'Me'
   },

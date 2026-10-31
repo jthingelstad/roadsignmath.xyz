@@ -200,7 +200,7 @@
             }
           },
           "409": {
-            "description": "It already exists (that way was found), or the same post is still being made.",
+            "description": "It already exists (that way was found), or the same post or account change is still being made.",
             "content": {
               "application/json": {
                 "schema": {
@@ -929,7 +929,7 @@
             }
           },
           "409": {
-            "description": "It already exists (that way was found), or the same post is still being made.",
+            "description": "It already exists (that way was found), or the same post or account change is still being made.",
             "content": {
               "application/json": {
                 "schema": {
@@ -955,7 +955,7 @@
       "put": {
         "operationId": "setAvatar",
         "summary": "Set your profile photo",
-        "description": "The body is the photo itself, JPEG, PNG or WebP, at most 4 MB. It is cropped square from its middle (send it already cropped), kept at two sizes with its metadata (and so its location) removed, and shown to everyone at once in place of your first letter. The moderator looks first: a 422 means it wouldn’t show the photo, and its message says why. The photo it replaces is removed. At most 20 a day.",
+        "description": "The body is the photo itself, JPEG, PNG or WebP, at most 4 MB. It is cropped square from its middle (send it already cropped), kept at two sizes with its metadata (and so its location) removed, and shown to everyone at once in place of your first letter. The moderator looks first: a 422 means it wouldn’t show the photo, and its message says why. The photo it replaces is removed. At most 20 a day. A 409 means your account was changing (being deleted, or another photo going up); try again.",
         "security": [
           {
             "token": []
@@ -1023,6 +1023,16 @@
               }
             }
           },
+          "409": {
+            "description": "It already exists (that way was found), or the same post or account change is still being made.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "413": {
             "description": "The photo is over 4 MB.",
             "content": {
@@ -1068,7 +1078,7 @@
       "delete": {
         "operationId": "removeAvatar",
         "summary": "Remove your profile photo",
-        "description": "Removes your profile photo; your first letter shows again. Removing none is fine.",
+        "description": "Removes your profile photo; your first letter shows again. Removing none is fine. A 409 means your account was changing; try again.",
         "security": [
           {
             "token": []
@@ -1095,6 +1105,16 @@
           },
           "401": {
             "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "It already exists (that way was found), or the same post or account change is still being made.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1411,7 +1431,7 @@
             }
           },
           "409": {
-            "description": "It already exists (that way was found), or the same post is still being made.",
+            "description": "It already exists (that way was found), or the same post or account change is still being made.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1504,7 +1524,7 @@
             }
           },
           "409": {
-            "description": "It already exists (that way was found), or the same post is still being made.",
+            "description": "It already exists (that way was found), or the same post or account change is still being made.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1605,7 +1625,7 @@
             }
           },
           "409": {
-            "description": "It already exists (that way was found), or the same post is still being made.",
+            "description": "It already exists (that way was found), or the same post or account change is still being made.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1718,7 +1738,7 @@
             }
           },
           "409": {
-            "description": "It already exists (that way was found), or the same post is still being made.",
+            "description": "It already exists (that way was found), or the same post or account change is still being made.",
             "content": {
               "application/json": {
                 "schema": {
