@@ -26,8 +26,13 @@ export type Cluster = {
   signs: Sign[];
 };
 
-/** How close, in the map's own 975-wide units, two pins come before they share one. */
-const GATHER = 26;
+/**
+ * How close, in the map's own 975-wide units, two pins come before they share one. A pin's size
+ * follows the map's width (`.map .pin` in layout.tsx: 3.4% of it for a cluster, never under
+ * 14px), so pins that are this far apart stay apart at every width down to a 343px map, a
+ * 375px phone: there 14px is 40 units, and two clusters need 40 plus a gap of 2px.
+ */
+export const GATHER = 46;
 
 /**
  * Pins for signs, newest first, gathered greedily: each sign joins the first cluster whose
@@ -55,6 +60,27 @@ export function cluster(signs: Sign[]): { clusters: Cluster[]; unpinned: Sign[] 
       near.py = near.sy / near.signs.length;
     } else {
       clusters.push({ key: sign.slug, x: 0, y: 0, signs: [sign], px, py, sx: px, sy: py });
+    }
+  }
+  const order = new Map(signs.map((s, i) => [s, i]));
+  // A cluster's middle moves as signs join it, so two can end up closer than GATHER; join those
+  // too, the later into the earlier, until every pair is apart.
+  for (let joined = true; joined;) {
+    joined = false;
+    for (let i = 0; i < clusters.length && !joined; i++) {
+      for (let j = i + 1; j < clusters.length && !joined; j++) {
+        const a = clusters[i];
+        const b = clusters[j];
+        if (Math.hypot(a.px - b.px, a.py - b.py) > GATHER) continue;
+        a.signs.push(...b.signs);
+        a.signs.sort((x, y) => order.get(x)! - order.get(y)!);
+        a.sx += b.sx;
+        a.sy += b.sy;
+        a.px = a.sx / a.signs.length;
+        a.py = a.sy / a.signs.length;
+        clusters.splice(j, 1);
+        joined = true;
+      }
     }
   }
   return {

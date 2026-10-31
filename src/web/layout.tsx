@@ -78,6 +78,11 @@ h1, h2, h3 { font-weight: 900; letter-spacing: -0.01em; }
 .pin[aria-current], .pin.on { box-shadow: 0 0 0 3px var(--yellow), 0 2px 6px rgba(0,0,0,.4); z-index: 1; }
 /* On a phone the map is a third the size, so the dots shrink to stay apart. */
 @media (max-width: 599px) { .pin { width: 16px; height: 16px; border-width: 2px; font-size: 11px; } .pin.many { width: 22px; height: 22px; } }
+/* On the map a dot is sized to the map, so pins that are apart stay apart at every width (GATHER in map.ts). */
+.map { container-type: inline-size; }
+.map .pin { width: clamp(10px, 2.6cqw, 24px); height: clamp(10px, 2.6cqw, 24px); border-width: clamp(2px, 0.33cqw, 3px);
+  font-size: clamp(9px, 1.55cqw, 14px); }
+.map .pin.many { width: clamp(14px, 3.4cqw, 32px); height: clamp(14px, 3.4cqw, 32px); }
 /* A bigger target than the dot, for fingers. */
 .pin::after { content: ''; position: absolute; inset: -10px; border-radius: 50%; }
 
@@ -227,9 +232,10 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
             </a>
             .
           </p>
-          <p>
+          <nav aria-label="About">
+            <a href="/about">About</a>
             <a href="/privacy">Privacy</a>
-          </p>
+          </nav>
         </div>
       </footer>
       {script && <script dangerouslySetInnerHTML={{ __html: script }} />}

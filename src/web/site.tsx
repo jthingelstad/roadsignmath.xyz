@@ -20,7 +20,7 @@ import {
   type Urls
 } from '../api/views.ts';
 import { BadgeRow } from './badges.tsx';
-import { Avatar, logoSvg, longDay, Page, Phone, Plate, shortDay, TESTFLIGHT_URL } from './layout.tsx';
+import { ARCHIVE_URL, Avatar, logoSvg, longDay, Page, Phone, Plate, shortDay, TESTFLIGHT_URL } from './layout.tsx';
 import { cluster, clusterName, countSigns, project, type Cluster } from './map.ts';
 import { mathSvg } from './math.ts';
 import { US_BORDERS, US_LAND, US_MAP_SIZE } from './us-map.ts';
@@ -127,6 +127,25 @@ const NoPin: FC<{ signs: Sign[] }> = ({ signs }) =>
   ) : (
     <></>
   );
+
+const ABOUT_STYLE = `
+.about { padding-top: 32px; padding-bottom: 56px; max-width: 760px; }
+.about .lead { font-size: 20px; line-height: 1.45; color: var(--ink2); }
+.about h2 { margin-top: 40px; }
+.about .first { display: grid; grid-template-columns: minmax(0, 300px) 1fr; gap: 24px; align-items: center; }
+.about .first p { margin: 0; }
+.about .shot { display: grid; gap: 10px; text-decoration: none; }
+.about .shot img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 12px; background: var(--photo); }
+@media (max-width: 599px) { .about .first { grid-template-columns: 1fr; } .about .first > .shot, .about .first > .plate { max-width: 360px; } }
+.eras { margin: 0; padding: 0; list-style: none; display: grid; gap: 28px; }
+.eras li { border-left: 4px solid var(--green); padding-left: 18px; }
+.eras .when { display: inline-block; font-size: 14px; font-weight: 700; color: var(--green-ink); }
+.eras h3 { margin: 2px 0 6px; font-size: 21px; }
+.eras p { margin: 0; }
+`;
+
+/** Things I've built, where each era of the game has its page. */
+const THINGS_URL = 'https://thingelstad.xyz/things/';
 
 const HOME_STYLE = `
 .hero { background: var(--ground); border-bottom: 1px solid var(--line); scroll-margin-top: 0; }
@@ -321,6 +340,7 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
     const changed = (s: Sign) => [s.postedAt, ...(ways.get(s.id) ?? []).map((w) => w.createdAt)].sort().at(-1)!;
     const entries: [string, string | undefined][] = [
       [`${urls.site}/`, shown.map(changed).sort().at(-1)],
+      [`${urls.site}/about`, undefined],
       [`${urls.site}/privacy`, undefined],
       ...shown.map((s): [string, string] => [`${urls.site}/signs/${s.slug}`, changed(s)]),
       // The same test as the player's page: a name, and a sign or a badge on the map.
@@ -338,6 +358,118 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
         .join('') +
       '</urlset>\n';
     return c.body(xml, 200, { 'Content-Type': 'application/xml; charset=utf-8' });
+  });
+
+  // About: where the game came from, in Jamie's own words from his posts (thingelstad.com, 2023 and
+  // 2026) and Things I've built. Text drafted for Jamie.
+  site.get('/about', async (c) => {
+    // The I-94 sign itself, photographed again in 2023, when it is on the site.
+    const [signs, everyone] = await Promise.all([store.allSigns(), people()]);
+    const found = signs.find((s) => s.slug === 'genesis' && isPublic(s));
+    const genesis = found ? summary(everyone)(found) : undefined;
+    return c.html(
+      <Page
+        title="About · Road Sign Math"
+        description="Road Sign Math is a road trip game Jamie Thingelstad started in 2005 with a sign on I-94: 3 × 33 = 99. Twenty years later it's an iPhone app."
+        url={`${urls.site}/about`}
+        style={ABOUT_STYLE}
+      >
+        <main class="wrap about">
+          <h1>About</h1>
+          <p class="lead">
+            Road Sign Math is a road trip game. Find a road sign whose numbers make a true equation, take its picture,
+            and write the math. Driving + Math = Fun.
+          </p>
+
+          <h2>The first sign</h2>
+          <div class="first">
+            {genesis?.photos[0] ? (
+              <a class="shot" href={`/signs/${genesis.slug}`}>
+                <img
+                  src={genesis.photos[0].url}
+                  alt={genesis.photos[0].alt ?? 'Photo of the I-94 sign'}
+                  loading="lazy"
+                />
+                <Plate way={{ text: '3 × 33 = 99', tex: '3 \\times 33 = 99' }} />
+              </a>
+            ) : (
+              <Plate way={{ text: '3 × 33 = 99', tex: '3 \\times 33 = 99' }} />
+            )}
+            <p>
+              Driving I-94 East toward the Twin Cities, coming home from visiting family in North Dakota, I used to pass
+              a sign that always made me smile: Melrose 3, St. Cloud 33, Minneapolis 99. Three times 33 is 99. I kept
+              wondering how many other signs like it were out there. My friend Jim told me I should make a website, and
+              so that day I did.
+              {genesis && (
+                <>
+                  {' '}
+                  In 2023 I <a href={`/signs/${genesis.slug}`}>photographed it again</a>.
+                </>
+              )}
+            </p>
+          </div>
+
+          <h2>Three times around</h2>
+          <ol class="eras">
+            <li>
+              <span class="when mono">2005–2016</span>
+              <h3>roadsignmath.com</h3>
+              <p>
+                It started on February 13, 2005, as a blog of my signs, and soon other people were sending in theirs.
+                Forty people sent 251 signs, from across the country and beyond, one from the Serengeti. With that many
+                players it grew rules, a scoring system and scoreboards, and in 2011 it became a wiki so players could
+                keep their own signs. I shut it down in 2016, when I let a number of projects go.{' '}
+                <a href={ARCHIVE_URL}>The first era’s signs are in the archive</a>.
+              </p>
+            </li>
+            <li>
+              <span class="when mono">2021–2025</span>
+              <h3>A simple blog</h3>
+              <p>
+                A sign Tammy found near Phoenix in March 2021 gave the game a breath of new life as a plain blog, and
+                that summer we found ten more on a road trip through Vermont. In 2023 the blog moved to
+                roadsignmath.xyz: just my family’s signs, no scoring system or leaderboards. Sixteen signs, from Tammy,
+                Tyler and me. <a href={`${THINGS_URL}road-sign-math-2021/`}>More about the blog</a>.
+              </p>
+            </li>
+            <li>
+              <span class="when mono">2026</span>
+              <h3>The app</h3>
+              <p>
+                No version of Road Sign Math ever reached the dream I had for it in 2005, two years before the iPhone:
+                that you could play it on your phone. The very essence of Road Sign Math is mobile. It’s something you
+                do out in the world. With the help of Claude, that dream is real now. The iPhone app is the whole game:
+                snap a sign, check the numbers it read, write the math, and post it. This website is the window for
+                everyone else, with every sign on a map and no app or sign-in needed. The blog’s sixteen signs were the
+                first ones in it. <a href={`${THINGS_URL}road-sign-math-2026/`}>How it was built</a>.
+              </p>
+            </li>
+          </ol>
+
+          <h2>No points</h2>
+          <p>
+            The first Road Sign Math had rules, scores and scoreboards. This one doesn’t. There are badges, little road
+            signs for your first sign, new states, every season and a few secrets, but no scores and nothing to rank.
+            The fun is in the finding, and anyone can find another way to make a sign work.
+          </p>
+
+          <h2>Who makes it</h2>
+          <p>
+            I’m <a href="https://www.thingelstad.com/">Jamie Thingelstad</a>, and I build Road Sign Math with Claude,
+            Anthropic’s AI. The <a href="https://github.com/jthingelstad/roadsignmath.xyz">website</a> and the{' '}
+            <a href="https://github.com/jthingelstad/roadsignmath-ios">iPhone app</a> are open source. Read{' '}
+            <a href="https://www.thingelstad.com/2026/10/31/road-sign-math-the-dream.html">
+              Road Sign Math: The Dream Realized!
+            </a>{' '}
+            for the story of this one, and{' '}
+            <a href={TESTFLIGHT_URL} data-tinylytics-event="beta.join" data-tinylytics-event-value="about">
+              join the iPhone beta
+            </a>{' '}
+            to play along. Questions are welcome at <a href="mailto:jamie@thingelstad.com">jamie@thingelstad.com</a>.
+          </p>
+        </main>
+      </Page>
+    );
   });
 
   // Privacy: what the game keeps and who sees it, in plain words. Text drafted for Jamie.
