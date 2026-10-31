@@ -8,6 +8,8 @@ import { mathSvg } from './math.ts';
 import { TINYLYTICS_SCRIPT, TINYLYTICS_SITE } from './tinylytics.ts';
 
 export const ARCHIVE_URL = 'https://thingelstad.xyz/things/road-sign-math/';
+/** The public TestFlight invite for Jamie's Beta group: the way into the iPhone app until it's on the App Store. */
+export const TESTFLIGHT_URL = 'https://testflight.apple.com/join/Httdw7ZY';
 
 /** The design's colours, with a dark set beside them. */
 const STYLE = `
