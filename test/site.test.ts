@@ -191,6 +191,27 @@ test('home puts every shown sign on the map: pins, clusters, the year filter and
   assert.equal((await app.request('/?year=1999&at=nope')).status, 200);
 });
 
+test('robots.txt points to the sitemap, which lists every page that answers and none that do not', async () => {
+  const { app, slug } = await setup();
+  const robots = await (await app.request('/robots.txt')).text();
+  assert.match(robots, /^Sitemap: https:\/\/example\.test\/sitemap\.xml$/m);
+  assert.match(robots, /^Disallow: \/api\/$/m);
+  const res = await app.request('/sitemap.xml');
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type') ?? '', /^application\/xml/);
+  const xml = await res.text();
+  const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+  assert.ok(locs.includes('https://example.test/'));
+  assert.ok(locs.includes(`https://example.test/signs/${slug('Newer Sign')}`));
+  assert.ok(!locs.some((l) => l.endsWith(`/signs/${slug('Held Sign')}`)), 'held signs are not listed');
+  for (const loc of locs) {
+    const page = await app.request(loc.replace('https://example.test', ''));
+    assert.equal(page.status, 200, loc);
+  }
+  // The newer sign's lastmod is its way's, which came after it was posted.
+  assert.match(xml, new RegExp(`/signs/${slug('Older Sign')}</loc><lastmod>2026-01-01T00:00:00.000Z</lastmod>`));
+});
+
 test('the map picture and the icon are served and kept a day', async () => {
   const { app } = await setup();
   for (const path of ['/us-map.svg', '/favicon.svg']) {
