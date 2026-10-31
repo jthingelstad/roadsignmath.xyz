@@ -237,11 +237,17 @@ const byFound = (a: Sign, b: Sign): number =>
 const byWritten = (a: Way, b: Way): number => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
 
 /**
- * The badges a player has earned from these signs and their ways, in catalog order. `signs` and
- * `ways` are what the reader may see (blocked players already left out); held and hidden signs
- * are dropped here.
+ * The badges a player has earned from these signs and their ways, in catalog order. `signs` are
+ * what the reader may see; held and hidden signs are dropped here. `ways` are every way on them:
+ * the ways of the players in `leftOut` (those the reader blocked) earn no one anything, but still
+ * say whether a sign was solved, and by whom first.
  */
-export function earnedBadges(playerId: string, signs: Sign[], ways: Map<string, Way[]>): Earned[] {
+export function earnedBadges(
+  playerId: string,
+  signs: Sign[],
+  ways: Map<string, Way[]>,
+  leftOut: ReadonlySet<string> = new Set()
+): Earned[] {
   const shown = signs.filter((s) => s.visibility === 'shown');
   const signById = new Map(shown.map((s) => [s.id, s]));
   const waysOn = (sign: Sign): Way[] => [...(ways.get(sign.id) ?? [])].sort(byWritten);
@@ -256,7 +262,7 @@ export function earnedBadges(playerId: string, signs: Sign[], ways: Map<string, 
     .sort(byFound);
   // Their ways, oldest first, each with its sign.
   const mine = shown
-    .flatMap((s) => waysOn(s).filter((w) => w.playerId === playerId))
+    .flatMap((s) => waysOn(s).filter((w) => w.playerId === playerId && !leftOut.has(w.playerId)))
     .sort(byWritten)
     .map((way) => ({ way, sign: signById.get(way.signId)!, on: way.createdAt.slice(0, 10) }));
 
@@ -275,7 +281,7 @@ export function earnedBadges(playerId: string, signs: Sign[], ways: Map<string, 
     .filter((s) => s.postedBy === playerId)
     .flatMap((sign) =>
       waysOn(sign)
-        .filter((w) => w.playerId !== playerId)
+        .filter((w) => w.playerId !== playerId && !leftOut.has(w.playerId))
         .map((w) => ({ sign, way: w }))
     )
     .sort((a, b) => byWritten(a.way, b.way))[0];

@@ -88,6 +88,19 @@ test('Cracked It: the first way on a sign posted unsolved; a way written with th
   assert.ok(!has(ben.id, 'cracked-it', [withPost], [posted, later]), 'not the first way');
 });
 
+test('Cracked It: a blocked player’s first way still means the sign was solved', () => {
+  const posted = s({ postedBy: ben.id, finders: [{ playerId: ben.id, name: ben.name, role: 'found' }] });
+  const cy = '01JCCCCCCCCCCCCCCCCCCCCCCC';
+  const first = w(posted, '7 + 12 = 19', { playerId: cy, createdAt: posted.postedAt });
+  const later = w(posted, '19 − 12 = 7');
+  const ways = new Map([[posted.id, [first, later]]]);
+  assert.ok(!earnedBadges(ada.id, [posted], ways, new Set([cy])).some((e) => e.id === 'cracked-it'));
+  assert.ok(
+    !earnedBadges(ben.id, [posted], ways, new Set([cy])).some((e) => e.id === 'company' && e.on === '2026-01-10'),
+    'and the blocked way brings no company'
+  );
+});
+
 test('Another Way: two ways on one sign; one way each on two signs is not', () => {
   const one = s();
   const two = s();

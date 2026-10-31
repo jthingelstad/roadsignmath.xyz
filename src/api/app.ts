@@ -182,16 +182,19 @@ export function createApi(options: ApiOptions): Hono {
     };
   }
 
-  /** The ways on every shown sign this reader sees, less the ways of players they blocked. */
-  async function waysOn({ signs, blocked }: Data): Promise<Map<string, Way[]>> {
+  /**
+   * Every way on every shown sign this reader sees. Badges leave out the ways of players they
+   * blocked, but still need them to know whether a sign was posted solved.
+   */
+  async function waysOn({ signs }: Data): Promise<Map<string, Way[]>> {
     const shown = signs.filter(isPublic);
     const lists = await Promise.all(shown.map((s) => store.listWays(s.id)));
-    return new Map(shown.map((s, i) => [s.id, lists[i].filter((w) => !blocked.has(w.playerId))]));
+    return new Map(shown.map((s, i) => [s.id, lists[i]]));
   }
 
   /** The player's badges, as this reader sees the signs and ways. */
   const badgesOf = async (playerId: string, data: Data): Promise<Earned[]> =>
-    earnedBadges(playerId, data.signs, await waysOn(data));
+    earnedBadges(playerId, data.signs, await waysOn(data), data.blocked);
 
   /** You, with your badges. */
   const me = async (player: Viewer['player'], data: Data) => ({
@@ -207,12 +210,9 @@ export function createApi(options: ApiOptions): Hono {
   async function unlockedBy(playerId: string, data: Data, written: { sign: Sign; ways: Way[] }, before?: Earned[]) {
     const others = data.signs.filter((s) => s.id !== written.sign.id);
     const ways = await waysOn({ ...data, signs: others });
-    const had = before ?? earnedBadges(playerId, others, ways);
-    ways.set(
-      written.sign.id,
-      written.ways.filter((w) => !data.blocked.has(w.playerId))
-    );
-    const now = earnedBadges(playerId, [written.sign, ...others], ways);
+    const had = before ?? earnedBadges(playerId, others, ways, data.blocked);
+    ways.set(written.sign.id, written.ways);
+    const now = earnedBadges(playerId, [written.sign, ...others], ways, data.blocked);
     return newlyEarned(had, now).map((e) => earnedBadgeView(urls, e));
   }
 
