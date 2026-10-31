@@ -120,3 +120,21 @@ test('the sign-in link in a browser says where to use it, and is never cached', 
   // No analytics here: the URL holds the link's token.
   assert.ok(!html.includes('tinylytics'));
 });
+
+test('a player’s page shows the badges they earned as road signs, and nothing about the rest', async () => {
+  const { app } = await setup();
+  const res = await app.request('/players/ada');
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  assert.ok(html.includes('<h1>Ada</h1>'));
+  assert.match(html, /<ul class="badges">/);
+  assert.match(
+    html,
+    /<a href="\/signs\/older-sign" title="First Sign\. Post your first sign\. Earned 2026-01-10 with Older Sign\.">/
+  );
+  assert.match(html, /<svg viewBox="0 0 64 64" width="56" height="56" role="img" aria-label="Fair Share\./);
+  assert.ok(!html.includes('Lookout'), 'no badge that isn’t earned');
+  assert.ok(!/\d+ badges?/i.test(html), 'no count');
+  assert.ok(!html.includes('Held Sign'));
+  assert.equal((await app.request('/players/nobody')).status, 404);
+});

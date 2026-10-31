@@ -324,6 +324,12 @@ function equal(a: Value, b: Value): boolean {
   return Math.abs(x - y) <= 1e-9 * Math.max(1, Math.abs(x), Math.abs(y));
 }
 
+/** Whether this part of the math comes to an exact value that isn't whole, like 1 ÷ 2. */
+export function isFraction(node: Node): boolean {
+  const v = evaluate(node);
+  return v.exact && v.d !== 1n;
+}
+
 /** How a side's value reads to a person: "2", "-3", "0.75", "1/3", "≈1.4142". */
 export function valueText(v: Value): string {
   if (!v.exact) return `≈${Number(v.v.toPrecision(6))}`;

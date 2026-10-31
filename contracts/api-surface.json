@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Road Sign Math API",
-    "version": "1.5.0",
+    "version": "1.6.0",
     "summary": "The signs, the map and the players of Road Sign Math.",
     "description": "Every public sign, the ways people found to make it true, the map and who’s playing, read by anyone; sign-in by email, your own account, and posting signs and ways from the app. Answers are JSON in UTF-8 with snake_case keys and carry an `API-Version` header. A request with a token is never cached. An error is `{\"error\": {\"code\", \"message\"}}`.",
     "license": {
@@ -132,7 +132,7 @@
       "post": {
         "operationId": "postSign",
         "summary": "Post a sign",
-        "description": "Posts the uploaded photos with the numbers you checked, where and when you found it, who found it (you, unless you say), and optionally the first way to make it true. Without a way it is posted unsolved. Our moderator looks first: a post that is clearly objectionable is held, and only you see it, with `moderation_note` saying why. The moderator also writes each photo’s alt text. You need a name first. At most 20 a day.",
+        "description": "Posts the uploaded photos with the numbers you checked, where and when you found it, who found it (you, unless you say), and optionally the first way to make it true. Without a way it is posted unsolved. `unlocked` lists the badges the post earned you. Our moderator looks first: a post that is clearly objectionable is held, and only you see it, with `moderation_note` saying why. The moderator also writes each photo’s alt text. You need a name first. At most 20 a day.",
         "security": [
           {
             "token": []
@@ -174,7 +174,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SignDetail"
+                  "$ref": "#/components/schemas/SignAndBadges"
                 }
               }
             }
@@ -555,8 +555,8 @@
     "/api/v1/players/{handle}": {
       "get": {
         "operationId": "getPlayer",
-        "summary": "One player and their signs",
-        "description": "A player’s signs are the ones they found, newest first.",
+        "summary": "One player, their signs and their badges",
+        "description": "A player’s signs are the ones they found, newest first. Their badges are the ones they earned, in catalog order, worked out from the signs and ways you can see.",
         "parameters": [
           {
             "name": "handle",
@@ -570,7 +570,7 @@
         ],
         "responses": {
           "200": {
-            "description": "One player and their signs",
+            "description": "One player, their signs and their badges",
             "headers": {
               "API-Version": {
                 "schema": {
@@ -603,6 +603,33 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/badges": {
+      "get": {
+        "operationId": "getBadges",
+        "summary": "Every badge there is",
+        "description": "Badges are little road signs a player collects for what happened on the road: a new state, a square root, a sign found a year after the first. Nothing is added up or compared. A secret badge gives only its id and shelf. A player’s earned badges are in `GET /players/{handle}` and `GET /me`.",
+        "responses": {
+          "200": {
+            "description": "Every badge there is",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadgeCatalog"
                 }
               }
             }
@@ -1152,7 +1179,7 @@
       "post": {
         "operationId": "addWay",
         "summary": "Add another way to make a sign true",
-        "description": "The math must be true, and every number in it must be one of the sign’s numbers, each used no more often than the sign shows it. A way someone already found is a conflict. Answers with the sign and all its ways. You need a name first. At most 100 a day.",
+        "description": "The math must be true, and every number in it must be one of the sign’s numbers, each used no more often than the sign shows it. A way someone already found is a conflict. Answers with the sign, all its ways, and in `unlocked` the badges the way earned you. You need a name first. At most 100 a day.",
         "security": [
           {
             "token": []
@@ -1193,7 +1220,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SignDetail"
+                  "$ref": "#/components/schemas/SignAndBadges"
                 }
               }
             }
@@ -1804,7 +1831,7 @@
           "api_version": {
             "type": "string",
             "examples": [
-              "1.5.0"
+              "1.6.0"
             ]
           },
           "signs": {
@@ -2617,7 +2644,8 @@
           {
             "type": "object",
             "required": [
-              "signs"
+              "signs",
+              "badges"
             ],
             "properties": {
               "signs": {
@@ -2625,6 +2653,207 @@
                 "items": {
                   "$ref": "#/components/schemas/Sign"
                 }
+              },
+              "badges": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/EarnedBadge"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "CatalogBadge": {
+        "type": "object",
+        "description": "A badge in the catalog. Each shelf is drawn as a family of road signs.",
+        "required": [
+          "id",
+          "shelf",
+          "secret",
+          "name",
+          "how",
+          "mark",
+          "steps"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "shelf": {
+            "type": "string",
+            "enum": [
+              "firsts",
+              "places",
+              "math",
+              "seasons",
+              "secret"
+            ]
+          },
+          "secret": {
+            "type": "boolean",
+            "description": "A secret badge gives only its id and shelf until someone earns it."
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "how": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "How it is earned, in a line."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mark": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "What its sign shows: a word, a symbol or a number."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "steps": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "description": "For a badge earned in steps, each step’s count."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "BadgeCatalog": {
+        "type": "object",
+        "required": [
+          "badges"
+        ],
+        "properties": {
+          "badges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogBadge"
+            }
+          }
+        }
+      },
+      "EarnedBadge": {
+        "type": "object",
+        "description": "A badge a player earned, with the sign that earned it first. Badges follow the signs on the map, so one goes when its sign does.",
+        "required": [
+          "id",
+          "shelf",
+          "name",
+          "how",
+          "mark",
+          "step",
+          "earned_on",
+          "sign"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "shelf": {
+            "type": "string",
+            "enum": [
+              "firsts",
+              "places",
+              "math",
+              "seasons",
+              "secret"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "how": {
+            "type": "string"
+          },
+          "mark": {
+            "type": "string",
+            "description": "What its sign shows; a stepped badge shows its step."
+          },
+          "step": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "description": "The step reached, for a badge earned in steps."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "earned_on": {
+            "type": "string",
+            "format": "date",
+            "description": "The day the sign was found, or for the math, the day the way was written."
+          },
+          "sign": {
+            "type": "object",
+            "required": [
+              "id",
+              "slug",
+              "title",
+              "url"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "slug": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string",
+                "format": "uri"
+              }
+            }
+          }
+        }
+      },
+      "SignAndBadges": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SignDetail"
+          },
+          {
+            "type": "object",
+            "required": [
+              "unlocked"
+            ],
+            "properties": {
+              "unlocked": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/EarnedBadge"
+                },
+                "description": "Badges this post or way earned you just now, or a higher step of one."
               }
             }
           }
@@ -2639,7 +2868,8 @@
             "type": "object",
             "required": [
               "email",
-              "needs_name"
+              "needs_name",
+              "badges"
             ],
             "properties": {
               "email": {
@@ -2650,6 +2880,12 @@
               "needs_name": {
                 "type": "boolean",
                 "description": "True until you give a name; ask for one before posting."
+              },
+              "badges": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/EarnedBadge"
+                }
               }
             }
           }

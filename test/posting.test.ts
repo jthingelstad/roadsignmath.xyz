@@ -665,3 +665,67 @@ test('each kind of post has a daily limit', async () => {
   assert.equal(posted.res.status, 429);
   assert.equal(t.moderator.posts.length, 0, 'the moderator isn’t asked once the limit is reached');
 });
+
+test('a post and a way answer with the badges they unlocked, and /me has them all', async () => {
+  const t = await setup();
+  const first = await t.post();
+  assert.deepEqual(
+    first.body.unlocked.map((b: Json) => b.id),
+    ['first-sign', 'every-number']
+  );
+  assert.equal(first.body.unlocked[0].sign.slug, 'exit-7');
+  const second = await t.post({ title: 'Exit 8', found_on: '2026-06-03' });
+  assert.deepEqual(
+    second.body.unlocked.map((b: Json) => b.id),
+    ['road-trip'],
+    'nothing already earned'
+  );
+  const way = await t.call('POST', `/signs/${first.body.id}/ways`, { as: 'ben', body: { text: '19 − 12 = 7' } });
+  assert.equal(way.res.status, 201);
+  assert.deepEqual(
+    way.body.unlocked.map((b: Json) => b.id),
+    ['second-opinion', 'every-number']
+  );
+  const again = await t.call('POST', `/signs/${first.body.id}/ways`, { as: 'ben', body: { text: '19 − 7 = 12' } });
+  assert.deepEqual(
+    again.body.unlocked.map((b: Json) => b.id),
+    ['another-way']
+  );
+  const me = await t.call('GET', '/me', { as: 'ada' });
+  assert.deepEqual(
+    me.body.badges.map((b: Json) => b.id),
+    ['first-sign', 'company', 'road-trip', 'every-number']
+  );
+});
+
+test('a held post unlocks nothing until it is shown', async () => {
+  const t = await setup();
+  t.moderator.post = { verdict: 'hold', reason: 'Not now.', alt: [] };
+  const { body } = await t.post();
+  assert.deepEqual(body.unlocked, []);
+  assert.deepEqual((await t.call('GET', '/me', { as: 'ada' })).body.badges, []);
+});
+
+test('badges leave out what a blocked player did, for the one who blocked them', async () => {
+  const t = await setup();
+  const { body: adas } = await t.post();
+  await t.call('POST', `/signs/${adas.id}/ways`, { as: 'ben', body: { text: '19 − 12 = 7' } });
+  const ids = async (as: string) =>
+    (await t.call('GET', '/players/ada', { as })).body.badges.map((b: Json) => b.id) as string[];
+  assert.ok((await ids('ada')).includes('company'));
+  await t.call('POST', '/players/ben/block', { as: 'ada' });
+  assert.ok(!(await ids('ada')).includes('company'));
+  assert.ok((await ids('cy')).includes('company'), 'others still see it');
+});
+
+test('a post and a way unlock their badges even when a read straight after misses the write', async () => {
+  const t = await setup();
+  // A read that lags the write: it sees no signs at all, and no ways.
+  t.store.allSigns = async () => [];
+  t.store.listWays = async () => [];
+  const posted = await t.post();
+  assert.deepEqual(
+    posted.body.unlocked.map((b: Json) => b.id),
+    ['first-sign', 'every-number']
+  );
+});

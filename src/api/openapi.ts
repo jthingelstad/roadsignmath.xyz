@@ -6,6 +6,7 @@ import { BIO_MAX, NAME_MAX } from '../auth/account.ts';
 import { LOGIN_TTL } from '../auth/auth.ts';
 import { API_VERSION, ERRORS, LIMITS, ROUTES, type ErrorCode } from './contract.ts';
 import { STATUS } from './errors.ts';
+import { SHELVES } from '../domain/badges.ts';
 import { VIEW_PATH } from '../tinylytics.ts';
 
 type Schema = Record<string, unknown>;
@@ -167,14 +168,57 @@ const SCHEMAS: Record<string, Schema> = {
   }),
   Players: object({ players: array(ref('Player')) }),
   PlayerDetail: {
-    allOf: [ref('Player'), object({ signs: array(ref('Sign')) })]
+    allOf: [ref('Player'), object({ signs: array(ref('Sign')), badges: array(ref('EarnedBadge')) })]
+  },
+  CatalogBadge: object(
+    {
+      id: str,
+      shelf: { type: 'string', enum: [...SHELVES] },
+      secret: { type: 'boolean', description: 'A secret badge gives only its id and shelf until someone earns it.' },
+      name: nullable(str),
+      how: nullable({ type: 'string', description: 'How it is earned, in a line.' }),
+      mark: nullable({ type: 'string', description: 'What its sign shows: a word, a symbol or a number.' }),
+      steps: nullable({ ...array(int), description: 'For a badge earned in steps, each step’s count.' })
+    },
+    'A badge in the catalog. Each shelf is drawn as a family of road signs.'
+  ),
+  BadgeCatalog: object({ badges: array(ref('CatalogBadge')) }),
+  EarnedBadge: object(
+    {
+      id: str,
+      shelf: { type: 'string', enum: [...SHELVES] },
+      name: str,
+      how: str,
+      mark: { type: 'string', description: 'What its sign shows; a stepped badge shows its step.' },
+      step: nullable({ ...int, description: 'The step reached, for a badge earned in steps.' }),
+      earned_on: {
+        type: 'string',
+        format: 'date',
+        description: 'The day the sign was found, or for the math, the day the way was written.'
+      },
+      sign: object({ id: str, slug: str, title: str, url: { type: 'string', format: 'uri' } })
+    },
+    'A badge a player earned, with the sign that earned it first. Badges follow the signs on the map, so one ' +
+      'goes when its sign does.'
+  ),
+  SignAndBadges: {
+    allOf: [
+      ref('SignDetail'),
+      object({
+        unlocked: {
+          ...array(ref('EarnedBadge')),
+          description: 'Badges this post or way earned you just now, or a higher step of one.'
+        }
+      })
+    ]
   },
   Me: {
     allOf: [
       ref('Player'),
       object({
         email: { type: 'string', format: 'email', description: 'Only ever sent to you.' },
-        needs_name: { type: 'boolean', description: 'True until you give a name; ask for one before posting.' }
+        needs_name: { type: 'boolean', description: 'True until you give a name; ask for one before posting.' },
+        badges: array(ref('EarnedBadge'))
       })
     ]
   },

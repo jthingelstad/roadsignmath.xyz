@@ -3,6 +3,7 @@
 // with a token also sees their own held signs and not the players they blocked.
 
 import { Hono, type Context } from 'hono';
+import { BADGES, earnedBadges, newlyEarned, type Earned } from '../domain/badges.ts';
 import { normalizeNumber } from '../domain/equation.ts';
 import { miles } from '../domain/geo.ts';
 import type { Sign, Way } from '../domain/types.ts';
@@ -32,6 +33,8 @@ import {
 import { openApi } from './openapi.ts';
 import {
   byNewest,
+  catalogBadgeView,
+  earnedBadgeView,
   meView,
   pinView,
   playerStats,
@@ -165,7 +168,7 @@ export function createApi(options: ApiOptions): Hono {
   const api = new Hono();
 
   /** The signs this reader sees, newest first, and every player by id. Read whole: there are few. */
-  async function load(viewer: Viewer | undefined): Promise<Data> {
+  async function load(viewer: Pick<Viewer, 'player'> | undefined): Promise<Data> {
     const [signs, players, blocks] = await Promise.all([
       store.allSigns(),
       store.allPlayers(),
@@ -177,6 +180,40 @@ export function createApi(options: ApiOptions): Hono {
       people: new Map(players.map((p) => [p.id, p])),
       blocked
     };
+  }
+
+  /**
+   * Every way on every shown sign this reader sees. Badges leave out the ways of players they
+   * blocked, but still need them to know whether a sign was posted solved.
+   */
+  async function waysOn({ signs }: Data): Promise<Map<string, Way[]>> {
+    const shown = signs.filter(isPublic);
+    const lists = await Promise.all(shown.map((s) => store.listWays(s.id)));
+    return new Map(shown.map((s, i) => [s.id, lists[i]]));
+  }
+
+  /** The player's badges, as this reader sees the signs and ways. */
+  const badgesOf = async (playerId: string, data: Data): Promise<Earned[]> =>
+    earnedBadges(playerId, data.signs, await waysOn(data), data.blocked);
+
+  /** You, with your badges. */
+  const me = async (player: Viewer['player'], data: Data) => ({
+    ...meView(urls, player, data.signs),
+    badges: (await badgesOf(player.id, data)).map((e) => earnedBadgeView(urls, e))
+  });
+
+  /**
+   * What a post or a way just earned: the badges with the sign as it was written, less those
+   * without it (or `before`). The sign and its ways come from the write itself, since a read
+   * straight after it may not see them yet.
+   */
+  async function unlockedBy(playerId: string, data: Data, written: { sign: Sign; ways: Way[] }, before?: Earned[]) {
+    const others = data.signs.filter((s) => s.id !== written.sign.id);
+    const ways = await waysOn({ ...data, signs: others });
+    const had = before ?? earnedBadges(playerId, others, ways, data.blocked);
+    ways.set(written.sign.id, written.ways);
+    const now = earnedBadges(playerId, [written.sign, ...others], ways, data.blocked);
+    return newlyEarned(had, now).map((e) => earnedBadgeView(urls, e));
   }
 
   /** A sign this reader can see, by id or slug. */
@@ -299,10 +336,16 @@ export function createApi(options: ApiOptions): Hono {
       const player =
         [...people.values()].find((p) => p.handle === handle) ?? fail('not_found', 'No player by that handle');
       const stats = playerStats(player, signs);
+      const badges = await badgesOf(player.id, { signs, people, blocked });
       return c.json({
         ...playerView(urls, player, signs),
-        signs: stats.signs.map((s) => signSummary(urls, people, s, blocked, h))
+        signs: stats.signs.map((s) => signSummary(urls, people, s, blocked, h)),
+        badges: badges.map((e) => earnedBadgeView(urls, e))
       });
+    },
+
+    async getBadges(c) {
+      return c.json({ badges: BADGES.map(catalogBadgeView) });
     },
 
     async startSignIn(c) {
@@ -313,10 +356,12 @@ export function createApi(options: ApiOptions): Hono {
       return c.json({ login_id: started.loginId, expires_in: started.expiresIn }, 202);
     },
 
-    async finishSignIn(c, { data }) {
+    async finishSignIn(c) {
       const body = await jsonBody(c);
       const done = await finishSignIn(store, { loginId: body.login_id, code: body.code, token: body.token });
-      return c.json({ token: done.token, new_player: done.isNew, me: meView(urls, done.player, (await data()).signs) });
+      // Read as the player just signed in, not the anonymous request: their blocks and held signs.
+      const signedIn = await load({ player: done.player });
+      return c.json({ token: done.token, new_player: done.isNew, me: await me(done.player, signedIn) });
     },
 
     async signOut(c, { viewer }) {
@@ -325,12 +370,12 @@ export function createApi(options: ApiOptions): Hono {
     },
 
     async getMe(c, { data, viewer }) {
-      return c.json(meView(urls, viewer!.player, (await data()).signs));
+      return c.json(await me(viewer!.player, await data()));
     },
 
     async updateMe(c, { data, viewer }) {
       const player = await updateMe(store, viewer!.player, await jsonBody(c));
-      return c.json(meView(urls, player, (await data()).signs));
+      return c.json(await me(player, await data()));
     },
 
     async deleteMe(c, { viewer }) {
@@ -372,11 +417,14 @@ export function createApi(options: ApiOptions): Hono {
 
     async postSign(c, { hearts, viewer }) {
       const body = await jsonBody(c);
-      const { sign, ways } = await postSign(deps, viewer!.player, body, c.req.header('idempotency-key'));
-      const people = new Map((await store.allPlayers()).map((p) => [p.id, p]));
+      const poster = viewer!.player;
+      const { sign, ways } = await postSign(deps, poster, body, c.req.header('idempotency-key'));
+      // Read after the post, so what it unlocked is measured against everything but this sign: a
+      // replay tells the same news.
+      const after = await load(viewer);
       // A replayed post can carry ways added since, by players the poster has blocked.
-      const blocked = new Set((await store.listBlocks(viewer!.player.id)).map((b) => b.blockedId));
-      return c.json(detail(people, blocked, sign, ways, await hearts()), 201);
+      const answer = detail(after.people, after.blocked, sign, ways, await hearts());
+      return c.json({ ...answer, unlocked: await unlockedBy(poster.id, after, { sign, ways }) }, 201);
     },
 
     async deleteSign(c, { data, viewer }) {
@@ -386,11 +434,15 @@ export function createApi(options: ApiOptions): Hono {
     },
 
     async addWay(c, { data, hearts, viewer }) {
-      const { signs, people, blocked } = await data();
+      const loaded = await data();
+      const { signs, people, blocked } = loaded;
       const sign = findSign(signs, pathParam(c, 'id'));
+      const before = await badgesOf(viewer!.player.id, loaded);
       const ways = await addWay(deps, viewer!.player, sign, await jsonBody(c));
       const fresh = (await store.getSign(sign.id)) ?? sign;
-      return c.json(detail(people, blocked, fresh, ways, await hearts()), 201);
+      const answer = detail(people, blocked, fresh, ways, await hearts());
+      const unlocked = await unlockedBy(viewer!.player.id, loaded, { sign: fresh, ways }, before);
+      return c.json({ ...answer, unlocked }, 201);
     },
 
     async heartSign(c, { data, viewer }) {

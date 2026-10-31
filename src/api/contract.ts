@@ -6,7 +6,7 @@
  * Bump on every change to the surface. tools/export-api-contract.ts refuses a changed surface
  * under a version already in contracts/api-versions.json.
  */
-export const API_VERSION = '1.5.0';
+export const API_VERSION = '1.6.0';
 
 export const LIMITS = {
   /** Signs per page of the feed. */
@@ -246,12 +246,28 @@ export const ROUTES: Route[] = [
     operationId: 'getPlayer',
     method: 'get',
     path: '/players/{handle}',
-    summary: 'One player and their signs',
-    description: 'A player’s signs are the ones they found, newest first.',
+    summary: 'One player, their signs and their badges',
+    description:
+      'A player’s signs are the ones they found, newest first. Their badges are the ones they earned, in ' +
+      'catalog order, worked out from the signs and ways you can see.',
     params: [handle],
     auth: 'public',
     status: 200,
     response: 'PlayerDetail'
+  },
+  {
+    operationId: 'getBadges',
+    method: 'get',
+    path: '/badges',
+    summary: 'Every badge there is',
+    description:
+      'Badges are little road signs a player collects for what happened on the road: a new state, a square ' +
+      'root, a sign found a year after the first. Nothing is added up or compared. A secret badge gives only ' +
+      'its id and shelf. A player’s earned badges are in `GET /players/{handle}` and `GET /me`.',
+    params: [],
+    auth: 'public',
+    status: 200,
+    response: 'BadgeCatalog'
   },
   {
     operationId: 'startSignIn',
@@ -398,7 +414,7 @@ export const ROUTES: Route[] = [
     description:
       'Posts the uploaded photos with the numbers you checked, where and when you found it, who found it ' +
       '(you, unless you say), and optionally the first way to make it true. Without a way it is posted ' +
-      'unsolved. Our moderator looks first: a post that is clearly objectionable is held, and only you see ' +
+      'unsolved. `unlocked` lists the badges the post earned you. Our moderator looks first: a post that is clearly objectionable is held, and only you see ' +
       'it, with `moderation_note` saying why. The moderator also writes each photo’s alt text. You need a ' +
       `name first. At most ${LIMITS.postsADay} a day.`,
     params: [
@@ -416,7 +432,7 @@ export const ROUTES: Route[] = [
     body: 'SignPost',
     errors: ['conflict', 'rate_limited', 'unavailable'],
     status: 201,
-    response: 'SignDetail'
+    response: 'SignAndBadges'
   },
   {
     operationId: 'deleteSign',
@@ -438,14 +454,14 @@ export const ROUTES: Route[] = [
     summary: 'Add another way to make a sign true',
     description:
       'The math must be true, and every number in it must be one of the sign’s numbers, each used no more ' +
-      'often than the sign shows it. A way someone already found is a conflict. Answers with the sign and ' +
-      `all its ways. You need a name first. At most ${LIMITS.waysADay} a day.`,
+      'often than the sign shows it. A way someone already found is a conflict. Answers with the sign, ' +
+      `all its ways, and in \`unlocked\` the badges the way earned you. You need a name first. At most ${LIMITS.waysADay} a day.`,
     params: [signId],
     auth: 'signed_in',
     body: 'WayPost',
     errors: ['conflict', 'rate_limited'],
     status: 201,
-    response: 'SignDetail'
+    response: 'SignAndBadges'
   },
   {
     operationId: 'heartSign',
