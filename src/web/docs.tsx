@@ -350,6 +350,11 @@ for (const sign of signs) {
           <li>
             <a href="/sitemap.xml">/sitemap.xml</a>: every page.
           </li>
+          <li>
+            <a href="https://microformats.org/wiki/microformats2">Microformats</a>: Home is an <code>h-feed</code>, each
+            sign page an <code>h-entry</code> (its name, photo, place, finders and math as LaTeX) and each player page
+            an <code>h-card</code>, so any microformats parser can read them.
+          </li>
         </ul>
 
         <h2 id="using">Using it</h2>
