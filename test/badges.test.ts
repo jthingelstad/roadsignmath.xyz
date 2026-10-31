@@ -220,6 +220,8 @@ test('Zero Sum and Big Number: what both sides come to', () => {
   assert.ok(!has(ada.id, 'zero-sum', [on], [w(on, '7 − 6 = 1')]));
   assert.ok(has(ada.id, 'big-number', [on], [w(on, '10^3 = 1000')]));
   assert.ok(!has(ada.id, 'big-number', [on], [w(on, '999 = 999')]));
+  assert.ok(has(ada.id, 'big-number', [on], [w(on, '4000 ÷ 3 = 8000 ÷ 6')]), 'a fraction, 4000/3');
+  assert.ok(!has(ada.id, 'big-number', [on], [w(on, '2000 ÷ 3 = 4000 ÷ 6')]), '2000/3 is under 1000');
 });
 
 test('secret: The Answer and Taxicab need an exact 42 or 1729', () => {

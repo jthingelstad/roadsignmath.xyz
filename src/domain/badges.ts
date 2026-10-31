@@ -221,7 +221,12 @@ function isPalindrome(text: string): boolean {
 }
 
 /** A way's exact value as a number, or undefined when the sides are only roughly equal. */
-const exactValue = (way: Way): number | undefined => (way.value.startsWith('≈') ? undefined : Number(way.value));
+function exactValue(way: Way): number | undefined {
+  if (way.value.startsWith('≈')) return undefined;
+  // The checker writes a fraction that isn't a short decimal as n/d, like 4000/3.
+  const [n, d = '1'] = way.value.split('/');
+  return Number(n) / Number(d);
+}
 
 /** The sign's first way was written with the post, so a sign without one was posted unsolved. */
 const postedUnsolved = (sign: Sign, ways: Way[]): boolean => ways[0]?.createdAt !== sign.postedAt;
