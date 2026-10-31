@@ -46,6 +46,13 @@ test('the home page lists shown signs, newest first, and is cached', async () =>
   );
 });
 
+test('home’s app section links the public TestFlight beta', async () => {
+  const { app } = await setup();
+  const html = await (await app.request('/')).text();
+  assert.match(html, /<a class="testflight" href="https:\/\/testflight\.apple\.com\/join\/Httdw7ZY">/);
+  assert.ok(html.includes('Join the iPhone beta'));
+});
+
 test('every sign has a heart: Tinylytics’ kudos button at the sign’s path', async () => {
   const { app, slug } = await setup();
   const home = await (await app.request('/')).text();

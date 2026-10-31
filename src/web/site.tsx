@@ -20,7 +20,7 @@ import {
   type Urls
 } from '../api/views.ts';
 import { BadgeRow } from './badges.tsx';
-import { Avatar, logoSvg, longDay, Page, Phone, Plate, shortDay } from './layout.tsx';
+import { Avatar, logoSvg, longDay, Page, Phone, Plate, shortDay, TESTFLIGHT_URL } from './layout.tsx';
 import { cluster, clusterName, countSigns, project, type Cluster } from './map.ts';
 import { mathSvg } from './math.ts';
 import { US_BORDERS, US_LAND, US_MAP_SIZE } from './us-map.ts';
@@ -177,9 +177,13 @@ const HOME_STYLE = `
 #app ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 17px; }
 #app li { display: flex; gap: 10px; align-items: baseline; }
 #app li::before { content: ''; flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: #F2B300; transform: translateY(-2px); }
-.soon { display: inline-flex; align-items: center; gap: 12px; min-height: 60px; padding: 0 24px; border-radius: 14px;
-  background: #fff; color: #18201C; font-weight: 900; font-size: 18px; }
-.soon small { display: block; font-weight: 600; font-size: 14px; color: #3B4540; }
+#app .join { flex: 0 1 340px; display: flex; flex-direction: column; gap: 12px; }
+#app .join p { font-size: 15px; }
+.testflight { display: inline-flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 24px; border-radius: 14px;
+  background: #fff; color: #18201C; font-weight: 900; font-size: 18px; text-decoration: none; align-self: flex-start; }
+.testflight:hover { background: #F2B300; color: #18201C; }
+.testflight:focus-visible { outline: 3px solid #F2B300; outline-offset: 3px; }
+.testflight small { display: block; font-weight: 600; font-size: 14px; color: #3B4540; }
 `;
 
 /** On Home, the year chips and the pins swap the map's panel in place instead of loading the page again. */
@@ -544,12 +548,18 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
                   <li>Badges for the road: your first sign, new states, mile markers, and a few secrets.</li>
                 </ul>
               </div>
-              <div class="soon">
-                <Phone size={22} />
-                <span>
-                  Road Sign Math for iPhone
-                  <small>In testing now. The link to try it goes here when it opens up.</small>
-                </span>
+              <div class="join">
+                <a class="testflight" href={TESTFLIGHT_URL}>
+                  <Phone size={22} />
+                  <span>
+                    Join the iPhone beta
+                    <small>Free, through Apple’s TestFlight</small>
+                  </span>
+                </a>
+                <p>
+                  Open the link on your iPhone, install TestFlight if it asks, then tap Accept. It’s a beta: new
+                  versions arrive on their own, and you can send feedback right from TestFlight.
+                </p>
               </div>
             </div>
           </section>
