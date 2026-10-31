@@ -234,6 +234,12 @@ const postedUnsolved = (sign: Sign, ways: Way[]): boolean => ways[0]?.createdAt 
 const byFound = (a: Sign, b: Sign): number =>
   a.foundOn.localeCompare(b.foundOn) || a.postedAt.localeCompare(b.postedAt) || a.id.localeCompare(b.id);
 
+// The day a way earned something. One posted with its sign takes the day the sign was found, in the
+// finder's own time; one added later takes its day in US Central, the game's home, not in UTC.
+const CENTRAL_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' });
+const wayDay = (way: Way, sign: Sign): string =>
+  way.createdAt === sign.postedAt ? sign.foundOn : CENTRAL_DAY.format(new Date(way.createdAt));
+
 const byWritten = (a: Way, b: Way): number => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
 
 /**
@@ -264,7 +270,7 @@ export function earnedBadges(
   const mine = shown
     .flatMap((s) => waysOn(s).filter((w) => w.playerId === playerId && !leftOut.has(w.playerId)))
     .sort(byWritten)
-    .map((way) => ({ way, sign: signById.get(way.signId)!, on: way.createdAt.slice(0, 10) }));
+    .map((way) => ({ way, sign: signById.get(way.signId)!, on: wayDay(way, signById.get(way.signId)!) }));
 
   // Firsts
   const posted = theirs.find((s) => s.postedBy === playerId);
@@ -285,7 +291,7 @@ export function earnedBadges(
         .map((w) => ({ sign, way: w }))
     )
     .sort((a, b) => byWritten(a.way, b.way))[0];
-  if (company) earn('company', company.sign, company.way.createdAt.slice(0, 10));
+  if (company) earn('company', company.sign, wayDay(company.way, company.sign));
 
   // Places and seasons, walking their signs in the order they were found.
   const states = new Set<string>();

@@ -6,7 +6,7 @@
  * Bump on every change to the surface. tools/export-api-contract.ts refuses a changed surface
  * under a version already in contracts/api-versions.json.
  */
-export const API_VERSION = '1.6.0';
+export const API_VERSION = '1.6.1';
 
 export const LIMITS = {
   /** Signs per page of the feed. */

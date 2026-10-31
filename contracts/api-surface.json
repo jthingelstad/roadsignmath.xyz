@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Road Sign Math API",
-    "version": "1.6.0",
+    "version": "1.6.1",
     "summary": "The signs, the map and the players of Road Sign Math.",
     "description": "Every public sign, the ways people found to make it true, the map and who’s playing, read by anyone; sign-in by email, your own account, and posting signs and ways from the app. Answers are JSON in UTF-8 with snake_case keys and carry an `API-Version` header. A request with a token is never cached. An error is `{\"error\": {\"code\", \"message\"}}`.",
     "license": {
@@ -1831,7 +1831,7 @@
           "api_version": {
             "type": "string",
             "examples": [
-              "1.6.0"
+              "1.6.1"
             ]
           },
           "signs": {
@@ -2809,7 +2809,7 @@
           "earned_on": {
             "type": "string",
             "format": "date",
-            "description": "The day the sign was found, or for the math, the day the way was written."
+            "description": "The day the sign was found, in the finder’s own time. For the math, a way posted with its sign takes that day too; a way added later takes the day it was written in US Central."
           },
           "sign": {
             "type": "object",
