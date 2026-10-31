@@ -54,10 +54,10 @@ test('every sign has a heart: Tinylytics’ kudos button at the sign’s path', 
   assert.ok(home.includes(button(slug('Newer Sign'))));
   assert.ok(home.includes(button(slug('Older Sign'))));
   // Outside the card's link, so a tap hearts the sign instead of opening it.
-  assert.match(home, /<\/a><div class="foot"><button type="button" class="tinylytics_kudos"/);
+  assert.match(home, /<\/a><div class="heart"><button type="button" class="tinylytics_kudos"/);
   const page = await (await app.request(`/signs/${slug('Newer Sign')}`)).text();
-  assert.equal(page.split('class="tinylytics_kudos"').length, 2);
-  assert.ok(page.includes(button(slug('Newer Sign'))));
+  // The sign's own heart once; the nearby signs' are their own.
+  assert.equal(page.split(button(slug('Newer Sign'))).length, 2);
 });
 
 test('a sign has its own page; a held or unknown one is not found', async () => {
@@ -71,12 +71,12 @@ test('a sign has its own page; a held or unknown one is not found', async () => 
   assert.equal(missing.headers.get('cache-control'), 'no-store');
 });
 
-test('the math is drawn as SVG, with the text for screen readers', async () => {
+test('a sign’s math is drawn as SVG on its plate, with the text for screen readers; cards carry the text', async () => {
   const { app, slug } = await setup();
-  const drawn = (label: string) =>
-    new RegExp(`<span class="math" role="img" aria-label="${label}"><svg aria-hidden="true" `);
-  assert.match(await (await app.request('/')).text(), drawn('7 \\+ 12 = 19'));
-  assert.match(await (await app.request(`/signs/${slug('Newer Sign')}`)).text(), drawn('18 ÷ 6 = 3'));
+  const page = await (await app.request(`/signs/${slug('Newer Sign')}`)).text();
+  assert.match(page, /<div class="plate"><span role="img" aria-label="18 ÷ 6 = 3"><svg aria-hidden="true" /);
+  assert.match(page, /<span class="eq" role="img" aria-label="18 ÷ 6 = 3"><svg aria-hidden="true" /);
+  assert.match(await (await app.request('/')).text(), /<span class="eq">7 \+ 12 = 19<\/span>/);
 });
 
 test('apple-app-site-association opens the sign-in link and sign pages in the app', async () => {
@@ -137,4 +137,89 @@ test('a player’s page shows the badges they earned as road signs, and nothing 
   assert.ok(!/\d+ badges?/i.test(html), 'no count');
   assert.ok(!html.includes('Held Sign'));
   assert.equal((await app.request('/players/nobody')).status, 404);
+});
+
+test('home puts every shown sign on the map: pins, clusters, the year filter and the picked place', async () => {
+  const store = new MemoryStore();
+  await addPlayer(store, ada);
+  const at = (id: string, title: string, lat: number, lng: number, foundOn: string) =>
+    sign({
+      id,
+      title,
+      foundOn,
+      postedAt: `${foundOn}T12:00:00.000Z`,
+      place: { label: `${title} town`, state: 'MN', lat, lng, approximate: true }
+    });
+  await store.putSign(at('01JS0000000000000000000011', 'North One', 47.5, -94.9, '2025-06-01'));
+  await store.putSign(at('01JS0000000000000000000012', 'North Two', 47.52, -94.88, '2024-06-01'));
+  await store.putSign(at('01JS0000000000000000000013', 'Far Away', 33.4, -112.0, '2024-07-01'));
+  await store.putSign(
+    sign({
+      id: '01JS0000000000000000000014',
+      title: 'Nowhere',
+      foundOn: '2024-08-01',
+      postedAt: '2024-08-01T12:00:00.000Z',
+      place: { label: 'Somewhere on I-90', approximate: true }
+    })
+  );
+  const app = createApp({
+    store,
+    urls: { site: 'https://example.test' },
+    mailer: new MemoryMailer(),
+    photos: new MemoryPhotoStore(),
+    moderator: new ScriptedModerator()
+  });
+  const html = await (await app.request('/')).text();
+  // Two signs a few miles apart share one pin with a count; the newest pin is picked.
+  assert.match(
+    html,
+    /<a class="pin many" href="\/\?at=north-one#map"[^>]*aria-label="Minnesota: 2 signs" aria-current="true"/
+  );
+  assert.match(html, /<a class="pin" href="\/\?at=far-away#map"[^>]*aria-label="Far Away town: 1 sign"/);
+  assert.match(html, /<h2 id="picked-h">Minnesota · 2 signs<\/h2>/);
+  assert.match(html, /Not on the map: <a href="\/signs\/nowhere">Nowhere<\/a> \(Somewhere on I-90\)/);
+  assert.match(html, /<a href="\/\?year=2025#map" data-map="">2025 · 1<\/a>/);
+  assert.match(html, /<dd class="mono">4<\/dd>/);
+
+  // A year leaves the other years' signs off the map, and a pin picks its place.
+  const year = await (await app.request('/?year=2024&at=far-away')).text();
+  assert.match(year, /aria-label="North Two town: 1 sign"/);
+  assert.match(year, /<h2 id="picked-h">Far Away town · 1 sign<\/h2>/);
+  assert.match(year, /<a href="\/\?year=2024#map" aria-current="true" data-map="">/);
+  // An unknown year or place falls back to everything, never an error.
+  assert.equal((await app.request('/?year=1999&at=nope')).status, 200);
+});
+
+test('the map picture and the icon are served and kept a day', async () => {
+  const { app } = await setup();
+  for (const path of ['/us-map.svg', '/favicon.svg']) {
+    const res = await app.request(path);
+    assert.equal(res.status, 200, path);
+    assert.equal(res.headers.get('content-type'), 'image/svg+xml');
+    assert.equal(res.headers.get('cache-control'), 'public, max-age=86400');
+    assert.match(await res.text(), /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox=/);
+  }
+});
+
+test('a sign’s page has its numbers, where it is on the map, and the signs nearby', async () => {
+  const { app, slug } = await setup();
+  const html = await (await app.request(`/signs/${slug('Newer Sign')}`)).text();
+  assert.match(html, /<ul class="nums" aria-label="Numbers on the sign">/);
+  assert.match(html, /<a class="where" href="\/\?at=newer-sign#map"/);
+  assert.match(html, /Testville, Minnesota \(the pin is on the town, not the exact spot\)/);
+  assert.match(html, /<h2 id="near-h">Nearby<\/h2>/);
+  assert.match(html, /<span class="dist mono">0 mi<\/span>/);
+  assert.match(html, /<a class="another" href="\/#app">Find another way in the app<\/a>/);
+  assert.ok(!html.includes('Held Sign'));
+});
+
+test('a player’s page shows their signs as photos, or on the map', async () => {
+  const { app } = await setup();
+  const grid = await (await app.request('/players/ada')).text();
+  assert.match(grid, /<ul class="squares" aria-label="Ada’s signs">/);
+  assert.match(grid, /<a href="\/players\/ada" aria-current="page">Signs<\/a>/);
+  const map = await (await app.request('/players/ada?view=map')).text();
+  assert.ok(!map.includes('class="squares"'));
+  assert.match(map, /<a class="pin many" href="\/\?at=newer-sign#map"/);
+  assert.match(map, /<a href="\/players\/ada\?view=map" aria-current="page">Map<\/a>/);
 });
