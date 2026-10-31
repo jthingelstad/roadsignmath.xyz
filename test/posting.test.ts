@@ -838,6 +838,18 @@ test('a profile photo that fails to save leaves no public files, and one saved b
   assert.equal((await t.call('PUT', '/me/avatar', { as: 'ada', raw: await photo() })).res.status, 500);
   const kept = (await t.store.getPlayer(ada.id))!.avatar!;
   assert.ok(await t.photos.get(kept, 'large', 'shown'));
+
+  // And when the read that would tell is down too, the photo stays: the player may be showing it.
+  const getPlayer = t.store.getPlayer.bind(t.store);
+  t.store.getPlayer = (async (id: string, consistent?: boolean) => {
+    if (consistent) throw new Error('the table is down');
+    return getPlayer(id);
+  }) as typeof t.store.getPlayer;
+  assert.equal((await t.call('PUT', '/me/avatar', { as: 'ada', raw: await photo('#004c80') })).res.status, 500);
+  t.store.getPlayer = getPlayer;
+  const latest = (await t.store.getPlayer(ada.id))!.avatar!;
+  assert.notEqual(latest, kept);
+  assert.ok(await t.photos.get(latest, 'large', 'shown'));
 });
 
 test('a profile photo waits for an account delete that is under way', async () => {

@@ -97,9 +97,13 @@ export async function setAvatar(
       await photos.publish(id, 'shown');
       set = await store.setAvatar(player.id, id);
     } catch (err) {
-      // The update may have landed before the error: keep the photo only if the player has it.
-      const now = await store.getPlayer(player.id, true).catch(() => undefined);
-      if (now?.avatar !== id) await dropPhoto(photos, id);
+      // The update may have landed before the error: drop the photo only once a read shows the
+      // player without it. A read that fails too leaves it, since the player may be showing it.
+      const now = await store.getPlayer(player.id, true).then(
+        (p) => ({ read: true, avatar: p?.avatar }),
+        () => ({ read: false, avatar: undefined })
+      );
+      if (now.read && now.avatar !== id) await dropPhoto(photos, id);
       throw err;
     }
     if (!set) {
@@ -107,7 +111,8 @@ export async function setAvatar(
       return fail('unauthorized', 'That account is gone');
     }
     await dropPhoto(photos, set.previous);
-    return (await store.getPlayer(player.id)) ?? fail('unauthorized', 'That account is gone');
+    // Read consistently, so the answer never carries the photo just replaced.
+    return (await store.getPlayer(player.id, true)) ?? fail('unauthorized', 'That account is gone');
   });
 }
 
@@ -129,7 +134,7 @@ export async function removeAvatar(deps: { store: Store; photos: PhotoStore }, p
     const set = await deps.store.setAvatar(player.id, null);
     if (!set) return fail('unauthorized', 'That account is gone');
     await dropPhoto(deps.photos, set.previous);
-    return (await deps.store.getPlayer(player.id)) ?? fail('unauthorized', 'That account is gone');
+    return (await deps.store.getPlayer(player.id, true)) ?? fail('unauthorized', 'That account is gone');
   });
 }
 
