@@ -3,13 +3,19 @@
 // the app's (signed-in players, through this server) together. A player's own heart is also a
 // row in our table, which says they hearted it and names their kudo's uid for taking it back.
 //
-// Keeping the two in step: a heart is written under a lease on (player, sign), our row first,
+// Keeping the two in step: a heart is written under a lease on the player, our row first,
 // then the kudo. If Tinylytics fails or doesn't answer, the kudo is taken back (in case it was
 // made after all) and the row removed, and the player gets a 503 with nothing changed. If even
 // taking it back fails, the row stays: the heart may exist, and DELETE can still remove it. Taking a
 // heart back removes the kudo first and the row only once it is gone. The uid is the same for a
 // player and a sign every time, so a retry names the same kudo. The uid is a hash: it reveals
 // neither the player nor their email.
+//
+// Deletes and hearts in flight: deleting an account holds the same player lease from the first
+// kudo it takes back to the last row it deletes, and a heart checks the player is still there once
+// it holds the lease. Deleting a sign takes its kudos back before and again after the sign goes,
+// and a heart checks the sign is still there after its kudo is made, so whichever finishes last
+// takes the kudo back.
 
 import { createHash, randomUUID } from 'node:crypto';
 import { LIMITS } from './api/contract.ts';
@@ -29,6 +35,9 @@ const COUNTS_RETRY = 30_000;
 const COUNTS_STALE = 10 * 60_000;
 /** How long a page waits on Tinylytics for the counts. */
 const COUNTS_TIMEOUT = 2500;
+
+/** The lease a player's heart changes and their account's delete hold. */
+export const heartLease = (playerId: string): string => `heart:${playerId}`;
 
 /** The kudo uid for a player's heart on a sign. */
 export const heartUid = (playerId: string, signId: string): string =>
@@ -125,10 +134,13 @@ export async function setHeart(deps: HeartDeps, player: Player, sign: Sign, on: 
   if (!tinylytics) return unavailable(on ? 'heart' : 'unheart', new TinylyticsUnavailable('No Tinylytics', true));
 
   // A holder for this request alone, so two of the player's own requests can't both hold it.
-  const lease = `heart:${player.id}:${sign.id}`;
+  const lease = heartLease(player.id);
   const holder = randomUUID();
-  if (!(await store.lease(lease, holder, 30))) fail('conflict', 'This heart is changing already. Try again.');
+  if (!(await store.lease(lease, holder, 30))) fail('conflict', 'Another heart of yours is changing. Try again.');
   try {
+    // An account deleted while this waited is gone; so is a sign deleted since it was read.
+    if (!(await store.getPlayer(player.id, true))) fail('unauthorized', 'Sign in again');
+    if (on && !(await store.getSign(sign.id, true))) fail('not_found', 'No sign by that id');
     // Read again under the lease: another request of this player's may have just done it.
     const heart = await store.getHeart(player.id, sign.id);
     if (!!heart === on) return await stateOf(deps, sign, on);
@@ -167,6 +179,12 @@ export async function setHeart(deps: HeartDeps, player: Player, sign: Sign, on: 
           ));
         if (undone) await store.deleteHeart(player.id, sign.id);
         return unavailable('heart', err);
+      }
+      // A sign deleted while the kudo was made: its own sweep may have missed this one.
+      if (!(await store.getSign(sign.id, true))) {
+        await tinylytics.removeKudo(uid).catch(() => undefined);
+        await store.deleteHeart(player.id, sign.id);
+        fail('not_found', 'No sign by that id');
       }
     } else {
       try {
@@ -208,6 +226,18 @@ export async function removePlayerHearts(deps: Omit<HeartDeps, 'counts'>, player
  * deleted, so a later sign that gets the same slug starts at none. A failure stops the delete
  * with a 503; with no key there is nothing to reach, and the delete goes on.
  */
+/**
+ * Removes these deleted signs' kudos once more, for a heart made while they were being deleted.
+ * Best effort: the signs are gone already, so a failure is only logged.
+ */
+export async function sweepSignKudos(deps: Omit<HeartDeps, 'counts'>, signs: Sign[]): Promise<void> {
+  try {
+    await removeSignKudos(deps, signs);
+  } catch (err) {
+    console.error({ event: 'tinylytics', op: 'sign-kudos-sweep', outcome: (err as Error).name });
+  }
+}
+
 export async function removeSignKudos(deps: Omit<HeartDeps, 'counts'>, signs: Sign[]): Promise<void> {
   const { tinylytics } = deps;
   if (!tinylytics || !signs.length) return;

@@ -19,7 +19,8 @@ export type SignChanges = {
 export interface Store {
   /** Every sign, whatever its visibility. */
   allSigns(): Promise<Sign[]>;
-  getSign(id: string): Promise<Sign | undefined>;
+  /** `consistent` reads it strongly consistent, to see a delete or write just made. */
+  getSign(id: string, consistent?: boolean): Promise<Sign | undefined>;
   putSign(sign: Sign): Promise<void>;
   /**
    * Changes some of a sign's fields in place, so a new way can't undo a report's hide or the
@@ -49,7 +50,8 @@ export interface Store {
    */
   addWay(way: Way): Promise<'added' | 'taken' | 'gone'>;
   allPlayers(): Promise<Player[]>;
-  getPlayer(id: string): Promise<Player | undefined>;
+  /** `consistent` reads it strongly consistent, to see a delete or write just made. */
+  getPlayer(id: string, consistent?: boolean): Promise<Player | undefined>;
   /** Writes the player's row. The email and handle are claimed separately, first. */
   putPlayer(player: Player): Promise<void>;
   /**

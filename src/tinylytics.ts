@@ -100,7 +100,15 @@ export class KeyedTinylytics implements Tinylytics {
   }
 
   private async call(method: string, path: string, body: unknown, timeoutMs: number) {
-    const key = await this.apiKey();
+    // One deadline for the whole call, reading the key included.
+    const signal = AbortSignal.timeout(timeoutMs);
+    const late = new Promise<never>((_, reject) =>
+      signal.addEventListener('abort', () => reject(new TinylyticsUnavailable('The Tinylytics key took too long')), {
+        once: true
+      })
+    );
+    late.catch(() => undefined);
+    const key = await Promise.race([this.apiKey(), late]);
     let res: Response;
     try {
       res = await this.fetcher(`${BASE}/sites/${this.site}${path}`, {
@@ -112,7 +120,7 @@ export class KeyedTinylytics implements Tinylytics {
           ...(body === undefined ? {} : { 'Content-Type': 'application/json' })
         },
         body: body === undefined ? undefined : JSON.stringify(body),
-        signal: AbortSignal.timeout(timeoutMs)
+        signal
       });
     } catch (err) {
       throw new TinylyticsUnavailable(`Tinylytics didn't answer (${(err as Error).name})`);

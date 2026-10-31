@@ -8,7 +8,7 @@ import { check, normalizeNumber, numbersNotOnSign } from '../domain/equation.ts'
 import { slugify, ulid } from '../domain/ids.ts';
 import type { Finder, FinderRole, Photo, Place, Player, Report, Sign, SignNumber, Way } from '../domain/types.ts';
 import { ModeratorUnavailable, plainAlt, type Moderator, type Post } from '../moderation/moderator.ts';
-import { removeSignKudos } from '../hearts.ts';
+import { removeSignKudos, sweepSignKudos } from '../hearts.ts';
 import { renditions, type PhotoStore } from '../photos.ts';
 import type { Tinylytics } from '../tinylytics.ts';
 import { nowSeconds, type Store } from '../store/store.ts';
@@ -381,6 +381,7 @@ export async function deleteSign(deps: PostingDeps, player: Player, sign: Sign):
   // The photos go first: if one can't be removed, the sign is still there to delete again.
   for (const photo of sign.photos) await photos.remove(photo.id);
   await store.deleteSign(sign.id);
+  await sweepSignKudos(deps, [sign]);
 }
 
 /** Adds a way to a sign, keeping the sign's count and first way in step with its ways. */

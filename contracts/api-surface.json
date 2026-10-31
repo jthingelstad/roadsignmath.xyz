@@ -873,7 +873,7 @@
       "delete": {
         "operationId": "deleteMe",
         "summary": "Delete your account",
-        "description": "Deletes your account and everything it made: the signs you posted (with every way and heart on them), the ways you found and the hearts you gave on other signs, your name among a sign’s finders, and your email. It can’t be undone. A 503 means a heart couldn’t be taken back just now and nothing more was deleted; try again in a minute.",
+        "description": "Deletes your account and everything it made: the signs you posted (with every way and heart on them), the ways you found and the hearts you gave on other signs, your name among a sign’s finders, and your email. It can’t be undone. A 503 means a heart couldn’t be taken back just now and nothing more was deleted; try again in a minute. A 409 means one of your hearts was changing; try again.",
         "security": [
           {
             "token": []
@@ -893,6 +893,16 @@
           },
           "401": {
             "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "It already exists (that way was found), or the same post is still being made.",
             "content": {
               "application/json": {
                 "schema": {

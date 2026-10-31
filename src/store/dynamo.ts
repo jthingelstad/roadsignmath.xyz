@@ -133,8 +133,8 @@ export class DynamoStore implements Store {
     return items.map((i) => strip<Sign>(i));
   }
 
-  async getSign(id: string): Promise<Sign | undefined> {
-    const item = await this.get('SIGNS', `SIGN#${id}`);
+  async getSign(id: string, consistent = false): Promise<Sign | undefined> {
+    const item = await this.get('SIGNS', `SIGN#${id}`, consistent);
     return item && strip<Sign>(item);
   }
 
@@ -266,8 +266,8 @@ export class DynamoStore implements Store {
     return items.map((i) => strip<Player>(i));
   }
 
-  async getPlayer(id: string): Promise<Player | undefined> {
-    const item = await this.get('PLAYERS', `PLAYER#${id}`);
+  async getPlayer(id: string, consistent = false): Promise<Player | undefined> {
+    const item = await this.get('PLAYERS', `PLAYER#${id}`, consistent);
     return item && strip<Player>(item);
   }
 

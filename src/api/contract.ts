@@ -329,10 +329,10 @@ export const ROUTES: Route[] = [
       'Deletes your account and everything it made: the signs you posted (with every way and heart on them), ' +
       'the ways you found and the hearts you gave on other signs, your name among a sign’s finders, and your ' +
       'email. It can’t be undone. A 503 means a heart couldn’t be taken back just now and nothing more was ' +
-      'deleted; try again in a minute.',
+      'deleted; try again in a minute. A 409 means one of your hearts was changing; try again.',
     params: [],
     auth: 'signed_in',
-    errors: ['unavailable'],
+    errors: ['conflict', 'unavailable'],
     status: 204
   },
   {

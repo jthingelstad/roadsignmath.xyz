@@ -115,3 +115,19 @@ test('app views go as one batch marked as the app’s', async () => {
     { path: '/map', source: 'ios-app' }
   ]);
 });
+
+test('a key that is slow to read counts against the call’s deadline', async () => {
+  const sent: string[] = [];
+  const tinylytics = new KeyedTinylytics(
+    () => new Promise((resolve) => setTimeout(() => resolve(KEY), 200)),
+    async (url) => {
+      sent.push(url);
+      return new Response(null, { status: 200 });
+    },
+    1525
+  );
+  const started = Date.now();
+  await assert.rejects(tinylytics.addHits([{ path: '/' }], 20), TinylyticsUnavailable);
+  assert.ok(Date.now() - started < 150);
+  assert.equal(sent.length, 0);
+});

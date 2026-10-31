@@ -101,17 +101,19 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
 - `DELETE /me` removes the player, the signs they posted (with their photos and hearts), their
   ways, reports and hearts on other signs, and their place in other signs' finders. Their
   hearts' kudos go first: if Tinylytics can't take one back, it is a 503 and nothing is deleted.
+  It holds the player's heart lease throughout (a 409 while one of their hearts is changing).
 - **Hearts** (`src/hearts.ts`): `PUT` and `DELETE /signs/{id}/heart`, signed in, one per player
   per sign, idempotent. A heart is a Tinylytics kudo at `/signs/<slug>`, the same path as the
   website's kudos button, so `hearts` on every sign (summary, detail, pin) counts both; it is
   null when the counts can't be read. `hearted` is the signed-in reader's own, from our rows,
   and null signed out. Writing a heart puts our row, then the kudo; if Tinylytics fails the kudo
   is taken back too and the row removed, so a 503 changes nothing (if taking it back fails as
-  well, the row stays and a later DELETE removes both). A change holds a lease on (player, sign)
-  with a holder of its own, so two of a player's requests can't cross, and heart rows are read
-  strongly consistent. The kudo's uid is a hash of
-  the player and sign ids. Deleting a sign removes every kudo at its path (the website's too),
-  so a later sign with its slug starts at none. Counts are read once a minute per instance;
+  well, the row stays and a later DELETE removes both). A change holds the player's heart lease
+  with a holder of its own (a 409 while another is in flight), so a player's requests and their
+  account's delete can't cross, and heart rows are read strongly consistent. The kudo's uid is a
+  hash of the player and sign ids. Deleting a sign removes every kudo at its path (the
+  website's too) before the sign goes and again after, and a heart checks its sign is still
+  there once its kudo is made, so a later sign with the slug starts at none. Counts are read once a minute per instance;
   Tinylytics allows the key 1,000 calls an hour.
 - **App views**: `POST /app/views` (public) passes up to 20 screen paths to Tinylytics as hits
   with source `ios-app`, the request's User-Agent and CloudFront's viewer country, and no IP or

@@ -1,11 +1,12 @@
 // What a signed-in player can change about themselves: their name and bio, and deleting the
 // account with everything it made.
 
+import { randomUUID } from 'node:crypto';
 import { fail } from '../api/errors.ts';
 import { text } from '../api/input.ts';
 import { slugify } from '../domain/ids.ts';
 import type { Player } from '../domain/types.ts';
-import { removePlayerHearts, removeSignKudos } from '../hearts.ts';
+import { heartLease, removePlayerHearts, removeSignKudos, sweepSignKudos } from '../hearts.ts';
 import type { PhotoStore } from '../photos.ts';
 import type { Tinylytics } from '../tinylytics.ts';
 import type { PlayerChanges, Store } from '../store/store.ts';
@@ -62,13 +63,29 @@ export async function deleteAccount(
   deps: { store: Store; photos: PhotoStore; tinylytics?: Tinylytics },
   player: Player
 ): Promise<void> {
+  const { store } = deps;
+  // The player's heart lease, held to the end, so no heart of theirs is made while this runs.
+  const lease = heartLease(player.id);
+  const holder = randomUUID();
+  if (!(await store.lease(lease, holder, 300))) {
+    fail('conflict', 'A heart of yours is changing. Try again in a minute.');
+  }
+  try {
+    await deleteEverything(deps, player);
+  } finally {
+    await store.endLease(lease, holder).catch(() => undefined);
+  }
+}
+
+async function deleteEverything(
+  deps: { store: Store; photos: PhotoStore; tinylytics?: Tinylytics },
+  player: Player
+): Promise<void> {
   const { store, photos } = deps;
   const signs = await store.allSigns();
+  const theirSigns = signs.filter((s) => s.postedBy === player.id);
   await removePlayerHearts(deps, player);
-  await removeSignKudos(
-    deps,
-    signs.filter((s) => s.postedBy === player.id)
-  );
+  await removeSignKudos(deps, theirSigns);
   for (const sign of signs) {
     if (sign.postedBy === player.id) {
       // The photos go first, so a failed removal leaves the sign for the next try.
@@ -90,4 +107,6 @@ export async function deleteAccount(
     });
   }
   await store.deletePlayer(player.id);
+  // Other players' hearts made on their signs while those were deleted.
+  await sweepSignKudos(deps, theirSigns);
 }

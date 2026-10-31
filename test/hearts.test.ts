@@ -215,6 +215,35 @@ test('the same player’s two changes to one heart don’t cross', async () => {
   assert.equal(tinylytics!.kudosKept.length, 1);
 });
 
+test('a sign deleted while a heart is being made doesn’t keep the kudo', async () => {
+  const { store, tinylytics, call } = await setup();
+  let go!: () => void;
+  tinylytics!.pause = new Promise((resolve) => (go = resolve));
+  const put = call('PUT', '/signs/bens-sign/heart', { as: 'ada' });
+  while (!tinylytics!.calls.includes('addKudo')) await new Promise((r) => setImmediate(r));
+  assert.equal((await call('DELETE', '/signs/bens-sign', { as: 'ben' })).res.status, 204);
+  go();
+  assert.equal((await put).res.status, 404);
+  assert.deepEqual(tinylytics!.kudosKept, []);
+  assert.deepEqual(await store.listHearts(ada.id), []);
+});
+
+test('an account isn’t deleted while one of its hearts is being made', async () => {
+  const { store, tinylytics, call } = await setup();
+  let go!: () => void;
+  tinylytics!.pause = new Promise((resolve) => (go = resolve));
+  const put = call('PUT', '/signs/exit-seven/heart', { as: 'ada' });
+  while (!tinylytics!.calls.includes('addKudo')) await new Promise((r) => setImmediate(r));
+  const early = await call('DELETE', '/me', { as: 'ada' });
+  assert.equal(early.res.status, 409);
+  assert.ok(await store.getPlayer(ada.id));
+  go();
+  assert.equal((await put).res.status, 200);
+  tinylytics!.pause = undefined;
+  assert.equal((await call('DELETE', '/me', { as: 'ada' })).res.status, 204);
+  assert.deepEqual(tinylytics!.kudosKept, []);
+});
+
 test('only a shown sign the reader can see takes a heart, and only signed in', async () => {
   const { store, call } = await setup();
   assert.equal((await call('PUT', '/signs/exit-seven/heart')).res.status, 401);
