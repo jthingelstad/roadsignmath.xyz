@@ -13,15 +13,16 @@ export class FakeTinylytics implements Tinylytics {
   /** When set, addKudo waits for it, so a test can act while a heart is half made. */
   pause?: Promise<void>;
 
-  private check(op: string): void {
-    this.calls.push(op);
+  private check(op: string, record = true): void {
+    if (record) this.calls.push(op);
     if (this.state === 'off') throw new TinylyticsUnavailable('There is no Tinylytics key', true);
     if (this.state === 'down' || this.failing.has(op)) throw new TinylyticsUnavailable('Tinylytics answered 500');
   }
 
   async addKudo(path: string, uid: string): Promise<void> {
-    this.check('addKudo');
+    this.calls.push('addKudo');
     if (this.pause) await this.pause;
+    this.check('addKudo', false);
     this.kudosKept.push({ path, uid });
   }
 

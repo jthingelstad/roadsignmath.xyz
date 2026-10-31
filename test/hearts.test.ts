@@ -215,6 +215,19 @@ test('the same player’s two changes to one heart don’t cross', async () => {
   assert.equal(tinylytics!.kudosKept.length, 1);
 });
 
+test('a repeat of a heart still being made waits for it rather than answering for it', async () => {
+  const { store, tinylytics, call } = await setup();
+  let go!: () => void;
+  tinylytics!.pause = new Promise((resolve) => (go = resolve));
+  tinylytics!.failing.add('addKudo');
+  const first = call('PUT', '/signs/exit-seven/heart', { as: 'ada' });
+  while (!tinylytics!.calls.includes('addKudo')) await new Promise((r) => setImmediate(r));
+  assert.equal((await call('PUT', '/signs/exit-seven/heart', { as: 'ada' })).res.status, 409);
+  go();
+  assert.equal((await first).res.status, 503);
+  assert.deepEqual(await store.listHearts(ada.id), []);
+});
+
 test('a sign deleted while a heart is being made doesn’t keep the kudo', async () => {
   const { store, tinylytics, call } = await setup();
   let go!: () => void;

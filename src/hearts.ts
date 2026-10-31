@@ -130,10 +130,9 @@ async function stateOf(deps: HeartDeps, sign: Sign, hearted: boolean): Promise<H
 export async function setHeart(deps: HeartDeps, player: Player, sign: Sign, on: boolean): Promise<HeartState> {
   const { store, tinylytics, counts } = deps;
   if (on && !isPublic(sign)) fail('bad_request', 'Only a shown sign can be hearted');
-  if (!!(await store.getHeart(player.id, sign.id)) === on) return stateOf(deps, sign, on);
-  if (!tinylytics) return unavailable(on ? 'heart' : 'unheart', new TinylyticsUnavailable('No Tinylytics', true));
 
-  // A holder for this request alone, so two of the player's own requests can't both hold it.
+  // Everything is decided under the lease, even "already done": a row seen outside it may be
+  // another request's heart still being made, which could yet be taken back. A holder for this request alone, so two of the player's own requests can't both hold it.
   const lease = heartLease(player.id);
   const holder = randomUUID();
   if (!(await store.lease(lease, holder, 30))) fail('conflict', 'Another heart of yours is changing. Try again.');
@@ -141,9 +140,9 @@ export async function setHeart(deps: HeartDeps, player: Player, sign: Sign, on: 
     // An account deleted while this waited is gone; so is a sign deleted since it was read.
     if (!(await store.getPlayer(player.id, true))) fail('unauthorized', 'Sign in again');
     if (on && !(await store.getSign(sign.id, true))) fail('not_found', 'No sign by that id');
-    // Read again under the lease: another request of this player's may have just done it.
     const heart = await store.getHeart(player.id, sign.id);
     if (!!heart === on) return await stateOf(deps, sign, on);
+    if (!tinylytics) return unavailable(on ? 'heart' : 'unheart', new TinylyticsUnavailable('No Tinylytics', true));
     const now = nowSeconds();
     await limit(
       store,
