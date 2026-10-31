@@ -603,7 +603,12 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
                 </ul>
               </div>
               <div class="join">
-                <a class="testflight" href={TESTFLIGHT_URL}>
+                <a
+                  class="testflight"
+                  href={TESTFLIGHT_URL}
+                  data-tinylytics-event="beta.join"
+                  data-tinylytics-event-value="home"
+                >
                   <Phone size={22} />
                   <span>
                     Join the iPhone beta
@@ -725,7 +730,7 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
                       ))}
                     </ul>
                   )}
-                  <a class="another" href="/#app">
+                  <a class="another" href="/#app" data-tinylytics-event="app.get" data-tinylytics-event-value="sign">
                     {sign.ways.length ? 'Find another way in the app' : 'Solve it in the app'}
                   </a>
                 </section>

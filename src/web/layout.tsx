@@ -210,7 +210,7 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
               How to play
             </a>
           </nav>
-          <a class="get" href="/#app">
+          <a class="get" href="/#app" data-tinylytics-event="app.get" data-tinylytics-event-value="header">
             <Phone />
             Get the app
           </a>
