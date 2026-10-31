@@ -202,10 +202,13 @@ export function signsGeoJson(data: OpenData) {
   const pinned = data.signs.filter((s) => s.place.lat !== undefined && s.place.lng !== undefined);
   return {
     type: 'FeatureCollection',
-    version: DATA_VERSION,
-    title: 'Road Sign Math: every sign on the map',
-    url: `${urls.site}/signs.geojson`,
-    docs_url: `${urls.site}/data`,
+    // The same header as the other files, as foreign members (RFC 7946 section 6.1).
+    ...header(
+      data,
+      '/signs.geojson',
+      'Road Sign Math: every sign on the map',
+      'A point for every sign with a place on the map, newest posted first.'
+    ),
     features: pinned.map((s) => {
       const first = (data.ways.get(s.id) ?? [])[0];
       const photo = s.photos[0];

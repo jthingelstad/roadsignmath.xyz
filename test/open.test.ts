@@ -69,6 +69,16 @@ function paths(value: unknown, prefix = ''): string[] {
   return [];
 }
 
+/** The shared header: every documented field present, nothing undocumented. */
+function assertHeader(header: Record<string, unknown>, path: string) {
+  assert.deepEqual(undocumented([header], HEADER_FIELDS), []);
+  assert.deepEqual(
+    HEADER_FIELDS.map(([name]) => name).filter((name) => !paths(header).includes(name)),
+    []
+  );
+  assert.equal(header.url, `${SITE}${path}`);
+}
+
 function undocumented(records: unknown[], fields: Field[]): string[] {
   const documented = new Set(fields.map(([name]) => name));
   const covered = (p: string) =>
@@ -118,7 +128,7 @@ test('signs.json has every shown sign, newest first, with every field documented
   assert.deepEqual(newer.finders, [{ name: 'Ada', handle: 'ada', url: `${SITE}/players/ada`, role: 'found' }]);
   assert.equal(file.signs[2].place.lat, null);
   const { signs, ...header } = file;
-  assert.deepEqual(undocumented([header], HEADER_FIELDS), []);
+  assertHeader(header, '/signs.json');
   assert.deepEqual(undocumented(signs, SIGN_FIELDS), []);
 });
 
@@ -143,7 +153,7 @@ test('players.json has each player with a page and nothing private', async () =>
   assert.ok(b.badges.length > 0);
   assert.equal(a.feed_url, `${SITE}/players/ada/feed.json`);
   const { players, ...header } = file;
-  assert.deepEqual(undocumented([header], HEADER_FIELDS), []);
+  assertHeader(header, '/players.json');
   assert.deepEqual(undocumented(players, PLAYER_FIELDS), []);
 });
 
@@ -156,6 +166,9 @@ test('signs.geojson is a FeatureCollection of the signs with a place', async () 
   const file = JSON.parse(text);
   assert.equal(file.type, 'FeatureCollection');
   assert.equal(file.version, 1);
+  const header = Object.fromEntries(Object.entries(file).filter(([k]) => k !== 'type' && k !== 'features'));
+  assertHeader(header, '/signs.geojson');
+  assert.equal((header.counts as { signs: number }).signs, 3);
   assert.deepEqual(
     file.features.map((f: { properties: { title: string } }) => f.properties.title),
     ['Newer Sign', 'Older Sign']
