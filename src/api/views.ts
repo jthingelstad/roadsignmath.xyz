@@ -1,6 +1,7 @@
 // What the API sends: snake_case JSON built from the stored records. A player's email never
 // leaves the server, and only shown signs are public.
 
+import { badge, type Badge, type Earned } from '../domain/badges.ts';
 import { texOf } from '../domain/equation.ts';
 import type { Player, Sign, Way } from '../domain/types.ts';
 
@@ -175,4 +176,26 @@ export function playerView(urls: Urls, player: Player, signs: Sign[]) {
 /** You, as only you see yourself. */
 export function meView(urls: Urls, player: Player, signs: Sign[]) {
   return { ...playerView(urls, player, signs), email: player.email ?? '', needs_name: !player.name };
+}
+
+/** A badge in the catalog. A secret one shows only its shelf until it is earned. */
+export function catalogBadgeView(b: Badge) {
+  return b.secret
+    ? { id: b.id, shelf: b.shelf, secret: true, name: null, how: null, mark: null, steps: null }
+    : { id: b.id, shelf: b.shelf, secret: false, name: b.name, how: b.how, mark: b.mark, steps: b.steps ?? null };
+}
+
+/** An earned badge: what it is, and the sign and day that earned it. A stepped badge shows its step. */
+export function earnedBadgeView(urls: Urls, earned: Earned) {
+  const b = badge(earned.id);
+  return {
+    id: b.id,
+    shelf: b.shelf,
+    name: b.name,
+    how: b.how,
+    mark: earned.step === undefined ? b.mark : String(earned.step),
+    step: earned.step ?? null,
+    earned_on: earned.on,
+    sign: { id: earned.sign.id, slug: earned.sign.slug, title: earned.sign.title, url: signUrl(urls, earned.sign) }
+  };
 }

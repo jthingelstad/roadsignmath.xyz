@@ -256,3 +256,56 @@ test('every route in the contract answers', async () => {
     assert.equal(res.status, expected, route.operationId);
   }
 });
+
+test('the badge catalog names every badge but the secret ones', async () => {
+  const { get } = await setup();
+  const { res, body } = await get('/api/v1/badges');
+  assert.equal(res.status, 200);
+  assert.equal(body.badges.length, 28);
+  const states = body.badges.find((b: Json) => b.id === 'states');
+  assert.deepEqual(states, {
+    id: 'states',
+    shelf: 'places',
+    secret: false,
+    name: 'States',
+    how: 'Find signs in more states.',
+    mark: '',
+    steps: [2, 3, 5, 10]
+  });
+  const secret = body.badges.filter((b: Json) => b.secret);
+  assert.equal(secret.length, 5);
+  for (const b of secret) {
+    assert.deepEqual(b, { id: b.id, shelf: 'secret', secret: true, name: null, how: null, mark: null, steps: null });
+  }
+});
+
+test('a player’s badges come with the sign and day that earned each, and no count', async () => {
+  const { get } = await setup();
+  const { body } = await get('/api/v1/players/ada');
+  assert.deepEqual(
+    body.badges.map((b: Json) => b.id),
+    ['first-sign', 'company', 'every-number']
+  );
+  assert.deepEqual(body.badges[0], {
+    id: 'first-sign',
+    shelf: 'firsts',
+    name: 'First Sign',
+    how: 'Post your first sign.',
+    mark: '1ST',
+    step: null,
+    earned_on: '2025-12-31',
+    sign: {
+      id: '01JS0000000000000000000001',
+      slug: 'first-sign',
+      title: 'First Sign',
+      url: 'https://example.test/signs/first-sign'
+    }
+  });
+  assert.equal(body.badges[1].earned_on, '2026-01-05', 'the day Ben’s way came');
+  assert.ok(!('badge_count' in body));
+  const ben = await get('/api/v1/players/ben');
+  assert.deepEqual(
+    ben.body.badges.map((b: Json) => b.id),
+    ['first-sign', 'second-opinion', 'every-number']
+  );
+});

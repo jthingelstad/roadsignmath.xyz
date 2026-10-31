@@ -33,6 +33,10 @@ main ([`docs/DEPLOY.md`](docs/DEPLOY.md)).
   report a sign, and block a player. Claude moderates: it holds a post only when
   it is clearly objectionable, looks again when someone reports one, and writes
   each photo's alt text.
+- Badges: little road signs a player collects (first sign, states, a ×
+  in a way, all four seasons, and five secret ones), shown on their player page
+  and in the app. No counts and no ranks; they're worked out from the signs
+  each time, so a badge follows its sign.
 - Hearts: a ❤️ on every sign, from the website (Tinylytics' kudos button, no
   account) and from the app (signed in, one per player per sign), counted
   together in [Tinylytics](https://tinylytics.app). The app's screen views are

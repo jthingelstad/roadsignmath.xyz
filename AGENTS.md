@@ -31,10 +31,10 @@ ids or ARNs, local paths, or photos of plates or faces that weren't meant to be 
 
 | Path | What |
 | --- | --- |
-| `src/domain/` | The data model (`types.ts`), the equation checker, ids and slugs, miles. No I/O. |
+| `src/domain/` | The data model (`types.ts`), the equation checker, ids and slugs, miles, and the badges (`badges.ts`: the catalog and the evaluator). No I/O. |
 | `src/store/` | `Store`, with `MemoryStore` (tests, `npm run dev`) and `DynamoStore` (the live table). |
 | `src/api/` | `/api/v1` on Hono. `contract.ts` is the route table, limits and errors; `openapi.ts` describes it; `views.ts` makes the JSON. |
-| `src/web/` | The website's pages (`site.tsx`, Hono JSX): every shown sign at `/` and one page per sign at `/signs/<slug>`, public and cached a minute. The math is MathJax SVG drawn on the server; the only script is Tinylytics' counter, on every page but the sign-in link's (`tinylytics.ts`: the site id, the script, and the pixel the sign-in email carries), which also fills each sign's heart (a `tinylytics_kudos` button at `/signs/<slug>`, on the home grid and the sign's page). `apple.ts` is the apple-app-site-association that opens the sign-in link and sign pages in the app. The designed pages (map, players, sign-in) come later. |
+| `src/web/` | The website's pages (`site.tsx`, Hono JSX): every shown sign at `/` and one page per sign at `/signs/<slug>`, and a page per player at `/players/<handle>` with their badges (`badges.tsx`: each a small inline SVG road sign, earned ones only, no count), public and cached a minute. The math is MathJax SVG drawn on the server; the only script is Tinylytics' counter, on every page but the sign-in link's (`tinylytics.ts`: the site id, the script, and the pixel the sign-in email carries), which also fills each sign's heart (a `tinylytics_kudos` button at `/signs/<slug>`, on the home grid and the sign's page). `apple.ts` is the apple-app-site-association that opens the sign-in link and sign pages in the app. The designed pages (map, sign-in) come later. |
 | `src/auth/` | Sign-in by email (link or code), tokens, and the account: name, bio, delete. |
 | `src/mail/` | `Mailer`: SES live, files in `.data/mail/` for `npm run dev` (the text, and the HTML beside it), memory in tests. `signin.ts` is the sign-in email: a plain-text part and a designed HTML part (tables, inline styles, dark mode, no script; its one image is Tinylytics' pixel, the same for every email, so opens count per email, never per person) with the link and code escaped. |
 | `src/posting/` | Uploads, posting a sign, ways, deleting, reports and blocks. |
@@ -115,6 +115,17 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
   website's too) before the sign goes and again after, and a heart checks its sign is still
   there once its kudo is made, so a later sign with the slug starts at none. Counts are read once a minute per instance;
   Tinylytics allows the key 1,000 calls an hour.
+- **Badges** (`src/domain/badges.ts`): 28 little road signs on five shelves (firsts, places,
+  math, seasons, secret). Nothing about them is stored: they are worked out on every read from
+  the shown signs and the ways on them that the reader sees (a block leaves out the blocked
+  player's ways), so a badge follows its sign. A sign's badges go to its poster and every
+  finder who plays; a way's go to its author. Each earned badge carries the sign and day that
+  first earned it, and stepped ones (States, Mile Markers) the step reached. `GET /badges` is
+  the catalog, with the five secret ones as `secret: true` and no name or how; `badges` is on
+  `GET /players/{handle}` and `GET /me`; posting a sign or a way answers with `unlocked`, what
+  it earned that wasn't earned before. Others see earned badges only, never a count. Reading
+  them lists the ways on every shown sign, one query each: fine at the launch set's size,
+  worth a cache before it gets big.
 - **App views**: `POST /app/views` (public) passes up to 20 screen paths to Tinylytics as hits
   with source `ios-app`, the request's User-Agent and CloudFront's viewer country, and no IP or
   visitor id. It waits on Tinylytics two seconds at most and answers 202 either way.

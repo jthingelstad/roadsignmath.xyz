@@ -1,11 +1,23 @@
-// The website's first pages: every shown sign, newest first, and one page per sign. Read-only,
-// public, and built from the same store and views as the API. The designed pages (the map,
-// players, sign-in) replace these in later steps.
+// The website's first pages: every shown sign, newest first, one page per sign, and one per
+// player with their badges. Read-only, public, and built from the same store and views as the
+// API. The designed pages (the map, players, sign-in) replace these in later steps.
 
 import { Hono } from 'hono';
 import type { FC, PropsWithChildren } from 'hono/jsx';
 import type { ApiOptions } from '../api/app.ts';
-import { byNewest, isPublic, signDetail, signSummary, type People } from '../api/views.ts';
+import { earnedBadges } from '../domain/badges.ts';
+import type { Way } from '../domain/types.ts';
+import {
+  byNewest,
+  earnedBadgeView,
+  isPublic,
+  playerStats,
+  playerView,
+  signDetail,
+  signSummary,
+  type People
+} from '../api/views.ts';
+import { BADGE_STYLE, BadgeRow } from './badges.tsx';
 import { mathSvg } from './math.ts';
 import { TINYLYTICS_SCRIPT, TINYLYTICS_SITE } from './tinylytics.ts';
 
@@ -41,7 +53,8 @@ h1 { margin: 8px 0 4px; font-size: 28px; line-height: 1.2; }
 .ways { padding-left: 0; list-style: none; }
 .ways li { padding: 8px 0; border-top: 1px solid var(--line); }
 footer { color: var(--soft); font-size: 14px; text-align: center; padding: 24px 16px 40px; }
-`;
+h2 { font-size: 20px; margin: 20px 0 4px; }
+${BADGE_STYLE}`;
 
 /** The heart buttons, only on pages that load Tinylytics' script (it fills them in). */
 const HEART_STYLE = `
@@ -91,6 +104,18 @@ const Equation: FC<{ way: { text: string; tex: string | null } }> = ({ way }) =>
   );
 
 const finders = (s: Summary): string => s.finders.map((f) => f.name).join(', ');
+
+/** The finders by name, each player's name a link to their page. */
+const Finders: FC<{ sign: Summary }> = ({ sign }) => (
+  <>
+    {sign.finders.map((f, i) => (
+      <>
+        {i > 0 && ', '}
+        {f.handle ? <a href={`/players/${f.handle}`}>{f.name}</a> : f.name}
+      </>
+    ))}
+  </>
+);
 
 /**
  * Tinylytics' kudos button, filled in by its script with ❤️ and the count. The count is kept at
@@ -185,7 +210,7 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
         ))}
         <h1>{sign.title}</h1>
         <p class="meta">
-          {sign.place.label} · found {sign.found_on} by {finders(sign)}
+          {sign.place.label} · found {sign.found_on} by <Finders sign={sign} />
         </p>
         <p class="hearts">
           <Heart sign={sign} />
@@ -195,13 +220,59 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
           {sign.ways.map((w) => (
             <li>
               <Equation way={w} />
-              {w.by && <p class="meta">by {w.by.name ?? w.by.handle}</p>}
+              {w.by && (
+                <p class="meta">
+                  by <a href={`/players/${w.by.handle}`}>{w.by.name || w.by.handle}</a>
+                </p>
+              )}
             </li>
           ))}
         </ul>
         <p>
           <a href="/">All signs</a>
         </p>
+      </Page>
+    );
+  });
+
+  site.get('/players/:handle', async (c) => {
+    const [signs, everyone] = await Promise.all([store.allSigns(), people()]);
+    const player = [...everyone.values()].find((p) => p.handle === c.req.param('handle'));
+    const shown = signs.filter(isPublic).sort(byNewest);
+    if (!player?.name) return c.notFound();
+    const stats = playerStats(player, shown);
+    const lists = await Promise.all(shown.map((s) => store.listWays(s.id)));
+    const ways = new Map<string, Way[]>(shown.map((s, i) => [s.id, lists[i]]));
+    const badges = earnedBadges(player.id, shown, ways).map((e) => earnedBadgeView(urls, e));
+    // A player with nothing on the map yet has no page.
+    if (!stats.sign_count && !badges.length) return c.notFound();
+    const view = playerView(urls, player, shown);
+    const since = view.first_year ? ` since ${view.first_year}` : '';
+    const where = view.states.length ? ` in ${view.states.join(', ')}` : '';
+    return c.html(
+      <Page title={`${player.name} · Road Sign Math`} description={`Road signs ${player.name} found${since}.`}>
+        <h1>{player.name}</h1>
+        {player.bio && <p>{player.bio}</p>}
+        <p class="meta">
+          Finding signs{where}
+          {since}.
+        </p>
+        {badges.length > 0 && (
+          <>
+            <h2>Badges</h2>
+            <BadgeRow badges={badges} />
+          </>
+        )}
+        {stats.sign_count > 0 && (
+          <>
+            <h2>Signs</h2>
+            <ul class="grid">
+              {stats.signs.map((s) => (
+                <Card sign={signSummary(urls, everyone, s)} />
+              ))}
+            </ul>
+          </>
+        )}
       </Page>
     );
   });
