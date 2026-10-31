@@ -11,8 +11,8 @@ export const TEAM_ID = /^[A-Z0-9]{10}$/;
 
 /**
  * The links the app opens: the sign-in link the email carries (`/signin?l=…&t=…`, built in
- * src/api/app.ts) and a sign's page, which the app shows as that sign. Everything else, the
- * home page included, stays in the browser.
+ * src/api/app.ts), a sign's page, which the app shows as that sign, and a player's page, which it
+ * shows as that player. Everything else, the home page included, stays in the browser.
  */
 export function appSiteAssociation(teamId: string) {
   return {
@@ -22,7 +22,8 @@ export function appSiteAssociation(teamId: string) {
           appIDs: [`${teamId}.${APP_BUNDLE_ID}`],
           components: [
             { '/': '/signin', comment: 'The sign-in link in the email' },
-            { '/': '/signs/?*', comment: 'A sign’s page' }
+            { '/': '/signs/?*', comment: 'A sign’s page' },
+            { '/': '/players/?*', comment: 'A player’s page' }
           ]
         }
       ]

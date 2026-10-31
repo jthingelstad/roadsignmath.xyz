@@ -92,7 +92,8 @@ test('apple-app-site-association opens the sign-in link and sign pages in the ap
         appIDs: ['ABCDE12345.xyz.roadsignmath.app'],
         components: [
           { '/': '/signin', comment: 'The sign-in link in the email' },
-          { '/': '/signs/?*', comment: 'A sign’s page' }
+          { '/': '/signs/?*', comment: 'A sign’s page' },
+          { '/': '/players/?*', comment: 'A player’s page' }
         ]
       }
     ]);
