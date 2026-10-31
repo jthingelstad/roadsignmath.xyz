@@ -227,6 +227,9 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
             </a>
             .
           </p>
+          <p>
+            <a href="/privacy">Privacy</a>
+          </p>
         </div>
       </footer>
       {script && <script dangerouslySetInnerHTML={{ __html: script }} />}

@@ -53,6 +53,16 @@ test('home’s app section links the public TestFlight beta', async () => {
   assert.ok(html.includes('Join the iPhone beta'));
 });
 
+test('the privacy page says what is public and what is not, and every page links it', async () => {
+  const { app } = await setup();
+  const res = await app.request('/privacy');
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  assert.ok(html.includes('<h1>Privacy</h1>'));
+  assert.ok(html.includes('Delete my account'));
+  assert.match(await (await app.request('/')).text(), /<a href="\/privacy">Privacy<\/a>/);
+});
+
 test('every sign has a heart: Tinylytics’ kudos button at the sign’s path', async () => {
   const { app, slug } = await setup();
   const home = await (await app.request('/')).text();
