@@ -5,12 +5,13 @@
 //
 // Keeping the two in step: a heart is written under a lease on (player, sign), our row first,
 // then the kudo. If Tinylytics fails or doesn't answer, the kudo is taken back (in case it was
-// made after all) and the row removed, and the player gets a 503 with nothing changed. Taking a
+// made after all) and the row removed, and the player gets a 503 with nothing changed. If even
+// taking it back fails, the row stays: the heart may exist, and DELETE can still remove it. Taking a
 // heart back removes the kudo first and the row only once it is gone. The uid is the same for a
 // player and a sign every time, so a retry names the same kudo. The uid is a hash: it reveals
 // neither the player nor their email.
 
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { LIMITS } from './api/contract.ts';
 import { fail } from './api/errors.ts';
 import { limit } from './api/input.ts';
@@ -123,8 +124,10 @@ export async function setHeart(deps: HeartDeps, player: Player, sign: Sign, on: 
   if (!!(await store.getHeart(player.id, sign.id)) === on) return stateOf(deps, sign, on);
   if (!tinylytics) return unavailable(on ? 'heart' : 'unheart', new TinylyticsUnavailable('No Tinylytics', true));
 
+  // A holder for this request alone, so two of the player's own requests can't both hold it.
   const lease = `heart:${player.id}:${sign.id}`;
-  if (!(await store.lease(lease, player.id, 30))) fail('conflict', 'This heart is changing already. Try again.');
+  const holder = randomUUID();
+  if (!(await store.lease(lease, holder, 30))) fail('conflict', 'This heart is changing already. Try again.');
   try {
     // Read again under the lease: another request of this player's may have just done it.
     const heart = await store.getHeart(player.id, sign.id);
@@ -151,9 +154,18 @@ export async function setHeart(deps: HeartDeps, player: Player, sign: Sign, on: 
       try {
         await tinylytics.addKudo(path, uid);
       } catch (err) {
-        // It may have been made after all (an answer lost on the way back): take it back too.
-        await tinylytics.removeKudo(uid).catch(() => undefined);
-        await store.deleteHeart(player.id, sign.id);
+        // It may have been made after all (an answer lost on the way back): take it back too. If
+        // that fails as well, the row stays, so the heart shows as given and a later DELETE can
+        // still take the kudo back.
+        // With no key at all nothing was sent, so there is nothing to take back.
+        const sent = !(err instanceof TinylyticsUnavailable && err.off);
+        const undone =
+          !sent ||
+          (await tinylytics.removeKudo(uid).then(
+            () => true,
+            () => false
+          ));
+        if (undone) await store.deleteHeart(player.id, sign.id);
         return unavailable('heart', err);
       }
     } else {
@@ -167,7 +179,7 @@ export async function setHeart(deps: HeartDeps, player: Player, sign: Sign, on: 
     counts.adjust(path, on ? 1 : -1, started);
     return await stateOf(deps, sign, on);
   } finally {
-    await store.endLease(lease, player.id).catch(() => undefined);
+    await store.endLease(lease, holder).catch(() => undefined);
   }
 }
 

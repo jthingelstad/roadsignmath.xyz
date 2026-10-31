@@ -106,7 +106,10 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
   website's kudos button, so `hearts` on every sign (summary, detail, pin) counts both; it is
   null when the counts can't be read. `hearted` is the signed-in reader's own, from our rows,
   and null signed out. Writing a heart puts our row, then the kudo; if Tinylytics fails the kudo
-  is taken back too and the row removed, so a 503 changes nothing. The kudo's uid is a hash of
+  is taken back too and the row removed, so a 503 changes nothing (if taking it back fails as
+  well, the row stays and a later DELETE removes both). A change holds a lease on (player, sign)
+  with a holder of its own, so two of a player's requests can't cross, and heart rows are read
+  strongly consistent. The kudo's uid is a hash of
   the player and sign ids. Deleting a sign removes every kudo at its path (the website's too),
   so a later sign with its slug starts at none. Counts are read once a minute per instance;
   Tinylytics allows the key 1,000 calls an hour.

@@ -103,8 +103,10 @@ export class DynamoStore implements Store {
     return items;
   }
 
-  private async get(pk: string, sk: string): Promise<Item | undefined> {
-    const out = await this.client.send(new GetCommand({ TableName: this.table, Key: { pk, sk } }));
+  private async get(pk: string, sk: string, consistent = false): Promise<Item | undefined> {
+    const out = await this.client.send(
+      new GetCommand({ TableName: this.table, Key: { pk, sk }, ConsistentRead: consistent || undefined })
+    );
     return out.Item as Item | undefined;
   }
 
@@ -510,7 +512,8 @@ export class DynamoStore implements Store {
   }
 
   async getHeart(playerId: string, signId: string): Promise<Heart | undefined> {
-    const item = await this.get(`PLAYER#${playerId}`, `HEART#${signId}`);
+    // Read to decide whether a heart changes, often right after the last change: it must see it.
+    const item = await this.get(`PLAYER#${playerId}`, `HEART#${signId}`, true);
     return item && strip<Heart>(item);
   }
 
@@ -521,7 +524,9 @@ export class DynamoStore implements Store {
   async listHearts(playerId: string): Promise<Heart[]> {
     const items = await this.query({
       KeyConditionExpression: 'pk = :pk AND begins_with(sk, :sk)',
-      ExpressionAttributeValues: { ':pk': `PLAYER#${playerId}`, ':sk': 'HEART#' }
+      ExpressionAttributeValues: { ':pk': `PLAYER#${playerId}`, ':sk': 'HEART#' },
+      // Read to show a heart the player just gave, and to take them all back on account delete.
+      ConsistentRead: true
     });
     return items.map((i) => strip<Heart>(i));
   }

@@ -10,6 +10,8 @@ export class FakeTinylytics implements Tinylytics {
   /** `off` acts as a missing key; `down` as Tinylytics failing; a set fails only those calls. */
   state: 'up' | 'off' | 'down' = 'up';
   failing = new Set<string>();
+  /** When set, addKudo waits for it, so a test can act while a heart is half made. */
+  pause?: Promise<void>;
 
   private check(op: string): void {
     this.calls.push(op);
@@ -19,6 +21,7 @@ export class FakeTinylytics implements Tinylytics {
 
   async addKudo(path: string, uid: string): Promise<void> {
     this.check('addKudo');
+    if (this.pause) await this.pause;
     this.kudosKept.push({ path, uid });
   }
 
