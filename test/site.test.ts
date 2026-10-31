@@ -39,6 +39,11 @@ test('the home page lists shown signs, newest first, and is cached', async () =>
   const html = await res.text();
   assert.ok(html.indexOf('Newer Sign') < html.indexOf('Older Sign'));
   assert.ok(!html.includes('Held Sign'));
+  // Tinylytics counts the visit.
+  assert.match(
+    html,
+    /<script defer="" src="https:\/\/tinylytics\.app\/js\/script\.js" data-site="ryhTaXDDgZtyCktoVzzj"><\/script>/
+  );
 });
 
 test('a sign has its own page; a held or unknown one is not found', async () => {
@@ -98,4 +103,6 @@ test('the sign-in link in a browser says where to use it, and is never cached', 
   assert.match(html, /Sign in on your iPhone/);
   assert.ok(!html.includes('secret-token-value'));
   assert.ok(!html.includes('01JLOGIN'));
+  // No analytics here: the URL holds the link's token.
+  assert.ok(!html.includes('tinylytics'));
 });

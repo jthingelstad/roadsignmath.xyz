@@ -7,6 +7,7 @@ import type { FC, PropsWithChildren } from 'hono/jsx';
 import type { ApiOptions } from '../api/app.ts';
 import { byNewest, isPublic, signDetail, signSummary, type People } from '../api/views.ts';
 import { mathSvg } from './math.ts';
+import { TINYLYTICS_SCRIPT, TINYLYTICS_SITE } from './tinylytics.ts';
 
 type Summary = ReturnType<typeof signSummary>;
 
@@ -40,7 +41,13 @@ h1 { margin: 8px 0 4px; font-size: 28px; line-height: 1.2; }
 footer { color: var(--soft); font-size: 14px; text-align: center; padding: 24px 16px 40px; }
 `;
 
-const Page: FC<PropsWithChildren<{ title: string; description: string }>> = ({ title, description, children }) => (
+// `count` adds Tinylytics' counter. The sign-in page leaves it out: its URL carries the link's token.
+const Page: FC<PropsWithChildren<{ title: string; description: string; count?: boolean }>> = ({
+  title,
+  description,
+  count = true,
+  children
+}) => (
   <html lang="en">
     <head>
       <meta charset="utf-8" />
@@ -56,6 +63,7 @@ const Page: FC<PropsWithChildren<{ title: string; description: string }>> = ({ t
       </header>
       <main>{children}</main>
       <footer>The iPhone app, where you post your own signs, is on its way.</footer>
+      {count && <script defer src={TINYLYTICS_SCRIPT} data-site={TINYLYTICS_SITE} />}
     </body>
   </html>
 );
@@ -107,7 +115,7 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
     c.header('Cache-Control', 'no-store');
     c.header('Referrer-Policy', 'no-referrer');
     return c.html(
-      <Page title="Sign in · Road Sign Math" description="Sign in to Road Sign Math in the iPhone app.">
+      <Page title="Sign in · Road Sign Math" description="Sign in to Road Sign Math in the iPhone app." count={false}>
         <h1>Sign in on your iPhone</h1>
         <p>
           This link signs you in to the Road Sign Math app. Open it on the iPhone where the app is installed, or type

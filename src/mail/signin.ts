@@ -1,8 +1,11 @@
 // The sign-in email: a plain-text part and an HTML part saying the same things. The HTML is the
 // app's look (the guide sign's green and white on the pale road-map ground, darker at night)
-// built for mail readers: tables, inline styles, a small style block for dark mode, no script,
-// no web fonts and no images. The link and the code are the only things put in, both escaped.
+// built for mail readers: tables, inline styles, a small style block for dark mode, no script
+// and no web fonts. Its one image is Tinylytics' 1x1 pixel, the same for every email, so opens
+// are counted per email and never per person. The link and the code are the only things put in,
+// both escaped.
 
+import { tinylyticsPixel } from '../web/tinylytics.ts';
 import type { Mail } from './mailer.ts';
 
 /** Text made safe for HTML, in an element or a quoted attribute. */
@@ -141,6 +144,7 @@ ${plate}
 </table>
 </td></tr>
 </table>
+<img src="${escapeHtml(tinylyticsPixel('/email/signin'))}" alt="" width="1" height="1" style="display:block;width:1px;height:1px;border:0;" />
 </body>
 </html>
 `;
