@@ -6,7 +6,7 @@
 // finder who plays. A way's badges (the math) go to whoever wrote it. Only shown signs count,
 // and only the ways on them.
 
-import { check, numbersNotOnSign, type Node } from './equation.ts';
+import { check, isFraction, numbersNotOnSign, type Node } from './equation.ts';
 import { miles } from './geo.ts';
 import type { Sign, Way } from './types.ts';
 
@@ -112,7 +112,7 @@ export const BADGES: Badge[] = [
     id: 'half-mile',
     shelf: 'math',
     name: 'Half Mile',
-    how: 'Write a way that uses a fraction or a decimal.',
+    how: 'Write a way that uses a decimal, or a division that comes to a fraction.',
     mark: '½'
   },
   { id: 'zero-sum', shelf: 'math', name: 'Zero Sum', how: 'Write a way where both sides come to 0.', mark: '0' },
@@ -198,6 +198,13 @@ function operations(node: Node, out: Set<string>): Set<string> {
     operations(node.right, out);
   }
   return out;
+}
+
+/** Whether a division somewhere in the math comes to a fraction, like 3 ÷ 6. */
+function hasFraction(node: Node): boolean {
+  if (node.op === 'div' && isFraction(node)) return true;
+  if ('arg' in node) return hasFraction(node.arg);
+  return node.op !== 'num' && (hasFraction(node.left) || hasFraction(node.right));
 }
 
 const KEYPAD = ['add', 'sub', 'mul', 'div', 'sqrt', 'pow', 'fact'];
@@ -328,7 +335,8 @@ export function earnedBadges(playerId: string, signs: Sign[], ways: Map<string, 
 
     const onSign = sign.numbers.map((n) => n.value);
     if (onSign.length >= 3 && numbersNotOnSign(onSign, way.numbers).length === 0) earn('every-number', sign, on);
-    if (way.numbers.some((n) => n.includes('.'))) earn('half-mile', sign, on);
+    const sides = result.ok ? result.sides : [];
+    if (way.numbers.some((n) => n.includes('.')) || sides.some(hasFraction)) earn('half-mile', sign, on);
     const value = exactValue(way);
     if (value === 0) earn('zero-sum', sign, on);
     if (value !== undefined && value >= 1000) earn('big-number', sign, on);

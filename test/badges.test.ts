@@ -205,10 +205,13 @@ test('Every Number: a way using all of a sign’s three or more numbers', () => 
   assert.ok(!has(ada.id, 'every-number', [two], [w(two, '7 = 7')]), 'two numbers are too few');
 });
 
-test('Half Mile: a decimal in the way; whole numbers are not', () => {
+test('Half Mile: a decimal, or a division that comes to a fraction; whole numbers are not', () => {
   const on = s();
   assert.ok(has(ada.id, 'half-mile', [on], [w(on, '0.5 × 4 = 2')]));
   assert.ok(!has(ada.id, 'half-mile', [on], [w(on, '2 × 2 = 4')]));
+  assert.ok(has(ada.id, 'half-mile', [on], [w(on, '1 ÷ 2 = 3 ÷ 6')]));
+  assert.ok(has(ada.id, 'half-mile', [on], [w(on, '3 ÷ 6 × 2 = 1')]), 'a fraction on the way to a whole number');
+  assert.ok(!has(ada.id, 'half-mile', [on], [w(on, '12 ÷ 4 = 3')]), 'a division that comes out whole');
 });
 
 test('Zero Sum and Big Number: what both sides come to', () => {
