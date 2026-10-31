@@ -599,11 +599,11 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
       >
         <main>
           <section id="map" class="hero h-feed" aria-labelledby="hero-h">
-            <data class="p-name" value="Road Sign Math" />
-            <data class="u-url" value={`${urls.site}/`} />
-            <data class="u-map" value={`${urls.site}/us-map.svg`} />
+            <data hidden class="p-name" value="Road Sign Math" />
+            <data hidden class="u-url" value={`${urls.site}/`} />
+            <data hidden class="u-map" value={`${urls.site}/us-map.svg`} />
             {pins.map((pin) => (
-              <data class="p-pin" value={pinValue(pin)} />
+              <data hidden class="p-pin" value={pinValue(pin)} />
             ))}
             <div class="wrap">
               <div class="intro">
@@ -829,17 +829,17 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
         script={SIGN_SCRIPT}
       >
         <main class="sign h-entry">
-          <data class="u-url" value={sign.url} />
-          {sign.photos[0] && <data class="u-photo" value={sign.photos[0].url} />}
-          <data class="p-location" value={sign.place.label} />
+          <data hidden class="u-url" value={sign.url} />
+          {sign.photos[0] && <data hidden class="u-photo" value={sign.photos[0].url} />}
+          <data hidden class="p-location" value={sign.place.label} />
           {finders.map((name) => (
-            <data class="p-finder" value={name} />
+            <data hidden class="p-finder" value={name} />
           ))}
-          {sign.first_way && <data class="p-math" value={sign.first_way.text} />}
-          {sign.first_way?.tex && <data class="p-tex" value={sign.first_way.tex} />}
-          <data class="p-way-count" value={String(sign.ways.length)} />
+          {sign.first_way && <data hidden class="p-math" value={sign.first_way.text} />}
+          {sign.first_way?.tex && <data hidden class="p-tex" value={sign.first_way.tex} />}
+          <data hidden class="p-way-count" value={String(sign.ways.length)} />
           {numbers.map((n) => (
-            <data class="p-number" value={n} />
+            <data hidden class="p-number" value={n} />
           ))}
           <div class="wrap">
             <div class="cols">
@@ -1033,12 +1033,12 @@ const PlayerPage: FC<{
       <main class="player">
         <div class="wrap">
           <div class="who-is h-card">
-            <data class="u-url" value={`${urls.site}${base}`} />
-            {photo && <data class="u-photo" value={photo} />}
-            <data class="p-avatar-color" value={player.avatarColor} />
-            <data class="p-sign-count" value={String(stats.sign_count)} />
-            <data class="p-state-count" value={String(stats.states.length)} />
-            {stats.first_year && <data class="p-first-year" value={String(stats.first_year)} />}
+            <data hidden class="u-url" value={`${urls.site}${base}`} />
+            {photo && <data hidden class="u-photo" value={photo} />}
+            <data hidden class="p-avatar-color" value={player.avatarColor} />
+            <data hidden class="p-sign-count" value={String(stats.sign_count)} />
+            <data hidden class="p-state-count" value={String(stats.states.length)} />
+            {stats.first_year && <data hidden class="p-first-year" value={String(stats.first_year)} />}
             <Avatar name={player.name} color={player.avatarColor} photo={player.avatar} size={140} />
             <div>
               <h1 class="p-name">{player.name}</h1>

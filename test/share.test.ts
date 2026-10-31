@@ -29,9 +29,11 @@ async function setup() {
 }
 
 const page = async (app: Awaited<ReturnType<typeof setup>>['app'], path: string) => (await app.request(path)).text();
-/** The values of a page's <data class="name"> elements. */
+/** The values of a page's <data class="name"> elements (all hidden: fields, never layout). */
 const data = (html: string, name: string) =>
-  [...html.matchAll(new RegExp(`<data class="${name}" value="([^"]*)"`, 'g'))].map((m) => m[1]);
+  [...html.matchAll(new RegExp(`<data hidden="" class="${name}" value="([^"]*)"`, 'g'))].map((m) => m[1]);
+/** Every <data> on the page is hidden, so the fields never shift what readers see. */
+const allHidden = (html: string) => (html.match(/<data\b[^>]*>/g) ?? []).every((tag) => /\shidden(=""|\s|>)/.test(tag));
 const meta = (html: string, key: string) =>
   new RegExp(`<meta (?:property|name)="${key}" content="([^"]*)"`).exec(html)?.[1];
 
@@ -86,6 +88,7 @@ test('a sign page is an h-entry with what its card shows, and names its card', a
   assert.equal(meta(html, 'og:image:height'), '630');
   assert.equal(meta(html, 'og:image:alt'), 'Solved Sign: 7 + 12 = 19. Found by Ada. Testville, Minnesota.');
   assert.equal(meta(html, 'twitter:card'), 'summary_large_image');
+  assert.ok(allHidden(html));
   // Another way is a new card.
   await store.addWay(
     way('01JS0000000000000000000002', {
@@ -122,6 +125,8 @@ test('a player page is an h-card with its own u-url, and its card is their photo
   assert.deepEqual(data(html, 'p-state-count'), ['1']);
   assert.deepEqual(data(html, 'p-first-year'), ['2026']);
   assert.match(html, /class="p-name"[^>]*>Ada</);
+  // The fields sit inside the header's flex row; hidden, they take no gap.
+  assert.ok(allHidden(html));
   const letter = meta(html, 'og:image');
   assert.match(letter ?? '', /^https:\/\/cards\.thingelstad\.com\/rsm\/players\/ada\.png\?v=[0-9a-f]{10}$/);
   // Never the player's email, anywhere on the page.
@@ -142,6 +147,7 @@ test('home is an h-feed with the map and a pin for every place, and names its ca
   assert.equal(pins.length, 1);
   assert.match(pins[0], /^\d+\.\d{2} \d+\.\d{2} 2$/);
   assert.match(html, /class="kicker mono p-kicker"/);
+  assert.ok(allHidden(html));
   assert.match(html, /<dd class="mono p-sign-count">2<\/dd>/);
   assert.match(meta(html, 'og:image') ?? '', /^https:\/\/cards\.thingelstad\.com\/rsm\/index\.png\?v=[0-9a-f]{10}$/);
   // The same card whatever year the page is filtered to.
