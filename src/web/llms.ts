@@ -8,7 +8,7 @@
 
 import { STATES } from '../domain/geo.ts';
 import { playerStats } from '../api/views.ts';
-import { signRecord, type OpenData } from './data.ts';
+import { LICENSE, signRecord, type OpenData } from './data.ts';
 import { FEED_SIZE } from './feeds.ts';
 import { ARCHIVE_URL, longDay, TESTFLIGHT_URL } from './layout.tsx';
 
@@ -95,6 +95,7 @@ export function llmsTxt(data: OpenData): string {
     `- [Full text](${site}/llms-full.txt): every sign in full: the numbers and what each was read from, every way and who found it, and what each photo shows`,
     `- [Sitemap](${site}/sitemap.xml): every page`,
     `- [The first era](${ARCHIVE_URL}): Road Sign Math from 2005 to 2014, on Things I’ve built`,
+    `- [Licence](${LICENSE.url}): the signs, the math, the places, the names and the photos are ${LICENSE.name}. ${LICENSE.credit}`,
     `- [Source code](${SOURCE_URL}): this site and its API, MIT licensed`,
     ''
   );

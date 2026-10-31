@@ -8,7 +8,7 @@
 import { STATES } from '../domain/geo.ts';
 import type { Player, Sign } from '../domain/types.ts';
 import { signUrl } from '../api/views.ts';
-import { newestUpdate, playerPageUrl, signRecord, type OpenData } from './data.ts';
+import { LICENSE, newestUpdate, playerPageUrl, signRecord, type OpenData } from './data.ts';
 import { longDay } from './layout.tsx';
 
 /** How many signs a feed carries, newest posted first. */
@@ -142,6 +142,7 @@ export function atomFeed(data: OpenData, feed: Feed): string {
     `  <id>${xml(feed.page)}</id>`,
     `  <updated>${newestUpdate(data, feed.signs) ?? EMPTY_UPDATED}</updated>`,
     `  <author><name>Road Sign Math</name><uri>${xml(data.urls.site)}/</uri></author>`,
+    `  <rights>${xml(`${LICENSE.name}: ${LICENSE.url}`)}</rights>`,
     `  <icon>${xml(data.urls.site)}/favicon.svg</icon>`,
     ...entries,
     '</feed>',
