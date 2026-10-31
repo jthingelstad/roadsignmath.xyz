@@ -104,7 +104,7 @@ test('a sign has its own page; a held or unknown one is not found', async () => 
   const { app, slug } = await setup();
   const res = await app.request(`/signs/${slug('Newer Sign')}`);
   assert.equal(res.status, 200);
-  assert.match(await res.text(), /<h1>Newer Sign<\/h1>/);
+  assert.match(await res.text(), /<h1 class="p-name">Newer Sign<\/h1>/);
   assert.equal((await app.request(`/signs/${slug('Held Sign')}`)).status, 404);
   const missing = await app.request('/signs/nothing-here');
   assert.equal(missing.status, 404);
@@ -180,7 +180,7 @@ test('a player’s page shows the badges they earned as road signs, and nothing 
   const res = await app.request('/players/ada');
   assert.equal(res.status, 200);
   const html = await res.text();
-  assert.ok(html.includes('<h1>Ada</h1>'));
+  assert.ok(html.includes('<h1 class="p-name">Ada</h1>'));
   assert.match(html, /<ul class="badges">/);
   assert.match(
     html,
@@ -233,7 +233,7 @@ test('home puts every shown sign on the map: pins, clusters, the year filter and
   assert.match(html, /<h2 id="picked-h">Minnesota · 2 signs<\/h2>/);
   assert.match(html, /Not on the map: <a href="\/signs\/nowhere">Nowhere<\/a> \(Somewhere on I-90\)/);
   assert.match(html, /<a href="\/\?year=2025#map" data-map="">2025 · 1<\/a>/);
-  assert.match(html, /<dd class="mono">4<\/dd>/);
+  assert.match(html, /<dd class="mono p-sign-count">4<\/dd>/);
 
   // A year leaves the other years' signs off the map, and a pin picks its place.
   const year = await (await app.request('/?year=2024&at=far-away')).text();
