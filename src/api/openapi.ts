@@ -194,7 +194,8 @@ const SCHEMAS: Record<string, Schema> = {
       earned_on: {
         type: 'string',
         format: 'date',
-        description: 'The day the sign was found, or for the math, the day the way was written.'
+        description:
+          'The day the sign was found, in the finder’s own time. For the math, a way posted with its sign takes that day too; a way added later takes the day it was written in US Central.'
       },
       sign: object({ id: str, slug: str, title: str, url: { type: 'string', format: 'uri' } })
     },

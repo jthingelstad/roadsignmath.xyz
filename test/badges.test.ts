@@ -115,7 +115,7 @@ test('Company: another player’s way on a sign you posted; your own ways bring 
   const company = earned(
     ada.id,
     [adas],
-    [mine, w(adas, '19 − 12 = 7', { playerId: ben.id, createdAt: '2026-03-04T00:00:00.000Z' })]
+    [mine, w(adas, '19 − 12 = 7', { playerId: ben.id, createdAt: '2026-03-04T18:00:00.000Z' })]
   ).get('company');
   assert.equal(company?.on, '2026-03-04');
   assert.ok(!has(ada.id, 'company', [adas], [mine, w(adas, '19 − 7 = 12')]));
@@ -206,7 +206,7 @@ test('Whole Keypad: + − × ÷ √ ^ ! across ways; all but the minus is not en
   const on = s();
   const most = [w(on, '√9 × 2 = 12 ÷ 2'), w(on, '2^3 + 1 = 3! + 3')];
   assert.ok(!has(ada.id, 'whole-keypad', [on], most));
-  const all = earned(ada.id, [on], [...most, w(on, '7 − 1 = 6', { createdAt: '2026-04-01T00:00:00.000Z' })]);
+  const all = earned(ada.id, [on], [...most, w(on, '7 − 1 = 6', { createdAt: '2026-04-01T18:00:00.000Z' })]);
   assert.equal(all.get('whole-keypad')?.on, '2026-04-01');
 });
 
@@ -283,8 +283,8 @@ test('earned badges come in catalog order, each with the first sign and day that
     ada.id,
     [second, first],
     new Map([
-      [first.id, [w(first, '7 × 12 = 84', { createdAt: '2026-01-02T00:00:00.000Z' })]],
-      [second.id, [w(second, '2 × 2 = 4', { createdAt: '2026-02-02T00:00:00.000Z' })]]
+      [first.id, [w(first, '7 × 12 = 84', { createdAt: '2026-01-02T18:00:00.000Z' })]],
+      [second.id, [w(second, '2 × 2 = 4', { createdAt: '2026-02-02T18:00:00.000Z' })]]
     ])
   );
   assert.deepEqual(
@@ -316,4 +316,15 @@ test('newly earned: a new badge or a higher step, never one already had', () => 
     ]
   );
   assert.deepEqual(newlyEarned(after, after), []);
+});
+
+test('a way’s day: the found day when posted with its sign, else the day in US Central, never UTC’s', () => {
+  // Posted at 10:24 pm Central on 30 October, which is already 31 October in UTC.
+  const late = s({ foundOn: '2026-10-29', postedAt: '2026-10-31T03:24:00.000Z' });
+  const withPost = w(late, '7 × 12 = 84', { createdAt: late.postedAt });
+  assert.equal(earned(ada.id, [late], [withPost]).get('times-table')?.on, '2026-10-29');
+
+  const other = s({ postedBy: ben.id, finders: [{ playerId: ben.id, name: ben.name, role: 'found' }] });
+  const added = w(other, '7 × 12 = 84', { createdAt: '2026-10-31T03:24:00.000Z' });
+  assert.equal(earned(ada.id, [other], [added]).get('second-opinion')?.on, '2026-10-30');
 });

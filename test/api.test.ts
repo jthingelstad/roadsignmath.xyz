@@ -53,7 +53,7 @@ async function setup() {
       playerId: ben.id,
       text: '19 − 12 = 7',
       value: '7',
-      createdAt: '2026-01-05T00:00:00.000Z'
+      createdAt: '2026-01-05T18:00:00.000Z'
     })
   );
   const app = createApp({
