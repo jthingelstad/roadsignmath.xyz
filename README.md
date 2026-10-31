@@ -43,6 +43,12 @@ main ([`docs/DEPLOY.md`](docs/DEPLOY.md)).
   together in [Tinylytics](https://tinylytics.app). The app's screen views are
   counted there too, as the app's, with nothing about who.
 
+- Feeds and open data, for anyone who wants to follow the signs or build
+  something with them: Atom and JSON Feed of new signs (`/feed.xml`,
+  `/feed.json`, and the same per player), `/signs.json`, `/players.json` and
+  `/signs.geojson` (open to any web page), `/llms.txt` and `/llms-full.txt`.
+  Every field is documented on the site at [`/data`](https://roadsignmath.xyz/data).
+
 ## Running it
 
 Node 24.
