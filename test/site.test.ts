@@ -71,6 +71,21 @@ test('the privacy page says what is public and what is not, and every page links
   assert.match(await (await app.request('/')).text(), /<a href="\/privacy">Privacy<\/a>/);
 });
 
+test('the about page tells the story, links the archive and the beta, and every page links it', async () => {
+  const { app } = await setup();
+  const res = await app.request('/about');
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  assert.ok(html.includes('<h1>About</h1>'));
+  assert.ok(html.includes('https://thingelstad.xyz/things/road-sign-math/'));
+  assert.match(html, /data-tinylytics-event="beta\.join" data-tinylytics-event-value="about"/);
+  // No Genesis sign among the fixtures: the plate stands alone, with no link to a missing page.
+  assert.ok(!html.includes('href="/signs/genesis"'));
+  assert.match(await (await app.request('/')).text(), /<a href="\/about">About<\/a>/);
+  const xml = await (await app.request('/sitemap.xml')).text();
+  assert.ok(xml.includes('<loc>https://example.test/about</loc>'));
+});
+
 test('every sign has a heart: Tinylytics’ kudos button at the sign’s path', async () => {
   const { app, slug } = await setup();
   const home = await (await app.request('/')).text();
