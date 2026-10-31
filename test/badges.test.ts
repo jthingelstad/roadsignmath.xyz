@@ -121,6 +121,17 @@ test('Company: another player’s way on a sign you posted; your own ways bring 
   assert.ok(!has(ada.id, 'company', [adas], [mine, w(adas, '19 − 7 = 12')]));
 });
 
+test('Company: a finder named on someone else’s sign earns it too, but not from the math posted with it', () => {
+  const bens = s({ postedBy: ben.id, finders: [{ playerId: ada.id, name: ada.name, role: 'spotted' }] });
+  const posted = w(bens, '7 + 12 = 19', { playerId: ben.id, createdAt: bens.postedAt });
+  assert.ok(!has(ada.id, 'company', [bens], [posted]), 'the sign’s own math is not company');
+  const later = w(bens, '19 − 12 = 7', { playerId: ben.id, createdAt: '2026-03-04T18:00:00.000Z' });
+  assert.equal(earned(ada.id, [bens], [posted, later]).get('company')?.on, '2026-03-04');
+  const hers = w(bens, '19 − 7 = 12', { createdAt: '2026-03-05T18:00:00.000Z' });
+  assert.ok(has(ben.id, 'company', [bens], [posted, hers]), 'the poster still gets it from the finder’s way');
+  assert.ok(!has(ada.id, 'company', [bens], [posted, hers]), 'her own way brings her none');
+});
+
 test('Mile Markers: steps at 3, 5, 10 and 25 signs, each earned by the sign that reached it', () => {
   assert.ok(!has(ada.id, 'mile-markers', onDays('2026-01-01', '2026-02-01')));
   const three = onDays('2026-01-01', '2026-02-01', '2026-03-01');

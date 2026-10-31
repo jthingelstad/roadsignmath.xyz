@@ -56,7 +56,7 @@ export const BADGES: Badge[] = [
     id: 'company',
     shelf: 'firsts',
     name: 'Company',
-    how: 'Another player finds a way on a sign you posted.',
+    how: 'Another player finds a way on a sign you posted or found.',
     mark: 'HI'
   },
   { id: 'states', shelf: 'places', name: 'States', how: 'Find signs in more states.', mark: '', steps: [2, 3, 5, 10] },
@@ -112,7 +112,7 @@ export const BADGES: Badge[] = [
     id: 'half-mile',
     shelf: 'math',
     name: 'Half Mile',
-    how: 'Write a way that uses a decimal, or a division that comes to a fraction.',
+    how: 'Write a way with a fraction or a decimal in it.',
     mark: '½'
   },
   { id: 'zero-sum', shelf: 'math', name: 'Zero Sum', how: 'Write a way where both sides come to 0.', mark: '0' },
@@ -283,11 +283,14 @@ export function earnedBadges(
     if (onSign[0]?.id === way.id && postedUnsolved(sign, onSign)) earn('cracked-it', sign, on);
     if (onSign.filter((w) => w.playerId === playerId)[1]?.id === way.id) earn('another-way', sign, on);
   }
-  const company = shown
-    .filter((s) => s.postedBy === playerId)
+  // Company comes to everyone credited on a sign: whoever posted it and whoever is named as finding
+  // or spotting it (Jamie, 2026-10-31). The way posted with the sign is its own math, so it never
+  // brings company, even to a finder who didn't write it.
+  const company = theirs
     .flatMap((sign) =>
       waysOn(sign)
         .filter((w) => w.playerId !== playerId && !leftOut.has(w.playerId))
+        .filter((w) => !(w.playerId === sign.postedBy && w.createdAt === sign.postedAt))
         .map((w) => ({ sign, way: w }))
     )
     .sort((a, b) => byWritten(a.way, b.way))[0];
