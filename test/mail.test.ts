@@ -31,8 +31,10 @@ test('the sign-in email says the same in text as before, and in HTML', () => {
   assert.match(html, /Or type this code in the app/);
   assert.match(html, /It works for 15 minutes\. If you didn&rsquo;t ask to sign in, you can ignore this email\./);
   assert.match(html, /Driving \+ Math = Fun/);
-  // Nothing to load or run: no scripts, images, web fonts or remote styles.
-  assert.doesNotMatch(html, /<script|<img|<link|@import|url\(/i);
+  // Nothing to run and nothing remote but the counting pixel: no scripts, web fonts or styles.
+  assert.doesNotMatch(html, /<script|<link|@import|url\(/i);
+  const images = [...html.matchAll(/<img [^>]*src="([^"]*)"/g)].map((m) => m[1]);
+  assert.deepEqual(images, ['https://tinylytics.app/pixel/ryhTaXDDgZtyCktoVzzj.gif?path=/email/signin']);
   assert.ok(!html.includes('player@example.test'), 'the address is not in the body');
 });
 

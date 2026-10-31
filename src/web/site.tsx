@@ -7,6 +7,7 @@ import type { FC, PropsWithChildren } from 'hono/jsx';
 import type { ApiOptions } from '../api/app.ts';
 import { byNewest, isPublic, signDetail, signSummary, type People } from '../api/views.ts';
 import { mathSvg } from './math.ts';
+import { TINYLYTICS_SCRIPT, TINYLYTICS_SITE } from './tinylytics.ts';
 
 type Summary = ReturnType<typeof signSummary>;
 
@@ -56,6 +57,7 @@ const Page: FC<PropsWithChildren<{ title: string; description: string }>> = ({ t
       </header>
       <main>{children}</main>
       <footer>The iPhone app, where you post your own signs, is on its way.</footer>
+      <script defer src={TINYLYTICS_SCRIPT} data-site={TINYLYTICS_SITE} />
     </body>
   </html>
 );

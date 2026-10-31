@@ -39,6 +39,11 @@ test('the home page lists shown signs, newest first, and is cached', async () =>
   const html = await res.text();
   assert.ok(html.indexOf('Newer Sign') < html.indexOf('Older Sign'));
   assert.ok(!html.includes('Held Sign'));
+  // Tinylytics counts the visit.
+  assert.match(
+    html,
+    /<script defer="" src="https:\/\/tinylytics\.app\/js\/script\.js" data-site="ryhTaXDDgZtyCktoVzzj"><\/script>/
+  );
 });
 
 test('a sign has its own page; a held or unknown one is not found', async () => {
