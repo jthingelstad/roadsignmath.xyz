@@ -7,6 +7,7 @@ import { LOGIN_TTL } from '../auth/auth.ts';
 import { API_VERSION, ERRORS, LIMITS, ROUTES, type ErrorCode } from './contract.ts';
 import { STATUS } from './errors.ts';
 import { SHELVES } from '../domain/badges.ts';
+import { AVATAR_SIZES } from '../photos.ts';
 import { VIEW_PATH } from '../tinylytics.ts';
 
 type Schema = Record<string, unknown>;
@@ -159,7 +160,21 @@ const SCHEMAS: Record<string, Schema> = {
   Player: object({
     handle: str,
     name: str,
-    avatar_color: { type: 'string', pattern: '^#[0-9A-F]{6}$' },
+    avatar_color: {
+      type: 'string',
+      pattern: '^#[0-9A-F]{6}$',
+      description: 'Behind the first letter of the name, when there is no profile photo.'
+    },
+    avatar_url: nullable({
+      type: 'string',
+      format: 'uri',
+      description: `The profile photo, ${AVATAR_SIZES.large} pixels square, JPEG; null when there is none.`
+    }),
+    avatar_thumb_url: nullable({
+      type: 'string',
+      format: 'uri',
+      description: `The profile photo at ${AVATAR_SIZES.thumb} pixels square, for small faces.`
+    }),
     bio: nullable(str),
     url: { type: 'string', format: 'uri' },
     sign_count: int,

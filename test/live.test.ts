@@ -77,7 +77,8 @@ const post: Post = { title: 'Exit 7', numbers: ['7'], photos: [] };
 const verdict: PostVerdict = { verdict: 'ok', reason: '', alt: [] };
 const fixed: Moderator = {
   reviewPost: async () => verdict,
-  reviewReport: async () => ({ verdict: 'keep', reason: '' })
+  reviewReport: async () => ({ verdict: 'keep', reason: '' }),
+  reviewAvatar: async () => ({ verdict: 'ok', reason: '' })
 };
 
 test('without a key the moderator is unavailable, and asks again next time', async () => {
@@ -94,6 +95,7 @@ test('without a key the moderator is unavailable, and asks again next time', asy
   await assert.rejects(moderator.reviewPost(post), ModeratorUnavailable);
   assert.deepEqual(await moderator.reviewPost(post), verdict);
   assert.deepEqual(await moderator.reviewReport(post, 'spam'), { verdict: 'keep', reason: '' });
+  assert.deepEqual(await moderator.reviewAvatar(Buffer.from('photo')), { verdict: 'ok', reason: '' });
   assert.equal(reads, 2, 'the key is kept once found');
   assert.deepEqual(made, ['example-key']);
 });

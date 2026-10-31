@@ -1,5 +1,6 @@
 // The two sizes every photo is served at, as JPEGs with no metadata (so no GPS or camera
-// details leave with them), and where they are kept. A shown sign's photos are served from
+// details leave with them), and where they are kept. A player's profile photo is kept the same
+// way, square, and goes straight to p/ once the moderator has looked. A shown sign's photos are served from
 // /p/<photoId>/large.jpg and /p/<photoId>/thumb.jpg. An upload waits under uploads/<photoId>/
 // until its sign is posted, and the live bucket's lifecycle rule clears uploads nobody posted.
 // A held or hidden sign's photos sit under held/<photoId>/, which only the API reads, for
@@ -37,6 +38,24 @@ export async function renditions(input: Buffer): Promise<Renditions> {
     .jpeg({ quality: 78, mozjpeg: true })
     .toBuffer();
   return { large: large.data, thumb, width: large.info.width, height: large.info.height };
+}
+
+/** A profile photo's two sizes, square: the player page's big round face, and a small one. */
+export const AVATAR_SIZES = { large: 512, thumb: 160 } as const;
+
+/** A profile photo, cropped square from its middle, at both sizes and without its metadata. */
+export async function avatarRenditions(input: Buffer): Promise<Renditions> {
+  const side = AVATAR_SIZES.large;
+  const large = await sharp(input, { limitInputPixels: 60_000_000 })
+    .rotate()
+    .resize({ width: side, height: side, fit: 'cover', position: 'centre' })
+    .jpeg({ quality: 84, mozjpeg: true })
+    .toBuffer();
+  const thumb = await sharp(large)
+    .resize({ width: AVATAR_SIZES.thumb, height: AVATAR_SIZES.thumb })
+    .jpeg({ quality: 80, mozjpeg: true })
+    .toBuffer();
+  return { large, thumb, width: side, height: side };
 }
 
 /**

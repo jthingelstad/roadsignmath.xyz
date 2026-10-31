@@ -83,8 +83,10 @@ export type Player = {
   id: string;
   handle: string;
   name: string;
-  /** One of the avatar colors in the design. */
+  /** One of the avatar colors in the design, behind the first letter when there's no photo. */
   avatarColor: string;
+  /** The id of the player's profile photo, served square under /p/<id>/. Missing when none. */
+  avatar?: string;
   bio?: string;
   /** Private. Never in a public answer. Missing until the player claims the account. */
   email?: string;

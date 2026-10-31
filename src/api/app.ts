@@ -10,7 +10,7 @@ import type { Sign, Way } from '../domain/types.ts';
 import type { Store } from '../store/store.ts';
 import { API_VERSION, LIMITS, ROUTES } from './contract.ts';
 import { ApiError, fail, STATUS } from './errors.ts';
-import { deleteAccount, updateMe } from '../auth/account.ts';
+import { deleteAccount, removeAvatar, setAvatar, updateMe } from '../auth/account.ts';
 import { finishSignIn, network, signOut, startSignIn, viewerFor, type Viewer } from '../auth/auth.ts';
 import { HeartCounts, heartView, setHeart } from '../hearts.ts';
 import type { Mailer } from '../mail/mailer.ts';
@@ -381,6 +381,22 @@ export function createApi(options: ApiOptions): Hono {
     async deleteMe(c, { viewer }) {
       await deleteAccount(deps, viewer!.player);
       return c.body(null, 204);
+    },
+
+    async setAvatar(c, { data, viewer }) {
+      const length = c.req.header('content-length');
+      const player = await setAvatar(
+        deps,
+        viewer!.player,
+        c.req.header('content-type'),
+        () => c.req.arrayBuffer(),
+        length === undefined ? undefined : Number(length)
+      );
+      return c.json(await me(player, await data()));
+    },
+
+    async removeAvatar(c, { data, viewer }) {
+      return c.json(await me(await removeAvatar(deps, viewer!.player), await data()));
     },
 
     async listBlocks(c, { data, viewer }) {

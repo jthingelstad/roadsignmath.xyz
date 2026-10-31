@@ -28,7 +28,7 @@ async function setup(appleTeamId?: string) {
     appleTeamId
   });
   const signs = await store.allSigns();
-  return { app, slug: (title: string) => signs.find((s) => s.title === title)!.slug };
+  return { app, store, slug: (title: string) => signs.find((s) => s.title === title)!.slug };
 }
 
 test('the home page lists shown signs, newest first, and is cached', async () => {
@@ -120,6 +120,19 @@ test('the sign-in link in a browser says where to use it, and is never cached', 
   assert.ok(!html.includes('01JLOGIN'));
   // No analytics here: the URL holds the link's token.
   assert.ok(!html.includes('tinylytics'));
+});
+
+test('a profile photo stands in for the letter on the player page, who’s playing and the sign', async () => {
+  const { app, store, slug } = await setup();
+  const letter = await (await app.request('/players/ada')).text();
+  assert.ok(!letter.includes('avatar photo'));
+  await store.setAvatar(ada.id, 'face1');
+  const page = await (await app.request('/players/ada')).text();
+  assert.ok(page.includes('<img src="/p/face1/large.jpg" alt="" loading="lazy"/>'), 'the big face');
+  const home = await (await app.request('/')).text();
+  assert.ok(home.includes('<img src="/p/face1/thumb.jpg"'), 'who’s playing');
+  const sign = await (await app.request(`/signs/${slug('Newer Sign')}`)).text();
+  assert.ok(sign.includes('<img src="/p/face1/thumb.jpg"'), 'the finder and the way');
 });
 
 test('a player’s page shows the badges they earned as road signs, and nothing about the rest', async () => {

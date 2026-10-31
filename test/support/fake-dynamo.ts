@@ -104,8 +104,13 @@ export class FakeDynamo {
         const current = this.items.get(k);
         if (!this.holds(current, input.ConditionExpression, input)) this.fail();
         const item = current ?? { pk: key.pk, sk: key.sk };
+        const before = structuredClone(item);
         const changed = this.update(item, String(input.UpdateExpression), input);
         this.items.set(k, item);
+        if (input.ReturnValues === 'UPDATED_OLD') {
+          const old = Object.entries(before).filter(([f, v]) => JSON.stringify(item[f]) !== JSON.stringify(v));
+          return { Attributes: Object.fromEntries(old) };
+        }
         return { Attributes: changed };
       }
       case 'DeleteCommand': {

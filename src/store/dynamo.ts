@@ -315,6 +315,25 @@ export class DynamoStore implements Store {
     );
   }
 
+  async setAvatar(id: string, avatar: string | null): Promise<{ previous?: string } | false> {
+    try {
+      const out = await this.client.send(
+        new UpdateCommand({
+          TableName: this.table,
+          Key: { pk: 'PLAYERS', sk: `PLAYER#${id}` },
+          UpdateExpression: avatar === null ? 'REMOVE avatar' : 'SET avatar = :avatar',
+          ConditionExpression: 'attribute_exists(pk)',
+          ...(avatar === null ? {} : { ExpressionAttributeValues: { ':avatar': avatar } }),
+          ReturnValues: 'UPDATED_OLD'
+        })
+      );
+      return { previous: (out.Attributes as Item | undefined)?.avatar as string | undefined };
+    } catch (err) {
+      if ((err as Error).name === 'ConditionalCheckFailedException') return false;
+      throw err;
+    }
+  }
+
   /** Points an index row's `field` at `id` unless another holds it; returns its holder. */
   private async claim(pk: string, sk: string, kind: string, field: string, id: string): Promise<string> {
     const won = await this.when(

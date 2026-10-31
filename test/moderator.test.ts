@@ -77,10 +77,26 @@ test('a report goes with its reason, as data', async () => {
   assert.equal(JSON.parse(requests[0].messages[0].content.at(-1).text).report, 'It is spam');
 });
 
-test('a refusal holds a post and hides a reported one', async () => {
+test('a profile photo goes alone, judged by the same policy', async () => {
+  const { moderator, requests } = fake(reply('{"verdict":"ok","reason":""}'));
+  assert.deepEqual(await moderator.reviewAvatar(Buffer.from('a face')), { verdict: 'ok', reason: '' });
+  const [request] = requests;
+  assert.ok(request.system.includes(POLICY));
+  assert.match(request.system, /profile photo/);
+  assert.deepEqual(request.output_config.format.schema.properties.verdict.enum, ['ok', 'hold']);
+  const content = request.messages[0].content;
+  assert.deepEqual(
+    content.map((b: Json) => b.type),
+    ['image', 'text']
+  );
+  assert.equal(content[0].source.data, Buffer.from('a face').toString('base64'));
+});
+
+test('a refusal holds a post, hides a reported one and turns down a profile photo', async () => {
   const refused = { stop_reason: 'refusal', content: [] };
   assert.equal((await fake(refused).moderator.reviewPost(post)).verdict, 'hold');
   assert.equal((await fake(refused).moderator.reviewReport(post, 'x')).verdict, 'hide');
+  assert.equal((await fake(refused).moderator.reviewAvatar(Buffer.from('x'))).verdict, 'hold');
 });
 
 test('an answer cut short, unreadable, or an API error means try again later', async () => {

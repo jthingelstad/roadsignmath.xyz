@@ -165,6 +165,8 @@ export function playerView(urls: Urls, player: Player, signs: Sign[]) {
     handle: player.handle,
     name: player.name,
     avatar_color: player.avatarColor,
+    avatar_url: player.avatar ? photoUrl(urls, player.avatar, 'large') : null,
+    avatar_thumb_url: player.avatar ? photoUrl(urls, player.avatar, 'thumb') : null,
     bio: player.bio ?? null,
     url: playerUrl(urls, player),
     sign_count: stats.sign_count,

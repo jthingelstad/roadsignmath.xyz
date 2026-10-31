@@ -729,3 +729,134 @@ test('a post and a way unlock their badges even when a read straight after misse
     ['first-sign', 'every-number']
   );
 });
+
+test('a profile photo is cropped square, stripped, moderated and shown in place of the letter', async () => {
+  const t = await setup();
+  await t.post();
+  const wide = await sharp({ create: { width: 300, height: 120, channels: 3, background: '#004c80' } })
+    .jpeg()
+    .withExif({ IFD0: { Copyright: 'a camera' } })
+    .toBuffer();
+  const { res, body } = await t.call('PUT', '/me/avatar', { as: 'ada', raw: wide });
+  assert.equal(res.status, 200, JSON.stringify(body));
+  assert.equal(t.moderator.avatars.length, 1);
+  const id = (await t.store.getPlayer(ada.id))!.avatar!;
+  assert.equal(body.avatar_url, `https://example.test/p/${id}/large.jpg`);
+  assert.equal(body.avatar_thumb_url, `https://example.test/p/${id}/thumb.jpg`);
+  const large = (await t.photos.get(id, 'large', 'shown'))!;
+  const meta = await sharp(large).metadata();
+  assert.deepEqual([meta.width, meta.height], [512, 512]);
+  assert.equal(meta.exif, undefined);
+  assert.deepEqual([(await sharp((await t.photos.get(id, 'thumb', 'shown'))!).metadata()).width], [160]);
+  // Everyone sees it: the player list, the page and the finders' faces on the site.
+  const players = await t.call('GET', '/players');
+  assert.equal(players.body.players.find((p: Json) => p.handle === 'ada').avatar_url, body.avatar_url);
+  assert.equal((await t.call('GET', '/players/ada')).body.avatar_thumb_url, body.avatar_thumb_url);
+  assert.equal((await t.call('GET', '/players/ben')).body.avatar_url, null);
+
+  // A new photo replaces the old one, whose files go.
+  const again = await t.call('PUT', '/me/avatar', { as: 'ada', raw: await photo('#b01c33') });
+  assert.equal(again.res.status, 200);
+  assert.notEqual(again.body.avatar_url, body.avatar_url);
+  assert.equal(await t.photos.get(id, 'large', 'shown'), undefined);
+
+  // Removing it brings the letter back, and removing none is fine.
+  const next = (await t.store.getPlayer(ada.id))!.avatar!;
+  const removed = await t.call('DELETE', '/me/avatar', { as: 'ada' });
+  assert.equal(removed.res.status, 200);
+  assert.equal(removed.body.avatar_url, null);
+  assert.equal(await t.photos.get(next, 'large', 'shown'), undefined);
+  assert.equal((await t.call('DELETE', '/me/avatar', { as: 'ada' })).res.status, 200);
+});
+
+test('a profile photo the moderator wouldn’t show is refused and kept nowhere', async () => {
+  const t = await setup();
+  t.moderator.avatar = { verdict: 'hold', reason: 'That one can’t be your photo.' };
+  const { res, body } = await t.call('PUT', '/me/avatar', { as: 'ada', raw: await photo() });
+  assert.equal(res.status, 422);
+  assert.equal(body.error.code, 'refused');
+  assert.equal(body.error.message, 'That one can’t be your photo.');
+  assert.equal((await t.store.getPlayer(ada.id))!.avatar, undefined);
+  assert.equal(t.photos.files.size, 0);
+
+  t.moderator.avatar = 'unavailable';
+  assert.equal((await t.call('PUT', '/me/avatar', { as: 'ada', raw: await photo() })).res.status, 503);
+  assert.equal(t.photos.files.size, 0);
+});
+
+test('a profile photo needs a sign-in, a photo, and stays under the limits', async () => {
+  const t = await setup();
+  assert.equal((await t.call('PUT', '/me/avatar', { raw: await photo() })).res.status, 401);
+  assert.equal((await t.call('DELETE', '/me/avatar')).res.status, 401);
+  const gif = await t.call('PUT', '/me/avatar', { as: 'ada', raw: await photo(), type: 'image/gif' });
+  assert.equal(gif.res.status, 400);
+  const junk = await t.call('PUT', '/me/avatar', { as: 'ada', raw: Buffer.from('not a photo') });
+  assert.equal(junk.res.status, 400);
+  const big = await t.call('PUT', '/me/avatar', { as: 'ada', raw: Buffer.alloc(LIMITS.photoBytes + 1) });
+  assert.equal(big.res.status, 413);
+  for (let i = 0; i < LIMITS.avatarsADay; i++) {
+    assert.equal((await t.call('PUT', '/me/avatar', { as: 'ben', raw: await photo() })).res.status, 200);
+  }
+  const over = await t.call('PUT', '/me/avatar', { as: 'ben', raw: await photo() });
+  assert.equal(over.res.status, 429);
+});
+
+test('deleting an account takes its profile photo with it', async () => {
+  const t = await setup();
+  await t.call('PUT', '/me/avatar', { as: 'cy', raw: await photo() });
+  const id = (await t.store.getPlayer(cy.id))!.avatar!;
+  assert.ok(await t.photos.get(id, 'large', 'shown'));
+  assert.equal((await t.call('DELETE', '/me', { as: 'cy' })).res.status, 204);
+  assert.equal(await t.photos.get(id, 'large', 'shown'), undefined);
+});
+
+/** The public (p/) and held keys: what a failed change must not leave behind. Uploads expire. */
+const shown = (photos: MemoryPhotoStore) => [...photos.files.keys()].filter((k) => !k.startsWith('uploads/'));
+
+test('a profile photo that fails to save leaves no public files, and one saved before the error stays', async () => {
+  const t = await setup();
+  t.photos.publish = async () => {
+    throw new Error('the bucket is down');
+  };
+  assert.equal((await t.call('PUT', '/me/avatar', { as: 'ada', raw: await photo() })).res.status, 500);
+  t.photos.publish = MemoryPhotoStore.prototype.publish.bind(t.photos);
+  assert.deepEqual(shown(t.photos), []);
+
+  const setAvatar = t.store.setAvatar.bind(t.store);
+  t.store.setAvatar = async () => {
+    throw new Error('the table is down');
+  };
+  assert.equal((await t.call('PUT', '/me/avatar', { as: 'ada', raw: await photo() })).res.status, 500);
+  assert.deepEqual(shown(t.photos), []);
+  assert.equal((await t.store.getPlayer(ada.id))!.avatar, undefined);
+
+  // The update landed and only its answer was lost: the photo is the player's, so it stays.
+  t.store.setAvatar = async (id, avatar) => {
+    await setAvatar(id, avatar);
+    throw new Error('the answer was lost');
+  };
+  assert.equal((await t.call('PUT', '/me/avatar', { as: 'ada', raw: await photo() })).res.status, 500);
+  const kept = (await t.store.getPlayer(ada.id))!.avatar!;
+  assert.ok(await t.photos.get(kept, 'large', 'shown'));
+
+  // And when the read that would tell is down too, the photo stays: the player may be showing it.
+  const getPlayer = t.store.getPlayer.bind(t.store);
+  t.store.getPlayer = (async (id: string, consistent?: boolean) => {
+    if (consistent) throw new Error('the table is down');
+    return getPlayer(id);
+  }) as typeof t.store.getPlayer;
+  assert.equal((await t.call('PUT', '/me/avatar', { as: 'ada', raw: await photo('#004c80') })).res.status, 500);
+  t.store.getPlayer = getPlayer;
+  const latest = (await t.store.getPlayer(ada.id))!.avatar!;
+  assert.notEqual(latest, kept);
+  assert.ok(await t.photos.get(latest, 'large', 'shown'));
+});
+
+test('a profile photo waits for an account delete that is under way', async () => {
+  const t = await setup();
+  assert.ok(await t.store.lease(`heart:${cy.id}`, 'a delete', 300));
+  const set = await t.call('PUT', '/me/avatar', { as: 'cy', raw: await photo() });
+  assert.equal(set.res.status, 409);
+  assert.equal((await t.call('DELETE', '/me/avatar', { as: 'cy' })).res.status, 409);
+  assert.equal(t.photos.files.size, 0);
+});

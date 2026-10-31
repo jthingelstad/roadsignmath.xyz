@@ -424,7 +424,7 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
                       {players.map(({ player, count }) => (
                         <li>
                           <a href={`/players/${player.handle}`}>
-                            <Avatar name={player.name} color={player.avatarColor} />
+                            <Avatar name={player.name} color={player.avatarColor} photo={player.avatar} />
                             <b>{player.name}</b>
                             <span class="soft">{countSigns(count)}</span>
                           </a>
@@ -565,7 +565,11 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
     const [ways, everyone] = await Promise.all([store.listWays(found.id), people()]);
     const sign = signDetail(urls, everyone, found, ways);
     const byHandle = new Map([...everyone.values()].map((p) => [p.handle, p]));
-    const colorOf = (handle: string | null | undefined) => (handle ? byHandle.get(handle)?.avatarColor : undefined);
+    /** A finder's or a way's player's face: their colour, and their profile photo when they set one. */
+    const faceOf = (handle: string | null | undefined) => {
+      const player = handle ? byHandle.get(handle) : undefined;
+      return { color: player?.avatarColor, photo: player?.avatar };
+    };
     const description = `${sign.title}, ${sign.place.label}${sign.first_way ? `: ${sign.first_way.text}` : ''}`;
     const { lat, lng } = found.place;
     const spot = lat !== undefined && lng !== undefined ? project(lat, lng) : null;
@@ -600,7 +604,7 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
                 <div class="by">
                   <span class="faces">
                     {sign.finders.map((f) => (
-                      <Avatar name={f.name} color={colorOf(f.handle)} size={44} />
+                      <Avatar name={f.name} {...faceOf(f.handle)} size={44} />
                     ))}
                   </span>
                   <span class="names">
@@ -632,7 +636,7 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
                     <ul>
                       {sign.ways.map((w) => (
                         <li>
-                          <Avatar name={w.by?.name || w.by?.handle || '?'} color={colorOf(w.by?.handle)} size={32} />
+                          <Avatar name={w.by?.name || w.by?.handle || '?'} {...faceOf(w.by?.handle)} size={32} />
                           <span class="what">
                             {w.tex === null ? (
                               <span class="eq">{w.text}</span>
@@ -764,7 +768,7 @@ const PlayerPage: FC<{
       <main class="player">
         <div class="wrap">
           <div class="who-is">
-            <Avatar name={player.name} color={player.avatarColor} size={140} />
+            <Avatar name={player.name} color={player.avatarColor} photo={player.avatar} size={140} />
             <div>
               <h1>{player.name}</h1>
               <dl>

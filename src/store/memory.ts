@@ -130,6 +130,15 @@ export class MemoryStore implements Store {
     return true;
   }
 
+  async setAvatar(id: string, avatar: string | null): Promise<{ previous?: string } | false> {
+    const player = this.players.get(id);
+    if (!player) return false;
+    const previous = player.avatar;
+    if (avatar === null) delete player.avatar;
+    else player.avatar = avatar;
+    return { previous };
+  }
+
   async claimEmail(email: string, playerId: string): Promise<string> {
     const key = emailHash(email);
     if (!this.emails.has(key)) this.emails.set(key, playerId);
