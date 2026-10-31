@@ -497,6 +497,11 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
             math, your caption, the ways you find on any sign, your name, your profile photo and your badges.
           </p>
           <p>
+            It is shared under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>, so anyone may use
+            it, photos included, as long as they credit you and Road Sign Math. The <a href="/data">open data</a> says
+            how.
+          </p>
+          <p>
             Every photo is saved again without its hidden details (camera, time and location) before anyone sees it. A
             sign’s place is shown on its map on purpose; a profile photo’s never is.
           </p>

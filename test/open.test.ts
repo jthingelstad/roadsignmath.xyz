@@ -356,3 +356,17 @@ test('every page names the feeds for readers, and no non-feed JSON as an alterna
   );
   assert.ok(player.includes('href="/players/ada/feed.json"'));
 });
+
+test('everything shared is CC BY 4.0: every file, the Atom feed, llms.txt, the data and privacy pages say so', async () => {
+  const { app } = await setup();
+  const cc = 'https://creativecommons.org/licenses/by/4.0/';
+  for (const path of ['/signs.json', '/players.json', '/signs.geojson']) {
+    const file = (await (await app.request(path)).json()) as { license: { name: string; url: string; credit: string } };
+    assert.equal(file.license.name, 'CC BY 4.0', path);
+    assert.equal(file.license.url, cc, path);
+    assert.ok(file.license.credit.length > 0, path);
+  }
+  assert.ok((await (await app.request('/feed.xml')).text()).includes(`<rights>CC BY 4.0: ${cc}</rights>`));
+  assert.ok((await (await app.request('/llms.txt')).text()).includes(`[Licence](${cc})`));
+  for (const path of ['/data', '/privacy']) assert.ok((await (await app.request(path)).text()).includes(cc), path);
+});

@@ -114,6 +114,16 @@ export function signRecord(data: OpenData, sign: Sign) {
   };
 }
 
+/**
+ * What may be done with everything the site shares: the signs, the math, the places, the names and
+ * the photos. Jamie's call, 2026-10-31: CC BY 4.0 for everything.
+ */
+export const LICENSE = {
+  name: 'CC BY 4.0',
+  url: 'https://creativecommons.org/licenses/by/4.0/',
+  credit: 'Credit the sign’s finders and Road Sign Math, and link to the sign’s page.'
+} as const;
+
 /** The header every open file starts with. */
 function header(data: OpenData, path: string, title: string, description: string) {
   const states = new Set(data.signs.map((s) => s.place.state).filter(Boolean));
@@ -124,6 +134,7 @@ function header(data: OpenData, path: string, title: string, description: string
     home_page_url: `${data.urls.site}/`,
     url: `${data.urls.site}${path}`,
     docs_url: `${data.urls.site}/data`,
+    license: LICENSE,
     updated: newestUpdate(data, data.signs),
     counts: {
       signs: data.signs.length,

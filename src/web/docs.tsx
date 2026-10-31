@@ -4,7 +4,7 @@
 
 import type { FC } from 'hono/jsx';
 import { API_VERSION, ROUTES } from '../api/contract.ts';
-import { DATA_VERSION, signRecord, type OpenData } from './data.ts';
+import { DATA_VERSION, LICENSE, signRecord, type OpenData } from './data.ts';
 import { FEED_SIZE } from './feeds.ts';
 import { SOURCE_URL } from './llms.ts';
 import { Page } from './layout.tsx';
@@ -23,6 +23,9 @@ export const HEADER_FIELDS: Field[] = [
   ['home_page_url', 'string', 'The site.'],
   ['url', 'string', 'The file itself.'],
   ['docs_url', 'string', 'This page.'],
+  ['license.name', 'string', 'The licence for everything in the file, photos too: CC BY 4.0.'],
+  ['license.url', 'string', 'The licence’s text.'],
+  ['license.credit', 'string', 'How to give credit.'],
   ['updated', 'string or null', 'The newest change to any sign: a post or a way, as a UTC time.'],
   ['counts.signs', 'number', 'Shown signs.'],
   ['counts.players', 'number', 'Players with a page: a name, and a sign or a badge on the map.'],
@@ -361,8 +364,10 @@ for (const sign of signs) {
           </li>
           <li>Only signs on the map are here. A sign that is held back or hidden never is.</li>
           <li>
-            Please credit Road Sign Math and the finders, and link to each sign’s page. The site’s code is{' '}
-            <a href={SOURCE_URL}>open source</a> under the MIT licence.
+            Everything here, the signs, the math, the places, the names and the photos, is shared under{' '}
+            <a href={LICENSE.url}>{LICENSE.name}</a>: use it for anything, as long as you credit the sign’s finders and
+            Road Sign Math, and link to the sign’s page. The site’s code is <a href={SOURCE_URL}>open source</a> under
+            the MIT licence.
           </li>
         </ul>
       </main>
