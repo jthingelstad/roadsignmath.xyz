@@ -8,10 +8,12 @@ import { check, normalizeNumber, numbersNotOnSign } from '../domain/equation.ts'
 import { slugify, ulid } from '../domain/ids.ts';
 import type { Finder, FinderRole, Photo, Place, Player, Report, Sign, SignNumber, Way } from '../domain/types.ts';
 import { ModeratorUnavailable, plainAlt, type Moderator, type Post } from '../moderation/moderator.ts';
+import { removeSignKudos } from '../hearts.ts';
 import { renditions, type PhotoStore } from '../photos.ts';
+import type { Tinylytics } from '../tinylytics.ts';
 import { nowSeconds, type Store } from '../store/store.ts';
 
-export type PostingDeps = { store: Store; photos: PhotoStore; moderator: Moderator };
+export type PostingDeps = { store: Store; photos: PhotoStore; moderator: Moderator; tinylytics?: Tinylytics };
 
 const DAY = 86400;
 const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -370,9 +372,12 @@ export async function postSign(
   }
 }
 
-/** Removes a sign the player posted, with its photos and every way on it. */
-export async function deleteSign({ store, photos }: PostingDeps, player: Player, sign: Sign): Promise<void> {
+/** Removes a sign the player posted, with its hearts, its photos and every way on it. */
+export async function deleteSign(deps: PostingDeps, player: Player, sign: Sign): Promise<void> {
+  const { store, photos } = deps;
   if (sign.postedBy !== player.id) fail('not_found', 'No sign of yours by that id');
+  // Its hearts first: if Tinylytics can't remove them, the sign is still whole to delete again.
+  await removeSignKudos(deps, [sign]);
   // The photos go first: if one can't be removed, the sign is still there to delete again.
   for (const photo of sign.photos) await photos.remove(photo.id);
   await store.deleteSign(sign.id);

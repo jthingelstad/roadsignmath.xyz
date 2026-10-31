@@ -140,3 +140,10 @@ export type Report = {
 
 /** A player who `playerId` doesn't want to see: their signs and ways drop out of reads. */
 export type Block = { playerId: string; blockedId: string; createdAt: string };
+
+/**
+ * A player's heart on a sign. The count lives in Tinylytics as a kudo at the sign's path with
+ * this `uid`; the row is how the server knows the player hearted it, and how it finds the kudo
+ * to take back. One per player per sign.
+ */
+export type Heart = { playerId: string; signId: string; uid: string; createdAt: string };

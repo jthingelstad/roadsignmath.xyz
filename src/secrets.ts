@@ -1,7 +1,8 @@
-// The live server's one credential, the moderator's Anthropic API key, is a key in the runtime
-// secret, which the owner keeps by hand in Secrets Manager. The stack names the secret
-// (RUNTIME_SECRET) and lets the server read it and nothing else. A missing secret or key reads as
-// none, so the server starts and answers without it; only posting waits for it.
+// The live server's two credentials are keys in the runtime secret, which the owner keeps by hand
+// in Secrets Manager: ANTHROPIC_API_KEY, the moderator's, and TINYLYTICS_API_KEY, for hearts and
+// the app's views. The stack names the secret (RUNTIME_SECRET) and lets the server read it and
+// nothing else. A missing secret or key reads as none, so the server starts and answers without
+// it: posting waits for the first, and hearts and app views are off without the second.
 
 import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 

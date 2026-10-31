@@ -46,6 +46,20 @@ test('the home page lists shown signs, newest first, and is cached', async () =>
   );
 });
 
+test('every sign has a heart: Tinylytics’ kudos button at the sign’s path', async () => {
+  const { app, slug } = await setup();
+  const home = await (await app.request('/')).text();
+  const button = (s: string) =>
+    `<button type="button" class="tinylytics_kudos" data-path="/signs/${s}" aria-label="Heart the`;
+  assert.ok(home.includes(button(slug('Newer Sign'))));
+  assert.ok(home.includes(button(slug('Older Sign'))));
+  // Outside the card's link, so a tap hearts the sign instead of opening it.
+  assert.match(home, /<\/a><div class="foot"><button type="button" class="tinylytics_kudos"/);
+  const page = await (await app.request(`/signs/${slug('Newer Sign')}`)).text();
+  assert.equal(page.split('class="tinylytics_kudos"').length, 2);
+  assert.ok(page.includes(button(slug('Newer Sign'))));
+});
+
 test('a sign has its own page; a held or unknown one is not found', async () => {
   const { app, slug } = await setup();
   const res = await app.request(`/signs/${slug('Newer Sign')}`);

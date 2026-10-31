@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Road Sign Math API",
-    "version": "1.4.0",
+    "version": "1.5.0",
     "summary": "The signs, the map and the players of Road Sign Math.",
     "description": "Every public sign, the ways people found to make it true, the map and who’s playing, read by anyone; sign-in by email, your own account, and posting signs and ways from the app. Answers are JSON in UTF-8 with snake_case keys and carry an `API-Version` header. A request with a token is never cached. An error is `{\"error\": {\"code\", \"message\"}}`.",
     "license": {
@@ -220,7 +220,7 @@
             }
           },
           "503": {
-            "description": "The moderator couldn’t look just now; try again in a minute.",
+            "description": "The moderator or the hearts counter couldn’t answer just now; try again in a minute.",
             "content": {
               "application/json": {
                 "schema": {
@@ -426,7 +426,7 @@
       "delete": {
         "operationId": "deleteSign",
         "summary": "Delete a sign you posted",
-        "description": "Removes the sign, its photos and every way on it.",
+        "description": "Removes the sign, its photos, every way on it and its hearts. A 503 means its hearts couldn’t be removed just now and the sign is still there; try again in a minute.",
         "security": [
           {
             "token": []
@@ -477,6 +477,16 @@
           },
           "404": {
             "description": "No such route, sign or player.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The moderator or the hearts counter couldn’t answer just now; try again in a minute.",
             "content": {
               "application/json": {
                 "schema": {
@@ -863,7 +873,7 @@
       "delete": {
         "operationId": "deleteMe",
         "summary": "Delete your account",
-        "description": "Deletes your account and everything it made: the signs you posted (with every way on them), the ways you found on other signs, your name among a sign’s finders, and your email. It can’t be undone.",
+        "description": "Deletes your account and everything it made: the signs you posted (with every way and heart on them), the ways you found and the hearts you gave on other signs, your name among a sign’s finders, and your email. It can’t be undone. A 503 means a heart couldn’t be taken back just now and nothing more was deleted; try again in a minute.",
         "security": [
           {
             "token": []
@@ -883,6 +893,16 @@
           },
           "401": {
             "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The moderator or the hearts counter couldn’t answer just now; try again in a minute.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1221,6 +1241,210 @@
         }
       }
     },
+    "/api/v1/signs/{id}/heart": {
+      "put": {
+        "operationId": "heartSign",
+        "summary": "Heart a sign",
+        "description": "One heart per player per sign; hearting it again changes nothing. Only a shown sign can be hearted. Answers with `hearted` and the sign’s `hearts`, which counts the website’s hearts too (null when the count can’t be read just now). A 503 means the heart couldn’t be counted and nothing changed. At most 200 hearts given or taken back a day.",
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The sign’s id or slug.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Heart a sign",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HeartState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter or the body is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such route, sign or player.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "It already exists (that way was found), or the same post is still being made.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many tries for now; the message says when to try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The moderator or the hearts counter couldn’t answer just now; try again in a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "unheartSign",
+        "summary": "Take back your heart",
+        "description": "Taking back a heart you didn’t give changes nothing. A 503 means it couldn’t be taken back just now and nothing changed.",
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The sign’s id or slug.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Take back your heart",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HeartState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter or the body is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such route, sign or player.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "It already exists (that way was found), or the same post is still being made.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many tries for now; the message says when to try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The moderator or the hearts counter couldn’t answer just now; try again in a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/signs/{id}/report": {
       "post": {
         "operationId": "reportSign",
@@ -1322,7 +1546,64 @@
             }
           },
           "503": {
-            "description": "The moderator couldn’t look just now; try again in a minute.",
+            "description": "The moderator or the hearts counter couldn’t answer just now; try again in a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/app/views": {
+      "post": {
+        "operationId": "countAppViews",
+        "summary": "Count the app’s screen views",
+        "description": "Up to 20 screen views at once, each the path of the website page it matches (`/`, `/map`, `/signs/<slug>`, `/players/<handle>`) or a short one of its own (`/capture`): lowercase letters, digits and hyphens, at most two parts. They are counted in the site’s analytics as the app’s, with the request’s User-Agent and country and nothing about who sent them; signed in or not makes no difference. The answer comes once they are passed on, or a moment later if the counter is slow; a view that can’t be counted is dropped. At most 120 batches an hour from one network.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppViews"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Count the app’s screen views",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppViewsAccepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter or the body is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many tries for now; the message says when to try again.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1513,7 +1794,7 @@
           "api_version": {
             "type": "string",
             "examples": [
-              "1.4.0"
+              "1.5.0"
             ]
           },
           "signs": {
@@ -1775,6 +2056,8 @@
           "finders",
           "first_way",
           "way_count",
+          "hearts",
+          "hearted",
           "visibility",
           "moderation_note"
         ],
@@ -1854,6 +2137,29 @@
           "way_count": {
             "type": "integer",
             "minimum": 0
+          },
+          "hearts": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Hearts on the sign, from the website and the app together; null when they can’t be counted just now."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hearted": {
+            "anyOf": [
+              {
+                "type": "boolean",
+                "description": "Whether you hearted it; null when not signed in."
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "visibility": {
             "type": "string",
@@ -2069,7 +2375,9 @@
           "found_on",
           "numbers",
           "finders",
-          "thumb_url"
+          "thumb_url",
+          "hearts",
+          "hearted"
         ],
         "properties": {
           "id": {
@@ -2166,6 +2474,29 @@
               {
                 "type": "string",
                 "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hearts": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Hearts on the sign, from the website and the app together; null when they can’t be counted just now."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hearted": {
+            "anyOf": [
+              {
+                "type": "boolean",
+                "description": "Whether you hearted it; null when not signed in."
               },
               {
                 "type": "null"
@@ -2621,6 +2952,75 @@
           "note": {
             "type": "string",
             "description": "The moderator’s reason."
+          }
+        }
+      },
+      "HeartState": {
+        "type": "object",
+        "required": [
+          "hearted",
+          "hearts"
+        ],
+        "properties": {
+          "hearted": {
+            "type": "boolean"
+          },
+          "hearts": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "description": "The sign’s hearts now; null when they can’t be counted just now."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "AppViews": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "views"
+        ],
+        "properties": {
+          "views": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "maxLength": 100,
+                  "pattern": "^\\/(?:[a-z0-9-]{1,80}(?:\\/[a-z0-9-]{1,80})?)?$",
+                  "examples": [
+                    "/signs/speed-limit-55",
+                    "/map"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "AppViewsAccepted": {
+        "type": "object",
+        "required": [
+          "accepted"
+        ],
+        "properties": {
+          "accepted": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "How many views were taken."
           }
         }
       },

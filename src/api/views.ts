@@ -9,7 +9,9 @@ export type Urls = {
   site: string;
 };
 
-export const signUrl = (urls: Urls, sign: Sign): string => `${urls.site}/signs/${sign.slug}`;
+/** A sign's page on the site, and where its hearts are counted. */
+export const signPath = (sign: Sign): string => `/signs/${sign.slug}`;
+export const signUrl = (urls: Urls, sign: Sign): string => `${urls.site}${signPath(sign)}`;
 export const playerUrl = (urls: Urls, player: Player): string => `${urls.site}/players/${player.handle}`;
 export const photoUrl = (urls: Urls, photoId: string, size: 'large' | 'thumb'): string =>
   `${urls.site}/p/${photoId}/${size}.jpg`;
@@ -30,12 +32,29 @@ export const byNewest = (a: Sign, b: Sign): number => b.postedAt.localeCompare(a
 
 export type People = Map<string, Player>;
 
+/**
+ * Hearts as one reader sees them: every sign's count by path (missing when the counts can't be
+ * read) and, signed in, the ids of the signs they hearted.
+ */
+export type HeartView = { counts?: Map<string, number>; mine?: Set<string> };
+
+const heartsOf = (hearts: HeartView, sign: Sign) => ({
+  hearts: hearts.counts ? (hearts.counts.get(signPath(sign)) ?? 0) : null,
+  hearted: hearts.mine ? hearts.mine.has(sign.id) : null
+});
+
 function handleOf(people: People, playerId: string | undefined): string | null {
   return (playerId && people.get(playerId)?.handle) || null;
 }
 
 /** A sign as the feed, the map sheet and a player's grid show it, to a reader who blocked `blocked`. */
-export function signSummary(urls: Urls, people: People, sign: Sign, blocked: ReadonlySet<string> = new Set()) {
+export function signSummary(
+  urls: Urls,
+  people: People,
+  sign: Sign,
+  blocked: ReadonlySet<string> = new Set(),
+  hearts: HeartView = {}
+) {
   const url = isPublic(sign) ? photoUrl : heldPhotoUrl;
   const first = sign.firstWay && !blocked.has(sign.firstWay.playerId) ? sign.firstWay : undefined;
   return {
@@ -71,6 +90,7 @@ export function signSummary(urls: Urls, people: People, sign: Sign, blocked: Rea
     finders: sign.finders.map((f) => ({ name: f.name, handle: handleOf(people, f.playerId), role: f.role })),
     first_way: first ? { text: first.text, tex: texOf(first.text) ?? null, value: first.value } : null,
     way_count: sign.wayCount,
+    ...heartsOf(hearts, sign),
     visibility: sign.visibility,
     moderation_note: sign.visibility === 'shown' ? null : (sign.moderation?.note ?? null)
   };
@@ -90,10 +110,10 @@ export function wayView(people: People, way: Way) {
 }
 
 /** One sign's page: the summary and the ways this reader sees, oldest first. */
-export function signDetail(urls: Urls, people: People, sign: Sign, ways: Way[]) {
+export function signDetail(urls: Urls, people: People, sign: Sign, ways: Way[], hearts: HeartView = {}) {
   const first = ways[0];
   return {
-    ...signSummary(urls, people, sign),
+    ...signSummary(urls, people, sign, undefined, hearts),
     first_way: first ? { text: first.text, tex: texOf(first.text) ?? null, value: first.value } : null,
     way_count: ways.length,
     ways: ways.map((w) => wayView(people, w))
@@ -105,7 +125,7 @@ export function signDetail(urls: Urls, people: People, sign: Sign, ways: Way[]) 
  * number or finder without reading each sign. The app reads every pin at once, so the numbers
  * are bare values and the finders bare names.
  */
-export function pinView(urls: Urls, people: People, sign: Sign) {
+export function pinView(urls: Urls, people: People, sign: Sign, hearts: HeartView = {}) {
   const photo = sign.photos[0];
   return {
     id: sign.id,
@@ -120,7 +140,8 @@ export function pinView(urls: Urls, people: People, sign: Sign) {
     found_on: sign.foundOn,
     numbers: sign.numbers.map((n) => n.value),
     finders: sign.finders.map((f) => ({ name: f.name, handle: handleOf(people, f.playerId) })),
-    thumb_url: photo ? (isPublic(sign) ? photoUrl : heldPhotoUrl)(urls, photo.id, 'thumb') : null
+    thumb_url: photo ? (isPublic(sign) ? photoUrl : heldPhotoUrl)(urls, photo.id, 'thumb') : null,
+    ...heartsOf(hearts, sign)
   };
 }
 

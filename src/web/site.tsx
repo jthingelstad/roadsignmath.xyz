@@ -12,9 +12,11 @@ import { TINYLYTICS_SCRIPT, TINYLYTICS_SITE } from './tinylytics.ts';
 type Summary = ReturnType<typeof signSummary>;
 
 const STYLE = `
-:root { --ink: #1d2a24; --soft: #5b6b63; --line: #d9e0dc; --paper: #fbfcfb; --green: #0b6e3f; --card: #fff; }
+:root { --ink: #1d2a24; --soft: #5b6b63; --line: #d9e0dc; --paper: #fbfcfb; --green: #0b6e3f; --card: #fff;
+  --heart: #b01c33; --heart-soft: #fbe9ec; }
 @media (prefers-color-scheme: dark) {
-  :root { --ink: #e8efeb; --soft: #9fb0a7; --line: #2c3a33; --paper: #121a16; --green: #4fbf86; --card: #18221d; }
+  :root { --ink: #e8efeb; --soft: #9fb0a7; --line: #2c3a33; --paper: #121a16; --green: #4fbf86; --card: #18221d;
+    --heart: #e0566b; --heart-soft: #3a1d23; }
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--paper); color: var(--ink);
@@ -41,6 +43,18 @@ h1 { margin: 8px 0 4px; font-size: 28px; line-height: 1.2; }
 footer { color: var(--soft); font-size: 14px; text-align: center; padding: 24px 16px 40px; }
 `;
 
+/** The heart buttons, only on pages that load Tinylytics' script (it fills them in). */
+const HEART_STYLE = `
+.card .foot { padding: 0 12px 12px; }
+.tinylytics_kudos { font: inherit; font-size: 15px; line-height: 1; color: var(--ink); background: transparent;
+  border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; min-width: 56px; min-height: 32px;
+  cursor: pointer; }
+.tinylytics_kudos:empty::before { content: "❤️"; opacity: .45; }
+.tinylytics_kudos:hover { border-color: var(--heart); }
+.tinylytics_kudos.did_select { border-color: var(--heart); background: var(--heart-soft); cursor: default; }
+.hearts { margin: 4px 0 12px; }
+`;
+
 // `count` adds Tinylytics' counter. The sign-in page leaves it out: its URL carries the link's token.
 const Page: FC<PropsWithChildren<{ title: string; description: string; count?: boolean }>> = ({
   title,
@@ -54,7 +68,7 @@ const Page: FC<PropsWithChildren<{ title: string; description: string; count?: b
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>{title}</title>
       <meta name="description" content={description} />
-      <style dangerouslySetInnerHTML={{ __html: STYLE }} />
+      <style dangerouslySetInnerHTML={{ __html: count ? STYLE + HEART_STYLE : STYLE }} />
     </head>
     <body>
       <header>
@@ -78,6 +92,19 @@ const Equation: FC<{ way: { text: string; tex: string | null } }> = ({ way }) =>
 
 const finders = (s: Summary): string => s.finders.map((f) => f.name).join(', ');
 
+/**
+ * Tinylytics' kudos button, filled in by its script with ❤️ and the count. The count is kept at
+ * the sign's path, the same one the app's hearts use, so both add up together.
+ */
+const Heart: FC<{ sign: { slug: string; title: string } }> = ({ sign }) => (
+  <button
+    type="button"
+    class="tinylytics_kudos"
+    data-path={`/signs/${sign.slug}`}
+    aria-label={`Heart the ${sign.title} sign`}
+  />
+);
+
 const Card: FC<{ sign: Summary }> = ({ sign }) => {
   const photo = sign.photos[0];
   return (
@@ -94,6 +121,9 @@ const Card: FC<{ sign: Summary }> = ({ sign }) => {
           </p>
         </div>
       </a>
+      <div class="foot">
+        <Heart sign={sign} />
+      </div>
     </li>
   );
 };
@@ -156,6 +186,9 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
         <h1>{sign.title}</h1>
         <p class="meta">
           {sign.place.label} · found {sign.found_on} by {finders(sign)}
+        </p>
+        <p class="hearts">
+          <Heart sign={sign} />
         </p>
         {sign.caption && <p>{sign.caption}</p>}
         <ul class="ways">

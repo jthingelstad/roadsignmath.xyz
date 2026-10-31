@@ -13,6 +13,7 @@
 //   PLAYER#<playerId>   SESSION#<sha256>            a signed-in app (expires)
 //   PLAYER#<playerId>   UPLOAD#<photoId>            a photo uploaded, not yet posted (expires)
 //   PLAYER#<playerId>   BLOCK#<playerId>            a player they blocked
+//   PLAYER#<playerId>   HEART#<signId>              a sign they hearted, and its kudo's uid
 //   PLAYER#<playerId>   POST#<idempotencyKey>       the sign a post's key made (expires)
 //   LOGIN#<loginId>     LOGIN                       a sign-in in progress (expires)
 //   LIMIT#<key>         <windowStart>               a rate-limit count (expires)
@@ -33,7 +34,7 @@ import {
   UpdateCommand,
   type QueryCommandInput
 } from '@aws-sdk/lib-dynamodb';
-import type { Block, Login, Player, Report, Session, Sign, Upload, Way } from '../domain/types.ts';
+import type { Block, Heart, Login, Player, Report, Session, Sign, Upload, Way } from '../domain/types.ts';
 import { emailHash, nowSeconds, wayHash, type PlayerChanges, type SignChanges, type Store } from './store.ts';
 
 export const KEY_PREFIXES = [
@@ -53,6 +54,7 @@ export const KEY_PREFIXES = [
   'REPORT#',
   'UPLOAD#',
   'BLOCK#',
+  'HEART#',
   'POST#',
   'LOGIN#',
   'LOGIN',
@@ -501,6 +503,27 @@ export class DynamoStore implements Store {
       ExpressionAttributeValues: { ':pk': `PLAYER#${playerId}`, ':sk': 'BLOCK#' }
     });
     return items.map((i) => strip<Block>(i));
+  }
+
+  async putHeart(heart: Heart): Promise<void> {
+    await this.put(`PLAYER#${heart.playerId}`, `HEART#${heart.signId}`, 'heart', heart);
+  }
+
+  async getHeart(playerId: string, signId: string): Promise<Heart | undefined> {
+    const item = await this.get(`PLAYER#${playerId}`, `HEART#${signId}`);
+    return item && strip<Heart>(item);
+  }
+
+  async deleteHeart(playerId: string, signId: string): Promise<void> {
+    await this.delete(`PLAYER#${playerId}`, `HEART#${signId}`);
+  }
+
+  async listHearts(playerId: string): Promise<Heart[]> {
+    const items = await this.query({
+      KeyConditionExpression: 'pk = :pk AND begins_with(sk, :sk)',
+      ExpressionAttributeValues: { ':pk': `PLAYER#${playerId}`, ':sk': 'HEART#' }
+    });
+    return items.map((i) => strip<Heart>(i));
   }
 
   async claimPost(playerId: string, key: string, signId: string, seconds: number): Promise<string | undefined> {
