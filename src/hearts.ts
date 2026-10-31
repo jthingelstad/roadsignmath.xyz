@@ -179,10 +179,15 @@ export async function setHeart(deps: HeartDeps, player: Player, sign: Sign, on: 
         if (undone) await store.deleteHeart(player.id, sign.id);
         return unavailable('heart', err);
       }
-      // A sign deleted while the kudo was made: its own sweep may have missed this one.
+      // A sign deleted while the kudo was made: its own sweep may have missed this one. If it
+      // can't be taken back now, the row stays as the record of it, for the account's delete.
       if (!(await store.getSign(sign.id, true))) {
-        await tinylytics.removeKudo(uid).catch(() => undefined);
-        await store.deleteHeart(player.id, sign.id);
+        const undone = await tinylytics.removeKudo(uid).then(
+          () => true,
+          () => false
+        );
+        if (undone) await store.deleteHeart(player.id, sign.id);
+        else console.error({ event: 'tinylytics', op: 'heart-on-deleted-sign', outcome: 'kept' });
         fail('not_found', 'No sign by that id');
       }
     } else {

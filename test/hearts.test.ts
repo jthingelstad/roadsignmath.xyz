@@ -241,6 +241,25 @@ test('a sign deleted while a heart is being made doesn’t keep the kudo', async
   assert.deepEqual(await store.listHearts(ada.id), []);
 });
 
+test('a kudo on a deleted sign that can’t be taken back keeps its row, for the account’s delete', async () => {
+  const { store, tinylytics, call } = await setup();
+  let go!: () => void;
+  tinylytics!.pause = new Promise((resolve) => (go = resolve));
+  const put = call('PUT', '/signs/bens-sign/heart', { as: 'ada' });
+  while (!tinylytics!.calls.includes('addKudo')) await new Promise((r) => setImmediate(r));
+  assert.equal((await call('DELETE', '/signs/bens-sign', { as: 'ben' })).res.status, 204);
+  tinylytics!.failing.add('removeKudo');
+  go();
+  assert.equal((await put).res.status, 404);
+  assert.equal(tinylytics!.kudosKept.length, 1);
+  assert.equal((await store.listHearts(ada.id)).length, 1);
+
+  tinylytics!.failing.clear();
+  tinylytics!.pause = undefined;
+  assert.equal((await call('DELETE', '/me', { as: 'ada' })).res.status, 204);
+  assert.deepEqual(tinylytics!.kudosKept, []);
+});
+
 test('an account isn’t deleted while one of its hearts is being made', async () => {
   const { store, tinylytics, call } = await setup();
   let go!: () => void;
