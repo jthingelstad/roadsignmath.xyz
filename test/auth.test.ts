@@ -61,6 +61,8 @@ test('the email has a link to the app and a code, and says how long they last', 
   assert.equal(link.origin + link.pathname, 'https://example.test/signin');
   assert.equal(loginId, body.login_id);
   assert.match(mail.text, /15 minutes/);
+  assert.ok(mail.html?.includes(`href="${link.href.replaceAll('&', '&amp;')}"`), 'the HTML part has the link');
+  assert.ok(mail.html?.includes(`>${/code is (\d{6})/.exec(mail.subject)![1]}</td>`), 'and the code');
 });
 
 test('the first sign-in makes a player with no name yet; the token works until sign-out', async () => {
