@@ -57,6 +57,8 @@ h1, h2, h3 { font-weight: 900; letter-spacing: -0.01em; }
 .avatar { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%;
   color: #fff; font-weight: 900; width: 36px; height: 36px; }
 .avatar.ink { color: #18201C; }
+.avatar.photo { overflow: hidden; background: var(--line); }
+.avatar.photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .plate { background: var(--green); border-radius: 14px; padding: 4px; }
 .plate > span { display: block; border: 2.5px solid #fff; border-radius: 10px; padding: 12px; color: #fff; text-align: center;
   font-weight: 800; font-size: 21px; line-height: 1.3; overflow-x: auto; }
@@ -231,16 +233,29 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
   </html>
 );
 
-/** A round avatar with the player's first letter in their colour. Yellow takes ink, as the design does. */
-export const Avatar: FC<{ name: string; color?: string; size?: number }> = ({ name, color = '#006348', size = 36 }) => (
-  <span
-    aria-hidden="true"
-    class={color.toUpperCase() === '#F2B300' ? 'avatar ink' : 'avatar'}
-    style={`background: ${color}; width: ${size}px; height: ${size}px; font-size: ${Math.round(size * 0.42)}px`}
-  >
-    {[...(name.trim() || '?')][0].toUpperCase()}
-  </span>
-);
+/**
+ * A round avatar: the player's profile photo (`photo`, its id) when they set one, or their first
+ * letter in their colour. Yellow takes ink, as the design does.
+ */
+export const Avatar: FC<{ name: string; color?: string; size?: number; photo?: string }> = ({
+  name,
+  color = '#006348',
+  size = 36,
+  photo
+}) =>
+  photo ? (
+    <span aria-hidden="true" class="avatar photo" style={`width: ${size}px; height: ${size}px`}>
+      <img src={`/p/${photo}/${size > 64 ? 'large' : 'thumb'}.jpg`} alt="" loading="lazy" />
+    </span>
+  ) : (
+    <span
+      aria-hidden="true"
+      class={color.toUpperCase() === '#F2B300' ? 'avatar ink' : 'avatar'}
+      style={`background: ${color}; width: ${size}px; height: ${size}px; font-size: ${Math.round(size * 0.42)}px`}
+    >
+      {[...(name.trim() || '?')][0].toUpperCase()}
+    </span>
+  );
 
 /** A way's math on the sign plate, drawn from its LaTeX; the plain text when there is none. */
 export const Plate: FC<{ way: { text: string; tex: string | null } }> = ({ way }) => (

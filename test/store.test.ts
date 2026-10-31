@@ -23,6 +23,18 @@ for (const [name, make] of kinds) {
       assert.equal(await store.getSign('nope'), undefined);
     });
 
+    test('a profile photo is set, replaced and removed, and says what it replaced', async () => {
+      const store = make();
+      await addPlayer(store, ada);
+      assert.deepEqual(await store.setAvatar(ada.id, 'p1'), { previous: undefined });
+      assert.equal((await store.getPlayer(ada.id))?.avatar, 'p1');
+      assert.deepEqual(await store.setAvatar(ada.id, 'p2'), { previous: 'p1' });
+      assert.deepEqual(await store.setAvatar(ada.id, null), { previous: 'p2' });
+      assert.equal((await store.getPlayer(ada.id))?.avatar, undefined);
+      assert.equal((await store.getPlayer(ada.id))?.name, 'Ada');
+      assert.equal(await store.setAvatar('nobody', 'p3'), false);
+    });
+
     test('a slug is freed only by the sign holding it', async () => {
       const store = make();
       assert.equal(await store.claimSlug('exit-7', 'S1'), true);

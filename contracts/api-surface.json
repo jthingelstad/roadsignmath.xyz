@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Road Sign Math API",
-    "version": "1.6.1",
+    "version": "1.7.0",
     "summary": "The signs, the map and the players of Road Sign Math.",
     "description": "Every public sign, the ways people found to make it true, the map and who’s playing, read by anyone; sign-in by email, your own account, and posting signs and ways from the app. Answers are JSON in UTF-8 with snake_case keys and carry an `API-Version` header. A request with a token is never cached. An error is `{\"error\": {\"code\", \"message\"}}`.",
     "license": {
@@ -951,6 +951,161 @@
         }
       }
     },
+    "/api/v1/me/avatar": {
+      "put": {
+        "operationId": "setAvatar",
+        "summary": "Set your profile photo",
+        "description": "The body is the photo itself, JPEG, PNG or WebP, at most 4 MB. It is cropped square from its middle (send it already cropped), kept at two sizes with its metadata (and so its location) removed, and shown to everyone at once in place of your first letter. The moderator looks first: a 422 means it wouldn’t show the photo, and its message says why. The photo it replaces is removed. At most 20 a day.",
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "image/jpeg": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/png": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Set your profile photo",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter or the body is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The photo is over 4 MB.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The moderator wouldn’t show that profile photo; the message says why, for the player.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many tries for now; the message says when to try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The moderator or the hearts counter couldn’t answer just now; try again in a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "removeAvatar",
+        "summary": "Remove your profile photo",
+        "description": "Removes your profile photo; your first letter shows again. Removing none is fine.",
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Remove your profile photo",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/me/blocks": {
       "get": {
         "operationId": "listBlocks",
@@ -1806,6 +1961,7 @@
                   "not_found",
                   "conflict",
                   "too_large",
+                  "refused",
                   "rate_limited",
                   "internal",
                   "unavailable"
@@ -1831,7 +1987,7 @@
           "api_version": {
             "type": "string",
             "examples": [
-              "1.6.1"
+              "1.7.0"
             ]
           },
           "signs": {
@@ -2569,6 +2725,8 @@
           "handle",
           "name",
           "avatar_color",
+          "avatar_url",
+          "avatar_thumb_url",
           "bio",
           "url",
           "sign_count",
@@ -2584,7 +2742,32 @@
           },
           "avatar_color": {
             "type": "string",
-            "pattern": "^#[0-9A-F]{6}$"
+            "pattern": "^#[0-9A-F]{6}$",
+            "description": "Behind the first letter of the name, when there is no profile photo."
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri",
+                "description": "The profile photo, 512 pixels square, JPEG; null when there is none."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "avatar_thumb_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri",
+                "description": "The profile photo at 160 pixels square, for small faces."
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "bio": {
             "anyOf": [

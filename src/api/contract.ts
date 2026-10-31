@@ -6,7 +6,7 @@
  * Bump on every change to the surface. tools/export-api-contract.ts refuses a changed surface
  * under a version already in contracts/api-versions.json.
  */
-export const API_VERSION = '1.6.1';
+export const API_VERSION = '1.7.0';
 
 export const LIMITS = {
   /** Signs per page of the feed. */
@@ -32,6 +32,7 @@ export const LIMITS = {
   uploadTtl: 86400,
   /** Tries a day per player. */
   uploadsADay: 60,
+  avatarsADay: 20,
   postsADay: 20,
   waysADay: 100,
   reportsADay: 20,
@@ -50,6 +51,7 @@ export const ERRORS = {
   not_found: 'No such route, sign or player.',
   conflict: 'It already exists (that way was found), or the same post is still being made.',
   too_large: `The photo is over ${LIMITS.photoBytes / 1024 / 1024} MB.`,
+  refused: 'The moderator wouldn’t show that profile photo; the message says why, for the player.',
   rate_limited: 'Too many tries for now; the message says when to try again.',
   internal: 'Something broke on the server.',
   unavailable: 'The moderator or the hearts counter couldn’t answer just now; try again in a minute.'
@@ -350,6 +352,35 @@ export const ROUTES: Route[] = [
     auth: 'signed_in',
     errors: ['conflict', 'unavailable'],
     status: 204
+  },
+  {
+    operationId: 'setAvatar',
+    method: 'put',
+    path: '/me/avatar',
+    summary: 'Set your profile photo',
+    description:
+      `The body is the photo itself, JPEG, PNG or WebP, at most ${LIMITS.photoBytes / 1024 / 1024} MB. It is ` +
+      'cropped square from its middle (send it already cropped), kept at two sizes with its metadata (and so its ' +
+      'location) removed, and shown to everyone at once in place of your first letter. The moderator looks ' +
+      'first: a 422 means it wouldn’t show the photo, and its message says why. The photo it replaces is ' +
+      `removed. At most ${LIMITS.avatarsADay} a day.`,
+    params: [],
+    auth: 'signed_in',
+    bodyMedia: ['image/jpeg', 'image/png', 'image/webp'],
+    errors: ['too_large', 'refused', 'rate_limited', 'unavailable'],
+    status: 200,
+    response: 'Me'
+  },
+  {
+    operationId: 'removeAvatar',
+    method: 'delete',
+    path: '/me/avatar',
+    summary: 'Remove your profile photo',
+    description: 'Removes your profile photo; your first letter shows again. Removing none is fine.',
+    params: [],
+    auth: 'signed_in',
+    status: 200,
+    response: 'Me'
   },
   {
     operationId: 'listBlocks',

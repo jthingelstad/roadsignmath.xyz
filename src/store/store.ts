@@ -60,6 +60,11 @@ export interface Store {
    * changed because the player is gone or already named.
    */
   updatePlayer(id: string, changes: PlayerChanges, onlyIfUnnamed?: boolean): Promise<boolean>;
+  /**
+   * Points the player at a new profile photo, or at none with null, and returns the photo it
+   * replaced so its files can go. False when the player is gone.
+   */
+  setAvatar(id: string, avatar: string | null): Promise<{ previous?: string } | false>;
   playerIdForEmail(email: string): Promise<string | undefined>;
   /** Points the email at the player unless another player already has it; returns its owner. */
   claimEmail(email: string, playerId: string): Promise<string>;

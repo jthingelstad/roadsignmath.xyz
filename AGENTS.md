@@ -21,7 +21,8 @@ ids or ARNs, local paths, or photos of plates or faces that weren't meant to be 
   own held and hidden signs. A player's email never leaves the server.
 - **Moderation is Claude's alone** (`src/moderation/`). No person reviews posts. Claude holds a
   post only when it is clearly objectionable, looks again when a player reports one (hiding it
-  if it agrees), and writes each photo's alt text in the same call. A block hides a player's
+  if it agrees), and writes each photo's alt text in the same call. It also looks at a profile
+  photo before it goes up, under the same `POLICY`, and one it wouldn't show is refused. A block hides a player's
   signs and ways from the one who blocked them. What counts as objectionable (`POLICY`) is the
   owner's call: change its words only with the owner's go.
 - Product calls (what counts, moderation, what players are promised, who sees what) are the
@@ -41,7 +42,7 @@ ids or ARNs, local paths, or photos of plates or faces that weren't meant to be 
 | `src/hearts.ts` | Hearts: hearting and taking back (our row plus a Tinylytics kudo, kept in step), every sign's count from one cached read of the site's kudos, and removing kudos when a sign or account goes. |
 | `src/tinylytics.ts` | The Tinylytics API client (site 1525) with the full-access key from the runtime secret: kudos, and the app's screen views as hits. No key means `off`, never a crash; the key never reaches a log or an answer. |
 | `src/moderation/` | `Moderator`: Claude live (`claude-haiku-5-5`), lets everything through in `npm run dev` without a key. |
-| `src/photos.ts` | The two served sizes of a photo (1600 and 480 px JPEGs, no metadata) and `PhotoStore`: S3 live, `.data/` for `npm run dev`, memory in tests. Only a shown sign's photos are under `p/`, which the site serves; a held or hidden sign's are under `held/`, which only its poster reads, through `GET /me/photos/{id}/{size}`. |
+| `src/photos.ts` | The two served sizes of a photo (1600 and 480 px JPEGs, no metadata; a profile photo 512 and 160 px square) and `PhotoStore`: S3 live, `.data/` for `npm run dev`, memory in tests. Only a shown sign's photos are under `p/`, which the site serves; a held or hidden sign's are under `held/`, which only its poster reads, through `GET /me/photos/{id}/{size}`. |
 | `src/seed/` | Builds the launch set from the micro.blog export and `seed/microblog.json`. |
 | `src/dev.ts` | The local server on port 8787, reading `.data/` (ignored by git). |
 | `src/server.ts` | The live server: `src/live.ts` wires the table, photo bucket, SES and the moderator from the stack's environment, and `src/listen.ts` serves on the address the platform gives. The moderator's and Tinylytics' keys are read from the runtime secret (`src/secrets.ts`). |
@@ -98,7 +99,7 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
   sets the handle, which never changes after. Limits are in `src/auth/auth.ts`.
 - A request with an `Authorization` header is never cached, and a bad token is a 401 even on
   a public read.
-- `DELETE /me` removes the player, the signs they posted (with their photos and hearts), their
+- `DELETE /me` removes the player, their profile photo, the signs they posted (with their photos and hearts), their
   ways, reports and hearts on other signs, and their place in other signs' finders. Their
   hearts' kudos go first: if Tinylytics can't take one back, it is a 503 and nothing is deleted.
   It holds the player's heart lease throughout (a 409 while one of their hearts is changing).
@@ -134,6 +135,14 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
   under `p/`, and a hidden sign's leave it (with CloudFront's cached copies). An `Idempotency-Key` makes a
   retried post one sign. A post or report the moderator can't answer is a 503 and changes
   nothing. Daily limits are in `LIMITS` in `src/api/contract.ts`.
+- **Profile photos** (`src/auth/account.ts`): `PUT /me/avatar` takes the photo itself, crops it
+  square from its middle (the app sends it cropped), keeps 512 and 160 px JPEGs with no metadata,
+  and puts them straight under `p/` once the moderator says ok (a 422 `refused` with its reason
+  when not, a 503 when it can't answer); the photo it replaces is removed. `DELETE /me/avatar`
+  takes it down. The player row holds the photo's id (`avatar`); `avatar_url` and
+  `avatar_thumb_url` are on every player (`/me`, `/players`, `/players/{handle}`), and the site
+  draws it wherever a face was a coloured letter. Clients find a finder's or a way's face by
+  handle in `/players`. `DELETE /me` removes it too.
 
 ## The launch set
 

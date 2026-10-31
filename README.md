@@ -26,8 +26,9 @@ main ([`docs/DEPLOY.md`](docs/DEPLOY.md)).
   [`contracts/api-surface.json`](contracts/api-surface.json) and served at
   `/api/v1/openapi.json`.
 - Sign-in for the app: anyone can sign in with an email address, by tapping the
-  link in the email or typing its 6-digit code. Players can set their name and
-  bio, and delete their account with everything they posted.
+  link in the email or typing its 6-digit code. Players can set their name,
+  bio and a profile photo (Claude looks at it first), and delete their account
+  with everything they posted.
 - Posting from the app: upload photos, post a sign with its numbers and its
   first way (or unsolved), add more ways to anyone's sign, delete your own,
   report a sign, and block a player. Claude moderates: it holds a post only when

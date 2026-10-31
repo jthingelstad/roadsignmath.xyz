@@ -29,7 +29,7 @@ function needName(player: Player): void {
   if (!player.name) fail('bad_request', 'Give your name first');
 }
 
-async function moderate<T>(ask: () => Promise<T>): Promise<T> {
+export async function moderate<T>(ask: () => Promise<T>): Promise<T> {
   try {
     return await ask();
   } catch (err) {
@@ -44,6 +44,22 @@ async function moderate<T>(ask: () => Promise<T>): Promise<T> {
 // ---------------------------------------------------------------------------------------------
 // Photos
 
+/** A photo sent as a request's raw body, refused when it isn't a kind we take or is too big. */
+export async function readPhoto(
+  type: string | undefined,
+  body: () => Promise<ArrayBuffer>,
+  length: number | undefined
+): Promise<Buffer> {
+  const media = (type ?? '').split(';')[0].trim().toLowerCase();
+  if (!PHOTO_TYPES.includes(media)) fail('bad_request', 'Send a JPEG, PNG or WebP photo');
+  const tooLarge = `A photo can be at most ${LIMITS.photoBytes / 1024 / 1024} MB`;
+  if (length !== undefined && length > LIMITS.photoBytes) fail('too_large', tooLarge);
+  const bytes = Buffer.from(await body());
+  if (bytes.length > LIMITS.photoBytes) fail('too_large', tooLarge);
+  if (!bytes.length) fail('bad_request', 'The photo is empty');
+  return bytes;
+}
+
 /** Keeps an uploaded photo, at both sizes and without its metadata, until it is posted. */
 export async function uploadPhoto(
   { store, photos }: PostingDeps,
@@ -52,14 +68,7 @@ export async function uploadPhoto(
   body: () => Promise<ArrayBuffer>,
   length: number | undefined
 ): Promise<{ id: string; width: number; height: number }> {
-  const media = (type ?? '').split(';')[0].trim().toLowerCase();
-  if (!PHOTO_TYPES.includes(media)) fail('bad_request', 'Send a JPEG, PNG or WebP photo');
-  const tooLarge = `A photo can be at most ${LIMITS.photoBytes / 1024 / 1024} MB`;
-  if (length !== undefined && length > LIMITS.photoBytes) fail('too_large', tooLarge);
-  const bytes = Buffer.from(await body());
-  if (bytes.length > LIMITS.photoBytes) fail('too_large', tooLarge);
-  if (!bytes.length) fail('bad_request', 'The photo is empty');
-
+  const bytes = await readPhoto(type, body, length);
   const now = nowSeconds();
   await limit(store, `uploads:${player.id}`, LIMITS.uploadsADay, DAY, now, `Too many photos today. ${tomorrow}`);
   const sized = await renditions(bytes).catch(() => fail('bad_request', 'That photo couldn’t be read'));
