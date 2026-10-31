@@ -125,7 +125,16 @@ export type PageMeta = {
   style?: string;
   /** A small script of the page's own, run after it loads. */
   script?: string;
+  /** Feeds of the page's own, for feed readers to find beside the site's (a player's signs). */
+  feeds?: { type: string; title: string; href: string }[];
 };
+
+/** The site's feeds and llms.txt, in every page's head. Non-feed JSON stays out: JSON Feed 1.0 readers take any application/json alternate for a feed. */
+const ALTERNATES = [
+  { type: 'application/atom+xml', title: 'Road Sign Math', href: '/feed.xml' },
+  { type: 'application/feed+json', title: 'Road Sign Math', href: '/feed.json' },
+  { type: 'text/markdown', title: 'Road Sign Math for AI tools', href: '/llms.txt' }
+];
 
 let logoMarkup: string | undefined;
 /** The design's logo, √(5 − 1) = 2 (the Twin Lakes sign) on a sign plate, as one SVG. */
@@ -172,6 +181,7 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
   count = true,
   style = '',
   script,
+  feeds = [],
   children
 }) => (
   <html lang="en">
@@ -189,6 +199,9 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
       {url && <meta property="og:url" content={url} />}
       {image && <meta property="og:image" content={image} />}
       <meta name="twitter:card" content={image ? 'summary_large_image' : 'summary'} />
+      {[...feeds, ...ALTERNATES].map((a) => (
+        <link rel="alternate" type={a.type} title={a.title} href={a.href} />
+      ))}
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
       <link
@@ -235,6 +248,7 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
           <nav aria-label="About">
             <a href="/about">About</a>
             <a href="/privacy">Privacy</a>
+            <a href="/data">Feeds and data</a>
           </nav>
         </div>
       </footer>

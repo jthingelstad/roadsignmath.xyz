@@ -23,6 +23,8 @@ import { BadgeRow } from './badges.tsx';
 import { ARCHIVE_URL, Avatar, logoSvg, longDay, Page, Phone, Plate, shortDay, TESTFLIGHT_URL } from './layout.tsx';
 import { cluster, clusterName, countSigns, project, type Cluster } from './map.ts';
 import { mathSvg } from './math.ts';
+import { feedAlternates } from './feeds.ts';
+import { createOpenWeb } from './open.tsx';
 import { US_BORDERS, US_LAND, US_MAP_SIZE } from './us-map.ts';
 
 type Summary = ReturnType<typeof signSummary>;
@@ -328,8 +330,11 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
 
   // For search engines: every page that answers 200. The API and the sign-in link's landing
   // are not pages to index.
+  // The API's OpenAPI description is allowed: llms.txt and /data point agents at it.
   site.get('/robots.txt', (c) =>
-    c.text(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /signin\n\nSitemap: ${urls.site}/sitemap.xml\n`)
+    c.text(
+      `User-agent: *\nAllow: /\nAllow: /api/v1/openapi.json\nDisallow: /api/\nDisallow: /signin\n\nSitemap: ${urls.site}/sitemap.xml\n`
+    )
   );
   site.get('/sitemap.xml', async (c) => {
     const [signs, everyone] = await Promise.all([store.allSigns(), people()]);
@@ -342,6 +347,7 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
       [`${urls.site}/`, shown.map(changed).sort().at(-1)],
       [`${urls.site}/about`, undefined],
       [`${urls.site}/privacy`, undefined],
+      [`${urls.site}/data`, undefined],
       ...shown.map((s): [string, string] => [`${urls.site}/signs/${s.slug}`, changed(s)]),
       // The same test as the player's page: a name, and a sign or a badge on the map.
       ...[...everyone.values()]
@@ -943,6 +949,9 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
     );
   });
 
+  // The feeds, the open data files, llms.txt and the /data page that documents them.
+  site.route('/', createOpenWeb({ store, urls }));
+
   return site;
 }
 
@@ -964,6 +973,7 @@ const PlayerPage: FC<{
       description={`Road signs ${player.name} found${since}.`}
       url={`${urls.site}${base}`}
       image={stats.signs[0] ? summary(stats.signs[0]).photos[0]?.url : undefined}
+      feeds={feedAlternates({ title: `${player.name} · Road Sign Math`, base: `${urls.site}${base}` }, urls.site)}
       style={PLAYER_STYLE}
     >
       <main class="player">
