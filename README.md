@@ -33,6 +33,10 @@ main ([`docs/DEPLOY.md`](docs/DEPLOY.md)).
   report a sign, and block a player. Claude moderates: it holds a post only when
   it is clearly objectionable, looks again when someone reports one, and writes
   each photo's alt text.
+- Hearts: a ❤️ on every sign, from the website (Tinylytics' kudos button, no
+  account) and from the app (signed in, one per player per sign), counted
+  together in [Tinylytics](https://tinylytics.app). The app's screen views are
+  counted there too, as the app's, with nothing about who.
 
 ## Running it
 
@@ -42,7 +46,7 @@ Node 24.
 npm ci
 npm run seed -- --export <micro.blog export> --to local   # the 16 launch signs, into .data/
 npm run dev      # http://localhost:8787/api/v1; sign-in emails land in .data/mail/ (.txt and .html)
-                 # posts aren't moderated unless ANTHROPIC_API_KEY is set
+                 # posts aren't moderated unless ANTHROPIC_API_KEY is set; hearts are off
 npm run verify   # format, lint, types and tests
 ```
 

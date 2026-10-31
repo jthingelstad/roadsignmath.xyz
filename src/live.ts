@@ -11,6 +11,7 @@ import { KeyedModerator } from './moderation/moderator.ts';
 import { S3PhotoStore } from './photos.ts';
 import { TEAM_ID } from './web/apple.ts';
 import { secretField } from './secrets.ts';
+import { KeyedTinylytics } from './tinylytics.ts';
 import { DynamoStore } from './store/dynamo.ts';
 
 export type LiveConfig = {
@@ -49,6 +50,9 @@ export function liveConfig(env: Record<string, string | undefined> = process.env
 /** The key the moderator asks for: ANTHROPIC_API_KEY in the runtime secret. */
 export const moderatorKey = (config: LiveConfig) => () => secretField(config.runtimeSecret, 'ANTHROPIC_API_KEY');
 
+/** The key hearts and app views use: TINYLYTICS_API_KEY in the runtime secret. */
+export const tinylyticsKey = (config: LiveConfig) => () => secretField(config.runtimeSecret, 'TINYLYTICS_API_KEY');
+
 export function liveOptions(config: LiveConfig): ApiOptions {
   return {
     store: new DynamoStore(config.table),
@@ -57,6 +61,7 @@ export function liveOptions(config: LiveConfig): ApiOptions {
     photos: new S3PhotoStore(config.photoBucket, config.photoDistributionId),
     moderator: new KeyedModerator(moderatorKey(config)),
     clientIp: cloudFrontIp,
-    appleTeamId: config.appleTeamId
+    appleTeamId: config.appleTeamId,
+    tinylytics: new KeyedTinylytics(tinylyticsKey(config))
   };
 }

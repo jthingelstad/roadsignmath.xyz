@@ -217,7 +217,9 @@ test('map pins carry what a search reads: place, numbers and finders', async () 
       { name: 'Ben', handle: 'ben' },
       { name: 'A friend', handle: null }
     ],
-    thumb_url: 'https://example.test/p/ph-01JS0000000000000000000002/thumb.jpg'
+    thumb_url: 'https://example.test/p/ph-01JS0000000000000000000002/thumb.jpg',
+    hearts: null,
+    hearted: null
   });
 });
 

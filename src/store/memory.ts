@@ -1,4 +1,4 @@
-import type { Block, Login, Player, Report, Session, Sign, Upload, Way } from '../domain/types.ts';
+import type { Block, Heart, Login, Player, Report, Session, Sign, Upload, Way } from '../domain/types.ts';
 import {
   addPlayer,
   addSign,
@@ -24,6 +24,7 @@ export class MemoryStore implements Store {
   private uploads = new Map<string, Upload>();
   private reports = new Map<string, Report>();
   private blocks = new Map<string, Block>();
+  private hearts = new Map<string, Heart>();
   private claims = new Map<string, { signId: string; expiresAt: number }>();
   private wayTexts = new Map<string, string>();
   private leases = new Map<string, { holder: string; expiresAt: number }>();
@@ -154,7 +155,7 @@ export class MemoryStore implements Store {
     if (player) await this.releaseHandle(player.handle, id);
     this.players.delete(id);
     const prefix = `${id}/`;
-    for (const map of [this.sessions, this.uploads, this.blocks, this.claims]) {
+    for (const map of [this.sessions, this.uploads, this.blocks, this.hearts, this.claims]) {
       for (const key of map.keys()) if (key.startsWith(prefix)) map.delete(key);
     }
   }
@@ -254,6 +255,23 @@ export class MemoryStore implements Store {
 
   async listBlocks(playerId: string): Promise<Block[]> {
     return [...this.blocks.values()].filter((b) => b.playerId === playerId).map(copy);
+  }
+
+  async putHeart(heart: Heart): Promise<void> {
+    this.hearts.set(`${heart.playerId}/${heart.signId}`, copy(heart));
+  }
+
+  async getHeart(playerId: string, signId: string): Promise<Heart | undefined> {
+    const heart = this.hearts.get(`${playerId}/${signId}`);
+    return heart && copy(heart);
+  }
+
+  async deleteHeart(playerId: string, signId: string): Promise<void> {
+    this.hearts.delete(`${playerId}/${signId}`);
+  }
+
+  async listHearts(playerId: string): Promise<Heart[]> {
+    return [...this.hearts.values()].filter((h) => h.playerId === playerId).map(copy);
   }
 
   async claimPost(playerId: string, key: string, signId: string, seconds: number): Promise<string | undefined> {

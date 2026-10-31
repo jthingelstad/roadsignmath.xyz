@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { Block, Login, Player, Report, Session, Sign, Upload, Way } from '../domain/types.ts';
+import type { Block, Heart, Login, Player, Report, Session, Sign, Upload, Way } from '../domain/types.ts';
 
 export type PlayerChanges = { name?: string; handle?: string; bio?: string | null };
 
@@ -19,7 +19,8 @@ export type SignChanges = {
 export interface Store {
   /** Every sign, whatever its visibility. */
   allSigns(): Promise<Sign[]>;
-  getSign(id: string): Promise<Sign | undefined>;
+  /** `consistent` reads it strongly consistent, to see a delete or write just made. */
+  getSign(id: string, consistent?: boolean): Promise<Sign | undefined>;
   putSign(sign: Sign): Promise<void>;
   /**
    * Changes some of a sign's fields in place, so a new way can't undo a report's hide or the
@@ -49,7 +50,8 @@ export interface Store {
    */
   addWay(way: Way): Promise<'added' | 'taken' | 'gone'>;
   allPlayers(): Promise<Player[]>;
-  getPlayer(id: string): Promise<Player | undefined>;
+  /** `consistent` reads it strongly consistent, to see a delete or write just made. */
+  getPlayer(id: string, consistent?: boolean): Promise<Player | undefined>;
   /** Writes the player's row. The email and handle are claimed separately, first. */
   putPlayer(player: Player): Promise<void>;
   /**
@@ -67,7 +69,7 @@ export interface Store {
   releaseHandle(handle: string, playerId: string): Promise<void>;
   /**
    * Removes the player, their email and handle (when they still point at this player), and
-   * everything kept under them: sessions, uploads, blocks and post keys. Signs, ways and
+   * everything kept under them: sessions, uploads, blocks, hearts and post keys. Signs, ways and
    * reports are the caller's.
    */
   deletePlayer(id: string): Promise<void>;
@@ -111,6 +113,12 @@ export interface Store {
   putBlock(block: Block): Promise<void>;
   deleteBlock(playerId: string, blockedId: string): Promise<void>;
   listBlocks(playerId: string): Promise<Block[]>;
+
+  putHeart(heart: Heart): Promise<void>;
+  getHeart(playerId: string, signId: string): Promise<Heart | undefined>;
+  deleteHeart(playerId: string, signId: string): Promise<void>;
+  /** Every heart the player gave. A deleted sign's hearts stay here until the player goes. */
+  listHearts(playerId: string): Promise<Heart[]>;
 
   /**
    * Claims a post's Idempotency-Key for a sign id, for `seconds`. Returns undefined when this

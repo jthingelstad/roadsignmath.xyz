@@ -14,6 +14,7 @@ import {
 import { S3PhotoStore } from '../src/photos.ts';
 import { secretField } from '../src/secrets.ts';
 import { DynamoStore } from '../src/store/dynamo.ts';
+import { KeyedTinylytics } from '../src/tinylytics.ts';
 
 // Made up: the stack's environment for a fictional deploy. Nothing here reaches the network.
 const env = {
@@ -40,6 +41,7 @@ test('the live server is wired from the stack environment', () => {
   assert.ok(options.photos instanceof S3PhotoStore);
   assert.ok(options.mailer instanceof SesMailer);
   assert.ok(options.moderator instanceof KeyedModerator);
+  assert.ok(options.tinylytics instanceof KeyedTinylytics);
   assert.deepEqual(options.urls, { site: 'https://example.test' });
   assert.ok(createApp(options));
 });

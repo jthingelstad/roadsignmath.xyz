@@ -1,11 +1,14 @@
 // What a signed-in player can change about themselves: their name and bio, and deleting the
 // account with everything it made.
 
+import { randomUUID } from 'node:crypto';
 import { fail } from '../api/errors.ts';
 import { text } from '../api/input.ts';
 import { slugify } from '../domain/ids.ts';
 import type { Player } from '../domain/types.ts';
+import { heartLease, removePlayerHearts, removeSignKudos, sweepSignKudos } from '../hearts.ts';
 import type { PhotoStore } from '../photos.ts';
+import type { Tinylytics } from '../tinylytics.ts';
 import type { PlayerChanges, Store } from '../store/store.ts';
 
 export const NAME_MAX = 40;
@@ -50,14 +53,40 @@ export async function updateMe(store: Store, player: Player, body: Record<string
 }
 
 /**
- * Deletes the player and what they made: the signs they posted (with their photos and every way
- * on them), the ways they added to other signs, their place among a sign's finders, their
- * reports, and everything kept under them (sessions, uploads, blocks) and their email. Photos
- * uploaded and never posted go when the bucket clears uploads.
+ * Deletes the player and what they made: the signs they posted (with their photos, every way on
+ * them and their hearts), the ways they added to other signs, the hearts they gave, their place
+ * among a sign's finders, their reports, and everything kept under them (sessions, uploads,
+ * blocks) and their email. Photos uploaded and never posted go when the bucket clears uploads.
+ * Hearts go first: if Tinylytics can't take them back, nothing else is deleted yet.
  */
-export async function deleteAccount(deps: { store: Store; photos: PhotoStore }, player: Player): Promise<void> {
+export async function deleteAccount(
+  deps: { store: Store; photos: PhotoStore; tinylytics?: Tinylytics },
+  player: Player
+): Promise<void> {
+  const { store } = deps;
+  // The player's heart lease, held to the end, so no heart of theirs is made while this runs.
+  const lease = heartLease(player.id);
+  const holder = randomUUID();
+  if (!(await store.lease(lease, holder, 300))) {
+    fail('conflict', 'A heart of yours is changing. Try again in a minute.');
+  }
+  try {
+    await deleteEverything(deps, player);
+  } finally {
+    await store.endLease(lease, holder).catch(() => undefined);
+  }
+}
+
+async function deleteEverything(
+  deps: { store: Store; photos: PhotoStore; tinylytics?: Tinylytics },
+  player: Player
+): Promise<void> {
   const { store, photos } = deps;
-  for (const sign of await store.allSigns()) {
+  const signs = await store.allSigns();
+  const theirSigns = signs.filter((s) => s.postedBy === player.id);
+  await removePlayerHearts(deps, player);
+  await removeSignKudos(deps, theirSigns);
+  for (const sign of signs) {
     if (sign.postedBy === player.id) {
       // The photos go first, so a failed removal leaves the sign for the next try.
       for (const photo of sign.photos) await photos.remove(photo.id);
@@ -78,4 +107,6 @@ export async function deleteAccount(deps: { store: Store; photos: PhotoStore }, 
     });
   }
   await store.deletePlayer(player.id);
+  // Other players' hearts made on their signs while those were deleted.
+  await sweepSignKudos(deps, theirSigns);
 }

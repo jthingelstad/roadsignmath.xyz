@@ -21,10 +21,13 @@ us-east-1:
   go after a day, and replaced or deleted photos 30 days after.
 - **Sign-in mail** from `signin@roadsignmath.xyz` through SES, DKIM-signed, with
   `bounce.roadsignmath.xyz` as the MAIL FROM domain. The function may send only as that address.
-- **The moderator's key**, `ANTHROPIC_API_KEY` in the Secrets Manager secret
-  `roadsignmath-xyz-runtime`. The owner keeps that secret by hand; no stack or deploy writes it,
-  and the function may read it and no other. Until it has a key, posting and reporting answer
-  503 and change nothing; everything else works.
+- **The runtime secret**, `roadsignmath-xyz-runtime` in Secrets Manager, with two keys:
+  `ANTHROPIC_API_KEY` (the moderator's) and `TINYLYTICS_API_KEY` (a full-access Tinylytics key,
+  for hearts and the app's screen views). The owner keeps that secret by hand; no stack or deploy
+  writes it, and the function may read it and no other. Without the first, posting and reporting
+  answer 503 and change nothing; without the second, every sign's `hearts` is null, hearting
+  answers 503, and app views are dropped. Everything else works either way. The function reads
+  the Tinylytics key again within an hour of a change (five minutes while it is missing).
 - **Logs and alarms**: the function's log (90 days), the distribution's access log in
   `/roadsignmath-xyz/web-access` (24 months, no client IP, path or query), and count-only alarms
   on server errors, the endpoint's ceilings and the hourly sign-in limit. They go to the
@@ -90,10 +93,11 @@ back as they are.
 2. **The GitHub environment** (the owner, in the repository's settings): an environment named
    `production` that admits only `main`, with no reviewers, and an environment secret
    `RELEASE_DEPLOY_ROLE_ARN` set to the deploy stack's `DeployRoleArn` output.
-3. **The moderator's key** (the owner, in the Secrets Manager console, us-east-1): a secret named
-   `roadsignmath-xyz-runtime`, of type "Other", with one key/value pair: `ANTHROPIC_API_KEY` and
-   the key. No agent reads or writes its value. It can come after the first release; until then
-   posting answers 503.
+3. **The runtime secret** (the owner, in the Secrets Manager console, us-east-1): a secret named
+   `roadsignmath-xyz-runtime`, of type "Other", with two key/value pairs: `ANTHROPIC_API_KEY` and
+   the moderator's key, and `TINYLYTICS_API_KEY` and a full-access (`tly-fa-`) Tinylytics key.
+   No agent reads or writes their values. They can come after the first release; until then
+   posting answers 503 and hearts are off.
 4. **The alerts queue** (an account change outside a deploy, so the owner's go): add
    `arn:aws:sns:us-east-1:<account>:roadsignmath-xyz-alarms` to the `aws:SourceArn` list in the
    `projects-ops-alerts` queue policy, and to its table in projects-sysadmin's

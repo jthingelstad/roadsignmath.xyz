@@ -10,10 +10,14 @@ import type { Store } from '../store/store.ts';
 import { API_VERSION, LIMITS, ROUTES } from './contract.ts';
 import { ApiError, fail, STATUS } from './errors.ts';
 import { deleteAccount, updateMe } from '../auth/account.ts';
-import { finishSignIn, signOut, startSignIn, viewerFor, type Viewer } from '../auth/auth.ts';
+import { finishSignIn, network, signOut, startSignIn, viewerFor, type Viewer } from '../auth/auth.ts';
+import { HeartCounts, heartView, setHeart } from '../hearts.ts';
 import type { Mailer } from '../mail/mailer.ts';
 import type { Moderator } from '../moderation/moderator.ts';
 import type { PhotoStore } from '../photos.ts';
+import { TinylyticsUnavailable, VIEW_PATH, type Hit, type Tinylytics } from '../tinylytics.ts';
+import { nowSeconds } from '../store/store.ts';
+import { limit } from './input.ts';
 import { appSiteAssociation } from '../web/apple.ts';
 import { createSite } from '../web/site.tsx';
 import {
@@ -36,6 +40,7 @@ import {
   isPublic,
   signSummary,
   visibleTo,
+  type HeartView,
   type People,
   type Urls
 } from './views.ts';
@@ -50,7 +55,36 @@ export type ApiOptions = {
   clientIp?: (c: Context) => string;
   /** The Apple Team ID that signs the iPhone app; without it there is no apple-app-site-association. */
   appleTeamId?: string;
+  /** Hearts' counts and the app's views; without it hearts are off (counts null) and views dropped. */
+  tinylytics?: Tinylytics;
 };
+
+/** The viewer's two-letter country from CloudFront, when it sent one. */
+function viewerCountry(c: Context): string | undefined {
+  const raw = c.req.header('cloudfront-viewer-country')?.trim().toUpperCase();
+  return raw && /^[A-Z]{2}$/.test(raw) ? raw : undefined;
+}
+
+/** The body of `POST /app/views`: its paths, checked. */
+function appViews(body: Record<string, unknown>): string[] {
+  const extra = Object.keys(body).filter((k) => k !== 'views');
+  if (extra.length) fail('bad_request', `Only views can be sent, not ${extra.join(', ')}`);
+  const views = body.views;
+  if (!Array.isArray(views) || views.length < 1 || views.length > LIMITS.viewsMax) {
+    return fail('bad_request', `views is a list of 1 to ${LIMITS.viewsMax}`);
+  }
+  return views.map((v: unknown, i) => {
+    const view = v as Record<string, unknown> | null;
+    if (!view || typeof view !== 'object' || Array.isArray(view) || Object.keys(view).some((k) => k !== 'path')) {
+      return fail('bad_request', `views[${i}] is an object with only a path`);
+    }
+    const path = view.path;
+    if (typeof path !== 'string' || path.length > LIMITS.viewPathMax || !VIEW_PATH.test(path)) {
+      return fail('bad_request', `views[${i}].path must look like /signs/<slug> or /map`);
+    }
+    return path;
+  });
+}
 
 /** Behind CloudFront the viewer's address arrives as `CloudFront-Viewer-Address: <ip>:<port>`. */
 export function cloudFrontIp(c: Context): string {
@@ -111,7 +145,10 @@ function sharedNumbers(wanted: string[], sign: Sign): number {
 }
 
 type Data = { signs: Sign[]; people: People; blocked: Set<string> };
-type Handler = (c: Context, ctx: { data: () => Promise<Data>; viewer?: Viewer }) => Promise<Response>;
+type Handler = (
+  c: Context,
+  ctx: { data: () => Promise<Data>; hearts: () => Promise<HeartView>; viewer?: Viewer }
+) => Promise<Response>;
 
 async function jsonBody(c: Context): Promise<Record<string, unknown>> {
   const body = (await c.req.json().catch(() => undefined)) as unknown;
@@ -122,7 +159,9 @@ async function jsonBody(c: Context): Promise<Record<string, unknown>> {
 
 export function createApi(options: ApiOptions): Hono {
   const { store, urls, mailer, clientIp = cloudFrontIp } = options;
-  const deps = { store, photos: options.photos, moderator: options.moderator };
+  const { tinylytics } = options;
+  const deps = { store, photos: options.photos, moderator: options.moderator, tinylytics };
+  const heartDeps = { store, tinylytics, counts: new HeartCounts(tinylytics) };
   const api = new Hono();
 
   /** The signs this reader sees, newest first, and every player by id. Read whole: there are few. */
@@ -144,12 +183,13 @@ export function createApi(options: ApiOptions): Hono {
   const findSign = (signs: Sign[], key: string): Sign =>
     signs.find((s) => s.id === key || s.slug === key) ?? fail('not_found', 'No sign by that id');
 
-  const detail = (people: People, blocked: Set<string>, sign: Sign, ways: Way[]) =>
+  const detail = (people: People, blocked: Set<string>, sign: Sign, ways: Way[], hearts: HeartView) =>
     signDetail(
       urls,
       people,
       sign,
-      ways.filter((w) => !blocked.has(w.playerId))
+      ways.filter((w) => !blocked.has(w.playerId)),
+      hearts
     );
 
   const handlers: Record<string, Handler> = {
@@ -170,8 +210,8 @@ export function createApi(options: ApiOptions): Hono {
       return c.json(openApi());
     },
 
-    async listSigns(c, { data }) {
-      const { signs, people, blocked } = await data();
+    async listSigns(c, { data, hearts }) {
+      const [{ signs, people, blocked }, h] = await Promise.all([data(), hearts()]);
       const limit = limitParam(c);
       const raw = c.req.query('cursor');
       let start = 0;
@@ -183,13 +223,13 @@ export function createApi(options: ApiOptions): Hono {
       const page = signs.slice(start, start + limit);
       const more = start + limit < signs.length;
       return c.json({
-        signs: page.map((s) => signSummary(urls, people, s, blocked)),
+        signs: page.map((s) => signSummary(urls, people, s, blocked, h)),
         next_cursor: more ? encodeCursor(page[page.length - 1]) : null
       });
     },
 
-    async listSignsNear(c, { data }) {
-      const { signs, people, blocked } = await data();
+    async listSignsNear(c, { data, hearts }) {
+      const [{ signs, people, blocked }, h] = await Promise.all([data(), hearts()]);
       const lat = numberParam(c, 'lat', -90, 90);
       const lng = numberParam(c, 'lng', -180, 180);
       const near = signs
@@ -199,14 +239,14 @@ export function createApi(options: ApiOptions): Hono {
         .slice(0, LIMITS.nearMax);
       return c.json({
         signs: near.map((n) => ({
-          ...signSummary(urls, people, n.sign, blocked),
+          ...signSummary(urls, people, n.sign, blocked, h),
           miles: Math.round(n.miles * 10) / 10
         }))
       });
     },
 
-    async listSimilarSigns(c, { data }) {
-      const { signs, people, blocked } = await data();
+    async listSimilarSigns(c, { data, hearts }) {
+      const [{ signs, people, blocked }, h] = await Promise.all([data(), hearts()]);
       const lat = numberParam(c, 'lat', -90, 90);
       const lng = numberParam(c, 'lng', -180, 180);
       const raw = (c.req.query('numbers') ?? '')
@@ -226,22 +266,22 @@ export function createApi(options: ApiOptions): Hono {
         .sort((a, b) => a.miles - b.miles);
       return c.json({
         signs: similar.map((n) => ({
-          ...signSummary(urls, people, n.sign, blocked),
+          ...signSummary(urls, people, n.sign, blocked, h),
           miles: Math.round(n.miles * 10) / 10
         }))
       });
     },
 
-    async getSign(c, { data }) {
-      const { signs, people, blocked } = await data();
+    async getSign(c, { data, hearts }) {
+      const [{ signs, people, blocked }, h] = await Promise.all([data(), hearts()]);
       const sign = findSign(signs, pathParam(c, 'id'));
-      return c.json(detail(people, blocked, sign, await store.listWays(sign.id)));
+      return c.json(detail(people, blocked, sign, await store.listWays(sign.id), h));
     },
 
-    async getMap(c, { data }) {
-      const { signs, people } = await data();
+    async getMap(c, { data, hearts }) {
+      const [{ signs, people }, h] = await Promise.all([data(), hearts()]);
       const years = [...new Set(signs.map((s) => Number(s.foundOn.slice(0, 4))))].sort((a, b) => a - b);
-      return c.json({ pins: signs.map((s) => pinView(urls, people, s)), years });
+      return c.json({ pins: signs.map((s) => pinView(urls, people, s, h)), years });
     },
 
     async listPlayers(c, { data }) {
@@ -253,15 +293,15 @@ export function createApi(options: ApiOptions): Hono {
       return c.json({ players: playing.map((p) => playerView(urls, p.player, signs)) });
     },
 
-    async getPlayer(c, { data }) {
-      const { signs, people, blocked } = await data();
+    async getPlayer(c, { data, hearts }) {
+      const [{ signs, people, blocked }, h] = await Promise.all([data(), hearts()]);
       const handle = pathParam(c, 'handle');
       const player =
         [...people.values()].find((p) => p.handle === handle) ?? fail('not_found', 'No player by that handle');
       const stats = playerStats(player, signs);
       return c.json({
         ...playerView(urls, player, signs),
-        signs: stats.signs.map((s) => signSummary(urls, people, s, blocked))
+        signs: stats.signs.map((s) => signSummary(urls, people, s, blocked, h))
       });
     },
 
@@ -330,13 +370,13 @@ export function createApi(options: ApiOptions): Hono {
       return c.json(upload, 201);
     },
 
-    async postSign(c, { viewer }) {
+    async postSign(c, { hearts, viewer }) {
       const body = await jsonBody(c);
       const { sign, ways } = await postSign(deps, viewer!.player, body, c.req.header('idempotency-key'));
       const people = new Map((await store.allPlayers()).map((p) => [p.id, p]));
       // A replayed post can carry ways added since, by players the poster has blocked.
       const blocked = new Set((await store.listBlocks(viewer!.player.id)).map((b) => b.blockedId));
-      return c.json(detail(people, blocked, sign, ways), 201);
+      return c.json(detail(people, blocked, sign, ways, await hearts()), 201);
     },
 
     async deleteSign(c, { data, viewer }) {
@@ -345,12 +385,47 @@ export function createApi(options: ApiOptions): Hono {
       return c.body(null, 204);
     },
 
-    async addWay(c, { data, viewer }) {
+    async addWay(c, { data, hearts, viewer }) {
       const { signs, people, blocked } = await data();
       const sign = findSign(signs, pathParam(c, 'id'));
       const ways = await addWay(deps, viewer!.player, sign, await jsonBody(c));
       const fresh = (await store.getSign(sign.id)) ?? sign;
-      return c.json(detail(people, blocked, fresh, ways), 201);
+      return c.json(detail(people, blocked, fresh, ways, await hearts()), 201);
+    },
+
+    async heartSign(c, { data, viewer }) {
+      const sign = findSign((await data()).signs, pathParam(c, 'id'));
+      return c.json(await setHeart(heartDeps, viewer!.player, sign, true));
+    },
+
+    async unheartSign(c, { data, viewer }) {
+      const key = pathParam(c, 'id');
+      // A heart given before the sign was hidden, or its poster blocked, can still be taken back.
+      const mine = await store.listHearts(viewer!.player.id);
+      const sign =
+        (await store.allSigns()).find((s) => (s.id === key || s.slug === key) && mine.some((h) => h.signId === s.id)) ??
+        findSign((await data()).signs, key);
+      return c.json(await setHeart(heartDeps, viewer!.player, sign, false));
+    },
+
+    async countAppViews(c) {
+      const paths = appViews(await jsonBody(c));
+      const now = nowSeconds();
+      const later = 'Too many views for now. Try again in an hour.';
+      await limit(store, `views:${network(clientIp(c))}`, LIMITS.viewBatchesAnHour, 3600, now, later);
+      await limit(store, 'views-all', LIMITS.viewBatchesAllAnHour, 3600, now, later);
+      if (tinylytics) {
+        const userAgent = c.req.header('user-agent')?.slice(0, 512) || undefined;
+        const country = viewerCountry(c);
+        const hits: Hit[] = paths.map((path) => ({ path, userAgent, country }));
+        // Awaited, briefly: work after the answer may never run on the platform.
+        await tinylytics.addHits(hits).catch((err: unknown) => {
+          if (!(err instanceof TinylyticsUnavailable)) throw err;
+          if (!err.off)
+            console.error({ event: 'tinylytics', op: 'views', outcome: 'unavailable', detail: err.message });
+        });
+      }
+      return c.json({ accepted: paths.length }, 202);
     },
 
     async reportSign(c, { data, viewer }) {
@@ -386,7 +461,12 @@ export function createApi(options: ApiOptions): Hono {
       const viewer = await viewerFor(store, c.req.header('authorization'));
       if (route.auth === 'signed_in' && !viewer) fail('unauthorized', 'Sign in first');
       let loaded: Promise<Data> | undefined;
-      return handler(c, { data: () => (loaded ??= load(viewer)), viewer });
+      let hearts: Promise<HeartView> | undefined;
+      return handler(c, {
+        data: () => (loaded ??= load(viewer)),
+        hearts: () => (hearts ??= heartView(heartDeps, viewer?.player.id)),
+        viewer
+      });
     });
   }
 

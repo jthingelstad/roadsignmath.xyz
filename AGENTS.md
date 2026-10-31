@@ -34,15 +34,17 @@ ids or ARNs, local paths, or photos of plates or faces that weren't meant to be 
 | `src/domain/` | The data model (`types.ts`), the equation checker, ids and slugs, miles. No I/O. |
 | `src/store/` | `Store`, with `MemoryStore` (tests, `npm run dev`) and `DynamoStore` (the live table). |
 | `src/api/` | `/api/v1` on Hono. `contract.ts` is the route table, limits and errors; `openapi.ts` describes it; `views.ts` makes the JSON. |
-| `src/web/` | The website's pages (`site.tsx`, Hono JSX): every shown sign at `/` and one page per sign at `/signs/<slug>`, public and cached a minute. The math is MathJax SVG drawn on the server; the only script is Tinylytics' counter, on every page but the sign-in link's (`tinylytics.ts`: the site id, the script, and the pixel the sign-in email carries). `apple.ts` is the apple-app-site-association that opens the sign-in link and sign pages in the app. The designed pages (map, players, sign-in) come later. |
+| `src/web/` | The website's pages (`site.tsx`, Hono JSX): every shown sign at `/` and one page per sign at `/signs/<slug>`, public and cached a minute. The math is MathJax SVG drawn on the server; the only script is Tinylytics' counter, on every page but the sign-in link's (`tinylytics.ts`: the site id, the script, and the pixel the sign-in email carries), which also fills each sign's heart (a `tinylytics_kudos` button at `/signs/<slug>`, on the home grid and the sign's page). `apple.ts` is the apple-app-site-association that opens the sign-in link and sign pages in the app. The designed pages (map, players, sign-in) come later. |
 | `src/auth/` | Sign-in by email (link or code), tokens, and the account: name, bio, delete. |
 | `src/mail/` | `Mailer`: SES live, files in `.data/mail/` for `npm run dev` (the text, and the HTML beside it), memory in tests. `signin.ts` is the sign-in email: a plain-text part and a designed HTML part (tables, inline styles, dark mode, no script; its one image is Tinylytics' pixel, the same for every email, so opens count per email, never per person) with the link and code escaped. |
 | `src/posting/` | Uploads, posting a sign, ways, deleting, reports and blocks. |
+| `src/hearts.ts` | Hearts: hearting and taking back (our row plus a Tinylytics kudo, kept in step), every sign's count from one cached read of the site's kudos, and removing kudos when a sign or account goes. |
+| `src/tinylytics.ts` | The Tinylytics API client (site 1525) with the full-access key from the runtime secret: kudos, and the app's screen views as hits. No key means `off`, never a crash; the key never reaches a log or an answer. |
 | `src/moderation/` | `Moderator`: Claude live (`claude-haiku-5-5`), lets everything through in `npm run dev` without a key. |
 | `src/photos.ts` | The two served sizes of a photo (1600 and 480 px JPEGs, no metadata) and `PhotoStore`: S3 live, `.data/` for `npm run dev`, memory in tests. Only a shown sign's photos are under `p/`, which the site serves; a held or hidden sign's are under `held/`, which only its poster reads, through `GET /me/photos/{id}/{size}`. |
 | `src/seed/` | Builds the launch set from the micro.blog export and `seed/microblog.json`. |
 | `src/dev.ts` | The local server on port 8787, reading `.data/` (ignored by git). |
-| `src/server.ts` | The live server: `src/live.ts` wires the table, photo bucket, SES and the moderator from the stack's environment, and `src/listen.ts` serves on the address the platform gives. The moderator's key is read from the runtime secret (`src/secrets.ts`). |
+| `src/server.ts` | The live server: `src/live.ts` wires the table, photo bucket, SES and the moderator from the stack's environment, and `src/listen.ts` serves on the address the platform gives. The moderator's and Tinylytics' keys are read from the runtime secret (`src/secrets.ts`). |
 | `infra/` | The stacks: `template.yaml` (the app: web function, table, photos, mail, CloudFront, alarms), `deploy.yaml` (deploy roles and code bucket) and `backup.yaml` (monthly backups). Only the app stack deploys on merge. |
 | `scripts/`, `deploy.sh` | The release: `build-release.sh` builds with no credentials, `release.sh` deploys and probes; `deploy.sh` runs both from the Mac. |
 | `seed/microblog.json` | The 16 micro.blog signs: titles, finders, numbers, places, alt text. |
@@ -69,6 +71,7 @@ and filtered in memory; at this size that is cheaper and simpler than indexes.
 | `PLAYER#<playerId>` | `SESSION#<sha256>` | a signed-in app (expires) |
 | `PLAYER#<playerId>` | `UPLOAD#<photoId>` | a photo uploaded, not yet posted (expires) |
 | `PLAYER#<playerId>` | `BLOCK#<playerId>` | a player they blocked |
+| `PLAYER#<playerId>` | `HEART#<signId>` | a sign they hearted, and its kudo's uid |
 | `PLAYER#<playerId>` | `POST#<idempotencyKey>` | the sign a post's key made (expires) |
 | `LOGIN#<loginId>` | `LOGIN` | a sign-in in progress (expires) |
 | `LIMIT#<key>` | `<windowStart>` | a rate-limit count (expires) |
@@ -95,8 +98,26 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
   sets the handle, which never changes after. Limits are in `src/auth/auth.ts`.
 - A request with an `Authorization` header is never cached, and a bad token is a 401 even on
   a public read.
-- `DELETE /me` removes the player, the signs they posted (with their photos), their ways and
-  reports on other signs, and their place in other signs' finders.
+- `DELETE /me` removes the player, the signs they posted (with their photos and hearts), their
+  ways, reports and hearts on other signs, and their place in other signs' finders. Their
+  hearts' kudos go first: if Tinylytics can't take one back, it is a 503 and nothing is deleted.
+  It holds the player's heart lease throughout (a 409 while one of their hearts is changing).
+- **Hearts** (`src/hearts.ts`): `PUT` and `DELETE /signs/{id}/heart`, signed in, one per player
+  per sign, idempotent. A heart is a Tinylytics kudo at `/signs/<slug>`, the same path as the
+  website's kudos button, so `hearts` on every sign (summary, detail, pin) counts both; it is
+  null when the counts can't be read. `hearted` is the signed-in reader's own, from our rows,
+  and null signed out. Writing a heart puts our row, then the kudo; if Tinylytics fails the kudo
+  is taken back too and the row removed, so a 503 changes nothing (if taking it back fails as
+  well, the row stays and a later DELETE removes both). A change holds the player's heart lease
+  with a holder of its own (a 409 while another is in flight), so a player's requests and their
+  account's delete can't cross, and heart rows are read strongly consistent. The kudo's uid is a
+  hash of the player and sign ids. Deleting a sign removes every kudo at its path (the
+  website's too) before the sign goes and again after, and a heart checks its sign is still
+  there once its kudo is made, so a later sign with the slug starts at none. Counts are read once a minute per instance;
+  Tinylytics allows the key 1,000 calls an hour.
+- **App views**: `POST /app/views` (public) passes up to 20 screen paths to Tinylytics as hits
+  with source `ios-app`, the request's User-Agent and CloudFront's viewer country, and no IP or
+  visitor id. It waits on Tinylytics two seconds at most and answers 202 either way.
 - **Posting** (`src/posting/`): `POST /photos` takes the photo itself and keeps it under
   `uploads/` for a day; `POST /signs` posts up to four of them. A held post's photos never go
   under `p/`, and a hidden sign's leave it (with CloudFront's cached copies). An `Idempotency-Key` makes a
@@ -133,8 +154,9 @@ looking at it.
   role. Roll back by reverting the merge. `./deploy.sh` does the same from the Mac.
 - The first deploy, the deploy and backup stacks (IAM), the alerts-queue policy, mail and site
   DNS records, the domain move and seeding live data each need the owner's go.
-- The runtime secret holds the moderator's key. The owner keeps it by hand; never read or write
-  its value.
+- The runtime secret holds the moderator's key (`ANTHROPIC_API_KEY`) and the Tinylytics key
+  (`TINYLYTICS_API_KEY`). The owner keeps it by hand; never read or write its values. Never test
+  hearts or app views against live Tinylytics with writes: tests use `test/support/tinylytics.ts`.
 - No account id, ARN, zone id or other resource id goes in this repo or its Actions logs:
   scripts read them from the stacks and mask them in Actions.
 - `validate` runs `cfn-lint` 1.57.2 on `infra/`; run it before pushing a template change:

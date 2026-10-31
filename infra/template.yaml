@@ -41,7 +41,7 @@ Parameters:
   RuntimeSecretName:
     Type: String
     Default: roadsignmath-xyz-runtime
-    Description: The Secrets Manager secret holding ANTHROPIC_API_KEY, the moderator's key. Kept by hand; no deploy writes it and the stack does not own it. Without it, posting answers 503.
+    Description: The Secrets Manager secret holding ANTHROPIC_API_KEY (the moderator's key) and TINYLYTICS_API_KEY (hearts and app views). Kept by hand; no deploy writes it and the stack does not own it. Without the first, posting answers 503; without the second, hearts are off.
   PhotoDistributionId:
     Type: String
     Default: ""
@@ -378,8 +378,9 @@ Resources:
           QueryStringsConfig: { QueryStringBehavior: all }
 
   # What the server reads beyond the key: the body's type, the answer it wants, the origin, a
-  # post's Idempotency-Key, the app's User-Agent, and the viewer's address for rate limits
-  # (cloudFrontIp in src/api/app.ts, trusted only because only CloudFront reaches the function).
+  # post's Idempotency-Key, the app's User-Agent, the viewer's address for rate limits
+  # (cloudFrontIp in src/api/app.ts, trusted only because only CloudFront reaches the function),
+  # and the viewer's country, which the app's screen views pass on to Tinylytics.
   WebRequestPolicy:
     Type: AWS::CloudFront::OriginRequestPolicy
     Properties:
@@ -387,7 +388,7 @@ Resources:
         Name: !Sub "${AWS::StackName}-web"
         HeadersConfig:
           HeaderBehavior: whitelist
-          Headers: [Content-Type, Accept, Origin, Idempotency-Key, User-Agent, CloudFront-Viewer-Address]
+          Headers: [Content-Type, Accept, Origin, Idempotency-Key, User-Agent, CloudFront-Viewer-Address, CloudFront-Viewer-Country]
         CookiesConfig: { CookieBehavior: none }
         QueryStringsConfig: { QueryStringBehavior: all }
 

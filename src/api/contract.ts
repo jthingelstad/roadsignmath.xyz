@@ -6,7 +6,7 @@
  * Bump on every change to the surface. tools/export-api-contract.ts refuses a changed surface
  * under a version already in contracts/api-versions.json.
  */
-export const API_VERSION = '1.4.0';
+export const API_VERSION = '1.5.0';
 
 export const LIMITS = {
   /** Signs per page of the feed. */
@@ -34,7 +34,14 @@ export const LIMITS = {
   uploadsADay: 60,
   postsADay: 20,
   waysADay: 100,
-  reportsADay: 20
+  reportsADay: 20,
+  /** Hearts given or taken back a day per player. */
+  heartsADay: 200,
+  /** App screen views: in one batch, batches an hour from one network, and batches an hour in all. */
+  viewsMax: 20,
+  viewPathMax: 100,
+  viewBatchesAnHour: 120,
+  viewBatchesAllAnHour: 400
 } as const;
 
 export const ERRORS = {
@@ -45,7 +52,7 @@ export const ERRORS = {
   too_large: `The photo is over ${LIMITS.photoBytes / 1024 / 1024} MB.`,
   rate_limited: 'Too many tries for now; the message says when to try again.',
   internal: 'Something broke on the server.',
-  unavailable: 'The moderator couldn’t look just now; try again in a minute.'
+  unavailable: 'The moderator or the hearts counter couldn’t answer just now; try again in a minute.'
 } as const;
 
 export type ErrorCode = keyof typeof ERRORS;
@@ -60,7 +67,7 @@ export type Param = {
 
 export type Route = {
   operationId: string;
-  method: 'get' | 'post' | 'patch' | 'delete';
+  method: 'get' | 'post' | 'put' | 'patch' | 'delete';
   /** OpenAPI form, under /api/v1: "/signs/{id}". */
   path: string;
   summary: string;
@@ -319,10 +326,13 @@ export const ROUTES: Route[] = [
     path: '/me',
     summary: 'Delete your account',
     description:
-      'Deletes your account and everything it made: the signs you posted (with every way on them), the ways ' +
-      'you found on other signs, your name among a sign’s finders, and your email. It can’t be undone.',
+      'Deletes your account and everything it made: the signs you posted (with every way and heart on them), ' +
+      'the ways you found and the hearts you gave on other signs, your name among a sign’s finders, and your ' +
+      'email. It can’t be undone. A 503 means a heart couldn’t be taken back just now and nothing more was ' +
+      'deleted; try again in a minute. A 409 means one of your hearts was changing; try again.',
     params: [],
     auth: 'signed_in',
+    errors: ['conflict', 'unavailable'],
     status: 204
   },
   {
@@ -413,9 +423,12 @@ export const ROUTES: Route[] = [
     method: 'delete',
     path: '/signs/{id}',
     summary: 'Delete a sign you posted',
-    description: 'Removes the sign, its photos and every way on it.',
+    description:
+      'Removes the sign, its photos, every way on it and its hearts. A 503 means its hearts couldn’t be ' +
+      'removed just now and the sign is still there; try again in a minute.',
     params: [signId],
     auth: 'signed_in',
+    errors: ['unavailable'],
     status: 204
   },
   {
@@ -435,6 +448,36 @@ export const ROUTES: Route[] = [
     response: 'SignDetail'
   },
   {
+    operationId: 'heartSign',
+    method: 'put',
+    path: '/signs/{id}/heart',
+    summary: 'Heart a sign',
+    description:
+      'One heart per player per sign; hearting it again changes nothing. Only a shown sign can be hearted. ' +
+      'Answers with `hearted` and the sign’s `hearts`, which counts the website’s hearts too (null when the ' +
+      'count can’t be read just now). A 503 means the heart couldn’t be counted and nothing changed. ' +
+      `At most ${LIMITS.heartsADay} hearts given or taken back a day.`,
+    params: [signId],
+    auth: 'signed_in',
+    errors: ['rate_limited', 'conflict', 'unavailable'],
+    status: 200,
+    response: 'HeartState'
+  },
+  {
+    operationId: 'unheartSign',
+    method: 'delete',
+    path: '/signs/{id}/heart',
+    summary: 'Take back your heart',
+    description:
+      'Taking back a heart you didn’t give changes nothing. A 503 means it couldn’t be taken back just now ' +
+      'and nothing changed.',
+    params: [signId],
+    auth: 'signed_in',
+    errors: ['rate_limited', 'conflict', 'unavailable'],
+    status: 200,
+    response: 'HeartState'
+  },
+  {
     operationId: 'reportSign',
     method: 'post',
     path: '/signs/{id}/report',
@@ -448,6 +491,25 @@ export const ROUTES: Route[] = [
     errors: ['rate_limited', 'unavailable', 'conflict'],
     status: 200,
     response: 'ReportOutcome'
+  },
+  {
+    operationId: 'countAppViews',
+    method: 'post',
+    path: '/app/views',
+    summary: 'Count the app’s screen views',
+    description:
+      `Up to ${LIMITS.viewsMax} screen views at once, each the path of the website page it matches ` +
+      '(`/`, `/map`, `/signs/<slug>`, `/players/<handle>`) or a short one of its own (`/capture`): lowercase ' +
+      'letters, digits and hyphens, at most two parts. They are counted in the site’s analytics as the app’s, ' +
+      'with the request’s User-Agent and country and nothing about who sent them; signed in or not makes no ' +
+      'difference. The answer comes once they are passed on, or a moment later if the counter is slow; a view ' +
+      `that can’t be counted is dropped. At most ${LIMITS.viewBatchesAnHour} batches an hour from one network.`,
+    params: [],
+    auth: 'public',
+    body: 'AppViews',
+    errors: ['rate_limited'],
+    status: 202,
+    response: 'AppViewsAccepted'
   },
   {
     operationId: 'blockPlayer',

@@ -6,6 +6,7 @@ import { BIO_MAX, NAME_MAX } from '../auth/account.ts';
 import { LOGIN_TTL } from '../auth/auth.ts';
 import { API_VERSION, ERRORS, LIMITS, ROUTES, type ErrorCode } from './contract.ts';
 import { STATUS } from './errors.ts';
+import { VIEW_PATH } from '../tinylytics.ts';
 
 type Schema = Record<string, unknown>;
 
@@ -92,6 +93,12 @@ const SCHEMAS: Record<string, Schema> = {
     finders: array(ref('Finder')),
     first_way: nullable(ref('FirstWay')),
     way_count: int,
+    hearts: nullable({
+      ...int,
+      description:
+        'Hearts on the sign, from the website and the app together; null when they can’t be counted just now.'
+    }),
+    hearted: nullable({ type: 'boolean', description: 'Whether you hearted it; null when not signed in.' }),
     visibility: {
       type: 'string',
       enum: ['shown', 'held', 'hidden'],
@@ -139,7 +146,13 @@ const SCHEMAS: Record<string, Schema> = {
       examples: ['7']
     }),
     finders: array(object({ name: str, handle: nullable(str) })),
-    thumb_url: nullable({ type: 'string', format: 'uri' })
+    thumb_url: nullable({ type: 'string', format: 'uri' }),
+    hearts: nullable({
+      ...int,
+      description:
+        'Hearts on the sign, from the website and the app together; null when they can’t be counted just now.'
+    }),
+    hearted: nullable({ type: 'boolean', description: 'Whether you hearted it; null when not signed in.' })
   }),
   MapPins: object({ pins: array(ref('Pin')), years: array({ type: 'integer' }) }),
   Player: object({
@@ -250,6 +263,36 @@ const SCHEMAS: Record<string, Schema> = {
     outcome: { type: 'string', enum: ['hidden', 'kept'] },
     note: { type: 'string', description: 'The moderator’s reason.' }
   }),
+  HeartState: object({
+    hearted: { type: 'boolean' },
+    hearts: nullable({ ...int, description: 'The sign’s hearts now; null when they can’t be counted just now.' })
+  }),
+  AppViews: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['views'],
+    properties: {
+      views: {
+        type: 'array',
+        minItems: 1,
+        maxItems: LIMITS.viewsMax,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['path'],
+          properties: {
+            path: {
+              type: 'string',
+              maxLength: LIMITS.viewPathMax,
+              pattern: VIEW_PATH.source,
+              examples: ['/signs/speed-limit-55', '/map']
+            }
+          }
+        }
+      }
+    }
+  },
+  AppViewsAccepted: object({ accepted: { ...int, description: 'How many views were taken.' } }),
   SignInStart: object({ email: { type: 'string', format: 'email' } }),
   SignInStarted: object({
     login_id: { type: 'string', description: 'Send it back with the code or the link’s token.' },
