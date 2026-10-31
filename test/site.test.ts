@@ -49,7 +49,15 @@ test('the home page lists shown signs, newest first, and is cached', async () =>
 test('home’s app section links the public TestFlight beta', async () => {
   const { app } = await setup();
   const html = await (await app.request('/')).text();
-  assert.match(html, /<a class="testflight" href="https:\/\/testflight\.apple\.com\/join\/Httdw7ZY">/);
+  assert.match(
+    html,
+    /<a class="testflight" href="https:\/\/testflight\.apple\.com\/join\/Httdw7ZY" data-tinylytics-event="beta\.join" data-tinylytics-event-value="home">/
+  );
+  // Tinylytics counts clicks on the way to the app.
+  assert.match(
+    html,
+    /<a class="get" href="\/#app" data-tinylytics-event="app\.get" data-tinylytics-event-value="header">/
+  );
   assert.ok(html.includes('Join the iPhone beta'));
 });
 
@@ -135,8 +143,8 @@ test('the sign-in link in a browser says where to use it, and is never cached', 
   assert.match(html, /Sign in on your iPhone/);
   assert.ok(!html.includes('secret-token-value'));
   assert.ok(!html.includes('01JLOGIN'));
-  // No analytics here: the URL holds the link's token.
-  assert.ok(!html.includes('tinylytics'));
+  // No analytics here: the URL holds the link's token. (The header's event tags are inert without the script.)
+  assert.ok(!html.includes('tinylytics.app'));
 });
 
 test('a profile photo stands in for the letter on the player page, who’s playing and the sign', async () => {
@@ -261,7 +269,10 @@ test('a sign’s page has its numbers, where it is on the map, and the signs nea
   assert.match(html, /Testville, Minnesota \(the pin is on the town, not the exact spot\)/);
   assert.match(html, /<h2 id="near-h">Nearby<\/h2>/);
   assert.match(html, /<span class="dist mono">0 mi<\/span>/);
-  assert.match(html, /<a class="another" href="\/#app">Find another way in the app<\/a>/);
+  assert.match(
+    html,
+    /<a class="another" href="\/#app" data-tinylytics-event="app\.get" data-tinylytics-event-value="sign">Find another way in the app<\/a>/
+  );
   assert.ok(!html.includes('Held Sign'));
 });
 
