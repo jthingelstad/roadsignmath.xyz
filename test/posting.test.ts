@@ -717,3 +717,15 @@ test('badges leave out what a blocked player did, for the one who blocked them',
   assert.ok(!(await ids('ada')).includes('company'));
   assert.ok((await ids('cy')).includes('company'), 'others still see it');
 });
+
+test('a post and a way unlock their badges even when a read straight after misses the write', async () => {
+  const t = await setup();
+  // A read that lags the write: it sees no signs at all, and no ways.
+  t.store.allSigns = async () => [];
+  t.store.listWays = async () => [];
+  const posted = await t.post();
+  assert.deepEqual(
+    posted.body.unlocked.map((b: Json) => b.id),
+    ['first-sign', 'every-number']
+  );
+});

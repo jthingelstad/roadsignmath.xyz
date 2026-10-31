@@ -199,11 +199,22 @@ export function createApi(options: ApiOptions): Hono {
     badges: (await badgesOf(player.id, data)).map((e) => earnedBadgeView(urls, e))
   });
 
-  /** A sign as a post or a way answers it, with the badges that move earned the poster. */
-  const withUnlocked = async <T>(answer: T, playerId: string, before: Earned[], after: Data) => ({
-    ...answer,
-    unlocked: newlyEarned(before, await badgesOf(playerId, after)).map((e) => earnedBadgeView(urls, e))
-  });
+  /**
+   * What a post or a way just earned: the badges with the sign as it was written, less those
+   * without it (or `before`). The sign and its ways come from the write itself, since a read
+   * straight after it may not see them yet.
+   */
+  async function unlockedBy(playerId: string, data: Data, written: { sign: Sign; ways: Way[] }, before?: Earned[]) {
+    const others = data.signs.filter((s) => s.id !== written.sign.id);
+    const ways = await waysOn({ ...data, signs: others });
+    const had = before ?? earnedBadges(playerId, others, ways);
+    ways.set(
+      written.sign.id,
+      written.ways.filter((w) => !data.blocked.has(w.playerId))
+    );
+    const now = earnedBadges(playerId, [written.sign, ...others], ways);
+    return newlyEarned(had, now).map((e) => earnedBadgeView(urls, e));
+  }
 
   /** A sign this reader can see, by id or slug. */
   const findSign = (signs: Sign[], key: string): Sign =>
@@ -408,16 +419,12 @@ export function createApi(options: ApiOptions): Hono {
       const body = await jsonBody(c);
       const poster = viewer!.player;
       const { sign, ways } = await postSign(deps, poster, body, c.req.header('idempotency-key'));
-      // Read after the post, so `before` is everything but this sign: a replay tells the same news.
+      // Read after the post, so what it unlocked is measured against everything but this sign: a
+      // replay tells the same news.
       const after = await load(viewer);
-      const before = earnedBadges(
-        poster.id,
-        after.signs.filter((s) => s.id !== sign.id),
-        await waysOn(after)
-      );
       // A replayed post can carry ways added since, by players the poster has blocked.
       const answer = detail(after.people, after.blocked, sign, ways, await hearts());
-      return c.json(await withUnlocked(answer, poster.id, before, after), 201);
+      return c.json({ ...answer, unlocked: await unlockedBy(poster.id, after, { sign, ways }) }, 201);
     },
 
     async deleteSign(c, { data, viewer }) {
@@ -434,7 +441,8 @@ export function createApi(options: ApiOptions): Hono {
       const ways = await addWay(deps, viewer!.player, sign, await jsonBody(c));
       const fresh = (await store.getSign(sign.id)) ?? sign;
       const answer = detail(people, blocked, fresh, ways, await hearts());
-      return c.json(await withUnlocked(answer, viewer!.player.id, before, await load(viewer)), 201);
+      const unlocked = await unlockedBy(viewer!.player.id, loaded, { sign: fresh, ways }, before);
+      return c.json({ ...answer, unlocked }, 201);
     },
 
     async heartSign(c, { data, viewer }) {
