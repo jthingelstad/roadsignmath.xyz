@@ -168,7 +168,7 @@ export function createApi(options: ApiOptions): Hono {
   const api = new Hono();
 
   /** The signs this reader sees, newest first, and every player by id. Read whole: there are few. */
-  async function load(viewer: Viewer | undefined): Promise<Data> {
+  async function load(viewer: Pick<Viewer, 'player'> | undefined): Promise<Data> {
     const [signs, players, blocks] = await Promise.all([
       store.allSigns(),
       store.allPlayers(),
@@ -345,10 +345,12 @@ export function createApi(options: ApiOptions): Hono {
       return c.json({ login_id: started.loginId, expires_in: started.expiresIn }, 202);
     },
 
-    async finishSignIn(c, { data }) {
+    async finishSignIn(c) {
       const body = await jsonBody(c);
       const done = await finishSignIn(store, { loginId: body.login_id, code: body.code, token: body.token });
-      return c.json({ token: done.token, new_player: done.isNew, me: await me(done.player, await data()) });
+      // Read as the player just signed in, not the anonymous request: their blocks and held signs.
+      const signedIn = await load({ player: done.player });
+      return c.json({ token: done.token, new_player: done.isNew, me: await me(done.player, signedIn) });
     },
 
     async signOut(c, { viewer }) {

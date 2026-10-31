@@ -305,3 +305,18 @@ test('networks: IPv4 as is, IPv6 by /64', () => {
   assert.equal(network('2001:db8:1:2:3:4:5:6'), '2001:db8:1:2::/64');
   assert.equal(network('2001:db8::1'), '2001:db8::/64');
 });
+
+test('signing in answers with your badges as you see them, leaving out players you blocked', async () => {
+  const t = setup();
+  await addPlayer(t.store, ada);
+  await addPlayer(t.store, ben);
+  const s = sign({ id: '01JS0000000000000000000001', title: 'Exit 7' });
+  await t.store.putSign(s);
+  await t.store.putWay(way(s.id, { id: 'w1', createdAt: s.postedAt }));
+  await t.store.putWay(way(s.id, { id: 'w2', playerId: ben.id, text: '19 − 12 = 7', value: '7' }));
+  const before = await signIn(t, ada.email!);
+  assert.ok(before.me.badges.some((b: Json) => b.id === 'company'));
+  await t.store.putBlock({ playerId: ada.id, blockedId: ben.id, createdAt: '2026-02-01T00:00:00.000Z' });
+  const after = await signIn(t, ada.email!);
+  assert.ok(!after.me.badges.some((b: Json) => b.id === 'company'));
+});
