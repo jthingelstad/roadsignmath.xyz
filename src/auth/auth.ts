@@ -8,6 +8,7 @@ import { limit } from '../api/input.ts';
 import { ulid } from '../domain/ids.ts';
 import { AVATAR_COLORS, type Login, type Player, type Session } from '../domain/types.ts';
 import type { Mailer } from '../mail/mailer.ts';
+import { signInMail } from '../mail/signin.ts';
 import { emailHash, normalizeEmail, nowSeconds, type Store } from '../store/store.ts';
 
 export const LOGIN_TTL = 15 * 60;
@@ -72,14 +73,7 @@ export async function startSignIn(
     expiresAt: now + LOGIN_TTL
   };
   await deps.store.putLogin(login);
-  await deps.mailer.send({
-    to: email,
-    subject: `Your Road Sign Math code is ${code}`,
-    text:
-      `Tap to sign in to Road Sign Math on your iPhone:\n${deps.link(login.id, token)}\n\n` +
-      `Or type this code in the app: ${code}\n\n` +
-      `It works for 15 minutes. If you didn't ask to sign in, you can ignore this email.\n`
-  });
+  await deps.mailer.send(signInMail(email, deps.link(login.id, token), code));
   return { loginId: login.id, expiresIn: LOGIN_TTL };
 }
 
