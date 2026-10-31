@@ -147,6 +147,47 @@ test('every sign carries its hearts, and a signed-in reader whether they hearted
   assert.equal(tinylytics!.reads, 1);
 });
 
+test('Popular: the most hearts first, ties and the unhearted newest first, held signs never', async () => {
+  const slugs = (body: Json) => body.signs.map((s: Json) => [s.slug, s.hearts]);
+  const none = await setup();
+  assert.deepEqual(slugs((await none.call('GET', '/signs/popular')).body), [
+    ['bens-sign', 0],
+    ['exit-seven', 0]
+  ]);
+  const one = await setup();
+  one.tinylytics!.kudosKept.push({ path: '/signs/exit-seven', uid: 'web-1' });
+  assert.deepEqual(slugs((await one.call('GET', '/signs/popular')).body), [
+    ['exit-seven', 1],
+    ['bens-sign', 0]
+  ]);
+  const tied = await setup();
+  tied.tinylytics!.kudosKept.push(
+    { path: '/signs/exit-seven', uid: 'web-1' },
+    { path: '/signs/bens-sign', uid: 'web-2' },
+    { path: '/signs/held-sign', uid: 'web-3' },
+    { path: '/signs/held-sign', uid: 'web-4' }
+  );
+  assert.deepEqual(slugs((await tied.call('GET', '/signs/popular')).body), [
+    ['bens-sign', 1],
+    ['exit-seven', 1]
+  ]);
+});
+
+test('Popular without counts is the newest first, every heart null', async () => {
+  const tinylytics = new FakeTinylytics();
+  tinylytics.state = 'off';
+  const { call } = await setup(tinylytics);
+  const { res, body } = await call('GET', '/signs/popular');
+  assert.equal(res.status, 200);
+  assert.deepEqual(
+    body.signs.map((s: Json) => [s.slug, s.hearts]),
+    [
+      ['bens-sign', null],
+      ['exit-seven', null]
+    ]
+  );
+});
+
 test('without a key hearts are off: counts are null and hearting is a 503 that changes nothing', async () => {
   const tinylytics = new FakeTinylytics();
   tinylytics.state = 'off';

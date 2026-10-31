@@ -128,6 +128,7 @@ const SCHEMAS: Record<string, Schema> = {
   NearSigns: object({
     signs: array({ allOf: [ref('Sign'), object({ miles: { type: 'number', minimum: 0 } })] })
   }),
+  PopularSigns: object({ signs: array(ref('Sign')) }),
   SimilarSigns: object({
     signs: array({ allOf: [ref('Sign'), object({ miles: { type: 'number', minimum: 0 } })] })
   }),

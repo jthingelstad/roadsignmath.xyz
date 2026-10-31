@@ -41,6 +41,7 @@ import {
   playerView,
   signDetail,
   isPublic,
+  signPath,
   signSummary,
   visibleTo,
   type HeartView,
@@ -280,6 +281,15 @@ export function createApi(options: ApiOptions): Hono {
           miles: Math.round(n.miles * 10) / 10
         }))
       });
+    },
+
+    async listSignsPopular(c, { data, hearts }) {
+      const [{ signs, people, blocked }, h] = await Promise.all([data(), hearts()]);
+      // The signs come newest first, and the sort is stable, so ties (and the unhearted, at 0)
+      // stay newest first. Without counts it is the newest.
+      const count = (s: Sign) => h.counts?.get(signPath(s)) ?? 0;
+      const popular = [...signs].sort((a, b) => count(b) - count(a)).slice(0, LIMITS.popularMax);
+      return c.json({ signs: popular.map((s) => signSummary(urls, people, s, blocked, h)) });
     },
 
     async listSimilarSigns(c, { data, hearts }) {

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Road Sign Math API",
-    "version": "1.7.0",
+    "version": "1.8.0",
     "summary": "The signs, the map and the players of Road Sign Math.",
     "description": "Every public sign, the ways people found to make it true, the map and who’s playing, read by anyone; sign-in by email, your own account, and posting signs and ways from the app. Answers are JSON in UTF-8 with snake_case keys and carry an `API-Version` header. A request with a token is never cached. An error is `{\"error\": {\"code\", \"message\"}}`.",
     "license": {
@@ -286,6 +286,33 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/signs/popular": {
+      "get": {
+        "operationId": "listSignsPopular",
+        "summary": "The most hearted signs",
+        "description": "At most 50 signs, the most hearts first, counting every heart a sign has had (app and website). Signs with as many hearts as each other come newest first, and signs nobody has hearted last, newest first. When the counts can’t be read just now, every `hearts` is null and the signs come newest first.",
+        "responses": {
+          "200": {
+            "description": "The most hearted signs",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PopularSigns"
                 }
               }
             }
@@ -2007,7 +2034,7 @@
           "api_version": {
             "type": "string",
             "examples": [
-              "1.7.0"
+              "1.8.0"
             ]
           },
           "signs": {
@@ -2539,6 +2566,20 @@
                   }
                 }
               ]
+            }
+          }
+        }
+      },
+      "PopularSigns": {
+        "type": "object",
+        "required": [
+          "signs"
+        ],
+        "properties": {
+          "signs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Sign"
             }
           }
         }

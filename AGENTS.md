@@ -118,6 +118,10 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
   website's too) before the sign goes and again after, and a heart checks its sign is still
   there once its kudo is made, so a later sign with the slug starts at none. Counts are read once a minute per instance;
   Tinylytics allows the key 1,000 calls an hour.
+- **Popular** (`GET /signs/popular`, the app's third Home tab): at most 50 signs, the most
+  hearts first, counting every heart a sign has had; ties and the unhearted come newest first
+  (Jamie, 2026-10-31: "all-time hearts, newest breaks ties, unhearted signs last, app first").
+  Without counts it is the newest. `popular` is a reserved slug, like `near` and `similar`.
 - **Badges** (`src/domain/badges.ts`): 28 little road signs on five shelves (firsts, places,
   math, seasons, secret). Nothing about them is stored: they are worked out on every read from
   the shown signs and the ways on them that the reader sees (a block leaves out the blocked

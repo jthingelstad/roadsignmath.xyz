@@ -382,6 +382,7 @@ test('slugs are unique, and never a word a route already uses', async () => {
   const near = await t.post({ title: 'Near' });
   assert.equal(near.body.slug, 'near-2');
   assert.equal((await t.call('GET', '/signs/near-2')).body.title, 'Near');
+  assert.equal((await t.post({ title: 'Popular' })).body.slug, 'popular-2');
 });
 
 test('another way must be true, from the sign, and new', async () => {
