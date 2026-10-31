@@ -13,6 +13,7 @@ import {
   byNewest,
   earnedBadgeView,
   isPublic,
+  photoUrl,
   playerStats,
   signDetail,
   signSummary,
@@ -25,6 +26,7 @@ import { cluster, clusterName, countSigns, project, type Cluster } from './map.t
 import { mathSvg } from './math.ts';
 import { feedAlternates } from './feeds.ts';
 import { createOpenWeb } from './open.tsx';
+import { homeCard, pinValue, playerCard, signCard } from './share.ts';
 import { US_BORDERS, US_LAND, US_MAP_SIZE } from './us-map.ts';
 
 type Summary = ReturnType<typeof signSummary>;
@@ -583,23 +585,32 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
       .sort((a, b) => b.count - a.count || a.player.name.localeCompare(b.player.name));
     const states = new Set(shown.map((s) => s.place.state).filter(Boolean));
     const card = summary(everyone);
-    const newest = shown[0];
+    // The share card shows every pin, whatever year the page is filtered to.
+    const pins = cluster(shown).clusters.map((k): [number, number, number] => [k.x, k.y, k.signs.length]);
     return c.html(
       <Page
         title="Road Sign Math"
         description="A road trip game: find a road sign whose numbers make a true equation. Every sign players have found, on a map."
         url={`${urls.site}/`}
-        image={newest?.photos[0] ? card(newest).photos[0].url : undefined}
+        card={homeCard({ signCount: shown.length, playerCount: players.length, stateCount: states.size, pins })}
         here="map"
         style={HOME_STYLE}
         script={HOME_SCRIPT}
       >
         <main>
-          <section id="map" class="hero" aria-labelledby="hero-h">
+          <section id="map" class="hero h-feed" aria-labelledby="hero-h">
+            <data class="p-name" value="Road Sign Math" />
+            <data class="u-url" value={`${urls.site}/`} />
+            <data class="u-map" value={`${urls.site}/us-map.svg`} />
+            {pins.map((pin) => (
+              <data class="p-pin" value={pinValue(pin)} />
+            ))}
             <div class="wrap">
               <div class="intro">
-                <p class="kicker mono">A road trip game</p>
-                <h1 id="hero-h">Find a sign. Make the math true.</h1>
+                <p class="kicker mono p-kicker">A road trip game</p>
+                <h1 id="hero-h" class="p-summary">
+                  Find a sign. Make the math true.
+                </h1>
                 <p>
                   Spot a road sign with numbers on it, then use those numbers to write something true. These are the
                   signs players have found. Tap a pin to see them.
@@ -607,15 +618,15 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
                 <dl class="stats">
                   <div>
                     <dt>{shown.length === 1 ? 'sign' : 'signs'}</dt>
-                    <dd class="mono">{shown.length}</dd>
+                    <dd class="mono p-sign-count">{shown.length}</dd>
                   </div>
                   <div>
                     <dt>{players.length === 1 ? 'player' : 'players'}</dt>
-                    <dd class="mono">{players.length}</dd>
+                    <dd class="mono p-player-count">{players.length}</dd>
                   </div>
                   <div>
                     <dt>{states.size === 1 ? 'state' : 'states'}</dt>
-                    <dd class="mono">{states.size}</dd>
+                    <dd class="mono p-state-count">{states.size}</dd>
                   </div>
                 </dl>
                 {players.length > 0 && (
@@ -794,17 +805,42 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
             .slice(0, 4)
         : [];
     const card = summary(everyone);
+    const finders = sign.finders.map((f) => f.name);
+    const numbers = sign.numbers.map((n) => n.value);
+    const share = signCard({
+      path: `/signs/${sign.slug}`,
+      title: sign.title,
+      photo: sign.photos[0]?.url ?? null,
+      place: sign.place.label,
+      foundOn: sign.found_on,
+      finders,
+      way: sign.first_way && { text: sign.first_way.text, tex: sign.first_way.tex },
+      wayCount: sign.ways.length,
+      numbers
+    });
     return c.html(
       <Page
         title={`${sign.title} · Road Sign Math`}
         description={description}
         url={sign.url}
-        image={sign.photos[0]?.url}
+        card={share}
         here="signs"
         style={SIGN_STYLE}
         script={SIGN_SCRIPT}
       >
-        <main class="sign">
+        <main class="sign h-entry">
+          <data class="u-url" value={sign.url} />
+          {sign.photos[0] && <data class="u-photo" value={sign.photos[0].url} />}
+          <data class="p-location" value={sign.place.label} />
+          {finders.map((name) => (
+            <data class="p-finder" value={name} />
+          ))}
+          {sign.first_way && <data class="p-math" value={sign.first_way.text} />}
+          {sign.first_way?.tex && <data class="p-tex" value={sign.first_way.tex} />}
+          <data class="p-way-count" value={String(sign.ways.length)} />
+          {numbers.map((n) => (
+            <data class="p-number" value={n} />
+          ))}
           <div class="wrap">
             <div class="cols">
               <div class="photos">
@@ -829,11 +865,15 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
                     Copy link
                   </button>
                 </div>
-                <h1>{sign.title}</h1>
+                <h1 class="p-name">{sign.title}</h1>
                 {sign.first_way && <Plate way={sign.first_way} />}
                 <div class="said">
                   {sign.caption && <p class="caption">{sign.caption}</p>}
-                  <p class="soft">{longDay(sign.found_on)}</p>
+                  <p class="soft">
+                    <time class="dt-published" datetime={sign.found_on}>
+                      {longDay(sign.found_on)}
+                    </time>
+                  </p>
                 </div>
                 <div>
                   <Heart sign={sign} />
@@ -972,21 +1012,36 @@ const PlayerPage: FC<{
   const since = stats.first_year ? ` since ${stats.first_year}` : '';
   const { clusters, unpinned } = cluster(stats.signs);
   const base = `/players/${player.handle}`;
+  const photo = player.avatar ? photoUrl(urls, player.avatar, 'large') : null;
   return (
     <Page
       title={`${player.name} · Road Sign Math`}
       description={`Road signs ${player.name} found${since}.`}
       url={`${urls.site}${base}`}
-      image={stats.signs[0] ? summary(stats.signs[0]).photos[0]?.url : undefined}
+      card={playerCard({
+        path: base,
+        name: player.name,
+        photo,
+        color: player.avatarColor,
+        signCount: stats.sign_count,
+        stateCount: stats.states.length,
+        firstYear: stats.first_year
+      })}
       feeds={feedAlternates({ title: `${player.name} · Road Sign Math`, base: `${urls.site}${base}` }, urls.site)}
       style={PLAYER_STYLE}
     >
       <main class="player">
         <div class="wrap">
-          <div class="who-is">
+          <div class="who-is h-card">
+            <data class="u-url" value={`${urls.site}${base}`} />
+            {photo && <data class="u-photo" value={photo} />}
+            <data class="p-avatar-color" value={player.avatarColor} />
+            <data class="p-sign-count" value={String(stats.sign_count)} />
+            <data class="p-state-count" value={String(stats.states.length)} />
+            {stats.first_year && <data class="p-first-year" value={String(stats.first_year)} />}
             <Avatar name={player.name} color={player.avatarColor} photo={player.avatar} size={140} />
             <div>
-              <h1>{player.name}</h1>
+              <h1 class="p-name">{player.name}</h1>
               <dl>
                 <div>
                   <dt>{stats.sign_count === 1 ? 'sign' : 'signs'}</dt>
@@ -1003,7 +1058,7 @@ const PlayerPage: FC<{
                   </div>
                 )}
               </dl>
-              {player.bio && <p>{player.bio}</p>}
+              {player.bio && <p class="p-note">{player.bio}</p>}
             </div>
           </div>
           {badges.length > 0 && (

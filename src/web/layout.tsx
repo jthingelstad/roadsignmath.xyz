@@ -5,6 +5,7 @@
 import type { FC, PropsWithChildren } from 'hono/jsx';
 import { BADGE_STYLE } from './badges.tsx';
 import { mathSvg } from './math.ts';
+import { CARD_HEIGHT, CARD_WIDTH, type Card } from './share.ts';
 import { TINYLYTICS_SCRIPT, TINYLYTICS_SITE } from './tinylytics.ts';
 
 export const ARCHIVE_URL = 'https://thingelstad.xyz/things/road-sign-math/';
@@ -117,6 +118,8 @@ export type PageMeta = {
   url?: string;
   /** A photo to show when the page is shared. */
   image?: string;
+  /** The page's share card on cards.thingelstad.com, in place of a photo (src/web/share.ts). */
+  card?: Card;
   /** Which of Map, Signs and How to play the page is under. */
   here?: 'map' | 'signs' | 'how';
   /** Adds Tinylytics' counter. The sign-in page leaves it out: its URL carries the link's token. */
@@ -177,6 +180,7 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
   description,
   url,
   image,
+  card,
   here,
   count = true,
   style = '',
@@ -197,8 +201,19 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
       <meta property="og:title" content={title} />
       <meta property="og:description" content={description} />
       {url && <meta property="og:url" content={url} />}
-      {image && <meta property="og:image" content={image} />}
-      <meta name="twitter:card" content={image ? 'summary_large_image' : 'summary'} />
+      {card ? (
+        <>
+          <meta property="og:image" content={card.url} />
+          <meta property="og:image:width" content={String(CARD_WIDTH)} />
+          <meta property="og:image:height" content={String(CARD_HEIGHT)} />
+          <meta property="og:image:alt" content={card.alt} />
+          <meta name="twitter:image" content={card.url} />
+          <meta name="twitter:image:alt" content={card.alt} />
+        </>
+      ) : (
+        image && <meta property="og:image" content={image} />
+      )}
+      <meta name="twitter:card" content={card || image ? 'summary_large_image' : 'summary'} />
       {[...feeds, ...ALTERNATES].map((a) => (
         <link rel="alternate" type={a.type} title={a.title} href={a.href} />
       ))}
