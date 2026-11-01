@@ -7,7 +7,7 @@ import { MemoryMailer } from '../src/mail/mailer.ts';
 import { MemoryPhotoStore } from '../src/photos.ts';
 import { MemoryStore } from '../src/store/memory.ts';
 import { addPlayer, addSign } from '../src/store/store.ts';
-import { BRAND_FILES, BRAND_VERSION, HIGHWAY_SVG, LOCKUP_SIZE } from '../src/web/brand.ts';
+import { BIMI_SVG, BRAND_FILES, BRAND_VERSION, HIGHWAY_SVG, LOCKUP_SIZE } from '../src/web/brand.ts';
 import { ICO_SIZES, MANIFEST } from '../src/web/icons.ts';
 import { ada, ben, sign } from './support/fixtures.ts';
 import { ScriptedModerator } from './support/moderator.ts';
@@ -231,6 +231,32 @@ test('icons: favicon.svg is the Highway icon, and favicon.ico, the home screen i
   ]) {
     assert.ok(html.includes(link), link);
   }
+});
+
+test('the BIMI logo is Highway in SVG Tiny PS, at the address the zone names', async () => {
+  const { app } = await setup();
+  const res = await app.request('/brand/road-sign-math-bimi.svg');
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), 'image/svg+xml');
+  assert.equal(res.headers.get('cache-control'), 'public, max-age=86400');
+  assert.equal(await res.text(), BIMI_SVG);
+
+  // The profile BIMI asks for: version 1.2 and baseProfile tiny-ps on a root with no size, x or y,
+  // a title, square, nothing that runs, links or loads, and well under 32 KB.
+  const root = /^<svg[^>]*>/.exec(BIMI_SVG)?.[0] ?? '';
+  assert.equal(
+    root,
+    '<svg version="1.2" baseProfile="tiny-ps" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">'
+  );
+  assert.match(BIMI_SVG, /<title>Road Sign Math<\/title>/);
+  assert.doesNotMatch(BIMI_SVG, /<(script|style|image|use|a|foreignObject|animate|set|clipPath|mask|filter)\b/);
+  assert.doesNotMatch(BIMI_SVG, / (href|xlink:href|style|on[a-z]+)=/);
+  assert.ok(Buffer.byteLength(BIMI_SVG) < 32 * 1024);
+
+  // Only the markup changed: it draws Highway, pixel for pixel.
+  const draw = (svg: string) => sharp(Buffer.from(svg), { density: 18 }).raw().toBuffer();
+  const [bimi, highway] = await Promise.all([draw(BIMI_SVG), draw(HIGHWAY_SVG)]);
+  assert.ok(bimi.equals(highway));
 });
 
 test('every page starts with a skip link to its one main, and the footer names the licence', async () => {

@@ -15,3 +15,7 @@ export const BRAND_FILES = {
 /** The Highway icon, square and full bleed (a phone rounds its corners itself). */
 export const HIGHWAY_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title"><title id="title">Road Sign Math — Highway</title><rect x="0" y="0" width="1024" height="1024" rx="0" fill="#006348"/><path id="radical-route" fill="#FFFFFF" d="M 110 555 H 213 Q 220 555 223 562 L 282 706 L 420 384 Q 424 375 434 375 H 696 L 754 317 L 676 239 Q 668 231 680 231 H 910 Q 918 231 918 239 V 455 Q 918 467 910 459 L 835 384 L 752 467 Q 744 475 734 475 H 485 L 336 836 Q 332 846 321 846 H 240 Q 232 846 228 836 L 101 568 Q 95 555 110 555 Z"/></svg>';
+/** Highway in SVG Tiny PS for BIMI, at /brand/road-sign-math-bimi.svg, the address the
+ * roadsignmath.xyz zone's default._bimi record names: keep the address and the format. */
+export const BIMI_SVG =
+  '<svg version="1.2" baseProfile="tiny-ps" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><title>Road Sign Math</title><rect width="1024" height="1024" fill="#006348"/><path fill="#FFFFFF" d="M 110 555 H 213 Q 220 555 223 562 L 282 706 L 420 384 Q 424 375 434 375 H 696 L 754 317 L 676 239 Q 668 231 680 231 H 910 Q 918 231 918 239 V 455 Q 918 467 910 459 L 835 384 L 752 467 Q 744 475 734 475 H 485 L 336 836 Q 332 846 321 846 H 240 Q 232 846 228 836 L 101 568 Q 95 555 110 555 Z"/></svg>';

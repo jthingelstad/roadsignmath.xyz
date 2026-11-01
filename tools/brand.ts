@@ -3,7 +3,8 @@
  * light and dark (`logo/lockup-horizontal-color.svg` and `-white.svg`, the green mark and the
  * Overpass wordmark as outlines) and the Highway icon (`icons/svg/highway.svg`), which is
  * /favicon.svg and what icons.ts draws the PNG icons from. The bundle has no folder of files, so
- * they go in as a module, byte for byte as the package has them.
+ * they go in as a module, byte for byte as the package has them. It also writes Highway as the
+ * BIMI logo for mail apps (`bimi` below), the one file whose markup isn't the package's own.
  *
  *   npm run brand -- design/brand/v1
  *
@@ -33,6 +34,29 @@ const box = (svg: string) => {
   return { width: Number(w), height: Number(h) };
 };
 
+/**
+ * Highway for BIMI, the logo mail apps show beside the sign-in email: the same square and
+ * mark, in SVG Tiny Portable/Secure, the profile BIMI asks for. Only the root and the title
+ * change (version 1.2, baseProfile tiny-ps, no size, x or y on the root, a plain title) and the
+ * ids go; the ground and the mark are the package's elements as written.
+ */
+const bimi = (svg: string) => {
+  const { width, height } = box(svg);
+  if (width !== height) throw new Error('the BIMI logo must be square');
+  const body = svg
+    .replace(/^<svg[^>]*>/, '')
+    .replace(/<\/svg>\s*$/, '')
+    .replace(/<title[^>]*>[^<]*<\/title>/, '')
+    .replace(/ id="[^"]*"/g, '')
+    .replace(/ (x|y|rx)="0"/g, '');
+  const elements = [...body.matchAll(/<([a-zA-Z]+)/g)].map(([, name]) => name);
+  if (elements.join() !== 'rect,path') throw new Error(`unexpected Highway markup: ${elements.join()}`);
+  return (
+    `<svg version="1.2" baseProfile="tiny-ps" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}">` +
+    `<title>Road Sign Math</title>${body}</svg>`
+  );
+};
+
 const out = new URL('../src/web/brand.ts', import.meta.url);
 await writeFile(
   out,
@@ -50,6 +74,9 @@ export const BRAND_FILES = {
 } as const;
 /** The Highway icon, square and full bleed (a phone rounds its corners itself). */
 export const HIGHWAY_SVG = ${JSON.stringify(highway)};
+/** Highway in SVG Tiny PS for BIMI, at /brand/road-sign-math-bimi.svg, the address the
+ * roadsignmath.xyz zone's default._bimi record names: keep the address and the format. */
+export const BIMI_SVG = ${JSON.stringify(bimi(highway))};
 `
 );
 execFileSync('npx', ['prettier', '--write', out.pathname], { stdio: 'inherit' });

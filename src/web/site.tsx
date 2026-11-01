@@ -21,7 +21,7 @@ import {
   type Urls
 } from '../api/views.ts';
 import { BADGE_STYLE, BadgeCards } from './badges.tsx';
-import { BRAND_FILES, HIGHWAY_SVG } from './brand.ts';
+import { BIMI_SVG, BRAND_FILES, HIGHWAY_SVG } from './brand.ts';
 import { CHIP_STYLE, Eq, Facts, finderNames, Heart, nearbyScript, Sep, SORT_NOTES, SortChips, Tile } from './cards.tsx';
 import { ARCHIVE_URL, Avatar, brandUrl, Page, Phone, Plate, shortDay, TESTFLIGHT_URL } from './layout.tsx';
 import { cluster, clusterName, countSigns, project, type Cluster } from './map.ts';
@@ -501,6 +501,9 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
   // The Highway icon, the identity's default, as the package draws it.
   site.get('/favicon.svg', svg(HIGHWAY_SVG));
   for (const [file, body] of Object.entries(BRAND_FILES)) site.get(brandUrl(file), svg(body));
+  // Highway for mail apps that read BIMI: the roadsignmath.xyz zone's default._bimi record names
+  // this address, so it stays put whatever version the package is.
+  site.get('/brand/road-sign-math-bimi.svg', svg(BIMI_SVG));
   mountIcons(site);
 
   // For search engines: every page that answers 200. The API and the sign-in link's landing
