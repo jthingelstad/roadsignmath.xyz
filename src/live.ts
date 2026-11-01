@@ -1,6 +1,7 @@
 // The live server's parts, from the environment the stack gives the web function
 // (infra/template.yaml): the table, the photo bucket and the distribution that serves it, the
-// sign-in address, the site, the runtime secret and the team that signs the iPhone app.
+// sign-in address, where feedback goes, the site, the runtime secret and the team that signs
+// the iPhone app.
 // `src/server.ts` runs them; tests build them from a made-up environment without touching the
 // network.
 
@@ -20,6 +21,8 @@ export type LiveConfig = {
   /** The distribution serving /p/, for clearing a hidden photo from its caches; none on the first deploy. */
   photoDistributionId?: string;
   fromAddress: string;
+  /** Where players' feedback is emailed. */
+  feedbackTo: string;
   site: string;
   runtimeSecret: string;
   /** The team that signs the iPhone app, for apple-app-site-association; unset, none is served. */
@@ -34,6 +37,8 @@ export function liveConfig(env: Record<string, string | undefined> = process.env
   };
   const site = need('SITE_URL');
   if (!/^https:\/\/[a-z0-9.-]+$/.test(site)) throw new Error('SITE_URL must be an https origin');
+  const feedbackTo = need('FEEDBACK_TO');
+  if (!/^[^@\s<>]+@[^@\s<>]+\.[a-z]+$/i.test(feedbackTo)) throw new Error('FEEDBACK_TO must be an email address');
   const appleTeamId = env.APPLE_TEAM_ID?.trim() || undefined;
   if (appleTeamId && !TEAM_ID.test(appleTeamId)) throw new Error('APPLE_TEAM_ID must be a ten-character Team ID');
   return {
@@ -41,6 +46,7 @@ export function liveConfig(env: Record<string, string | undefined> = process.env
     photoBucket: need('PHOTO_BUCKET'),
     photoDistributionId: env.PHOTO_DISTRIBUTION_ID?.trim() || undefined,
     fromAddress: need('FROM_ADDRESS'),
+    feedbackTo,
     site,
     runtimeSecret: need('RUNTIME_SECRET'),
     ...(appleTeamId ? { appleTeamId } : {})
@@ -58,6 +64,7 @@ export function liveOptions(config: LiveConfig): ApiOptions {
     store: new DynamoStore(config.table),
     urls: { site: config.site },
     mailer: new SesMailer(config.fromAddress),
+    feedbackTo: config.feedbackTo,
     photos: new S3PhotoStore(config.photoBucket, config.photoDistributionId),
     moderator: new KeyedModerator(moderatorKey(config)),
     clientIp: cloudFrontIp,

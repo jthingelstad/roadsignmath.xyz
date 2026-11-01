@@ -22,6 +22,7 @@ const env = {
   PHOTO_BUCKET: 'example-photos',
   PHOTO_DISTRIBUTION_ID: 'EEXAMPLE123',
   FROM_ADDRESS: 'Road Sign Math <signin@example.test>',
+  FEEDBACK_TO: 'feedback@example.test',
   SITE_URL: 'https://example.test',
   RUNTIME_SECRET: 'example-runtime'
 };
@@ -33,6 +34,7 @@ test('the live server is wired from the stack environment', () => {
     photoBucket: 'example-photos',
     photoDistributionId: 'EEXAMPLE123',
     fromAddress: 'Road Sign Math <signin@example.test>',
+    feedbackTo: 'feedback@example.test',
     site: 'https://example.test',
     runtimeSecret: 'example-runtime'
   });
@@ -43,14 +45,16 @@ test('the live server is wired from the stack environment', () => {
   assert.ok(options.moderator instanceof KeyedModerator);
   assert.ok(options.tinylytics instanceof KeyedTinylytics);
   assert.deepEqual(options.urls, { site: 'https://example.test' });
+  assert.equal(options.feedbackTo, 'feedback@example.test');
   assert.ok(createApp(options));
 });
 
 test('the first deploy has no distribution yet, and a missing setting stops the server', () => {
   assert.equal(liveConfig({ ...env, PHOTO_DISTRIBUTION_ID: '' }).photoDistributionId, undefined);
   assert.equal(liveConfig({ ...env, PHOTO_DISTRIBUTION_ID: undefined }).photoDistributionId, undefined);
-  for (const name of ['TABLE', 'PHOTO_BUCKET', 'FROM_ADDRESS', 'SITE_URL', 'RUNTIME_SECRET'])
+  for (const name of ['TABLE', 'PHOTO_BUCKET', 'FROM_ADDRESS', 'FEEDBACK_TO', 'SITE_URL', 'RUNTIME_SECRET'])
     assert.throws(() => liveConfig({ ...env, [name]: ' ' }), new RegExp(`${name} is not set`));
+  assert.throws(() => liveConfig({ ...env, FEEDBACK_TO: 'Feedback <feedback@example.test>' }), /email address/);
   assert.throws(() => liveConfig({ ...env, SITE_URL: 'http://example.test' }), /https origin/);
   assert.throws(() => liveConfig({ ...env, SITE_URL: 'https://example.test/' }), /https origin/);
 });

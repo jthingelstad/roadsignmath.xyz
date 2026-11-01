@@ -145,6 +145,19 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
 - **App views**: `POST /app/views` (public) passes up to 20 screen paths to Tinylytics as hits
   with source `ios-app`, the request's User-Agent and CloudFront's viewer country, and no IP or
   visitor id. It waits on Tinylytics two seconds at most and answers 202 either way.
+- **Feedback** (`src/feedback.ts`): `POST /feedback`, signed in, emails the player's message to
+  `FEEDBACK_TO` in the stack's environment (admin@thingelstad.com; Jamie, 2026-10-31: "Route
+  the inbound requests to admin@thingelstad.com"), with their name, handle, page, sign count,
+  the app's `app` line and the time in US Central. Their email goes only when `reply_ok` is
+  true, and then only as the Reply-To, never in the text. Ten a day per player; mail that
+  can't be sent is a 503 (it still counts toward the ten). `npm run dev` writes it to
+  `.data/mail/` like the sign-in email.
+- **Activity** (`src/activity.ts`): `GET /me/activity`, signed in, is what's new on your signs
+  for the app's You tab: the ways other players found and the hearts they gave in the last 30
+  days, newest first, at most 100. Your signs are the ones you posted or are a finder of, in
+  any state. Your own ways and hearts and anything by a player you blocked are left out, and
+  so are the website's kudos, which have no player. Showing who hearted is Jamie's design
+  (2026-10-31). It reads every player's heart rows, one query each: fine at this size.
 - **Posting** (`src/posting/`): `POST /photos` takes the photo itself and keeps it under
   `uploads/` for a day; `POST /signs` posts up to four of them. A held post's photos never go
   under `p/`, and a hidden sign's leave it (with CloudFront's cached copies). An `Idempotency-Key` makes a

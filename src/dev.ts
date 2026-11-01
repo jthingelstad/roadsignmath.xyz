@@ -1,7 +1,7 @@
 // `npm run dev`: the server on http://localhost:8787 with an in-memory store, loaded from
 // .data/store.json when it exists (the seed script writes it). Photos come from
-// .data/photos/<photoId>/<size>.jpg and uploads wait in .data/uploads/. Sign-in emails land in
-// .data/mail/. Posts pass a moderator that lets everything through, unless
+// .data/photos/<photoId>/<size>.jpg and uploads wait in .data/uploads/. Sign-in emails and
+// feedback land in .data/mail/. Posts pass a moderator that lets everything through, unless
 // ANTHROPIC_API_KEY is set, when Claude moderates as it does live. Hearts are off (no
 // Tinylytics, so counts are null) and app views are dropped. Nothing else leaves the machine,
 // and sign-ins and posts last only as long as the process.
@@ -32,7 +32,8 @@ const app = createApp({
   photos,
   moderator,
   clientIp: () => 'local',
-  appleTeamId
+  appleTeamId,
+  feedbackTo: process.env.FEEDBACK_TO?.trim() || 'feedback@example.test'
 });
 app.get('/p/:photo/:file', async (c) => {
   const { photo, file } = c.req.param();

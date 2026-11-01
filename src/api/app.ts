@@ -13,6 +13,8 @@ import { API_VERSION, LIMITS, ROUTES } from './contract.ts';
 import { ApiError, fail, STATUS } from './errors.ts';
 import { deleteAccount, removeAvatar, setAvatar, updateMe } from '../auth/account.ts';
 import { finishSignIn, network, signOut, startSignIn, viewerFor, type Viewer } from '../auth/auth.ts';
+import { myActivity } from '../activity.ts';
+import { sendFeedback } from '../feedback.ts';
 import { HeartCounts, heartView, setHeart } from '../hearts.ts';
 import type { Mailer } from '../mail/mailer.ts';
 import type { Moderator } from '../moderation/moderator.ts';
@@ -65,6 +67,8 @@ export type ApiOptions = {
   tinylytics?: Tinylytics;
   /** Every sign's heart count, read once a minute: one cache the API and the site share. */
   heartCounts?: HeartCounts;
+  /** Where players' feedback is emailed; without it `POST /feedback` answers 503. */
+  feedbackTo?: string;
 };
 
 /** The viewer's two-letter country from CloudFront, when it sent one. */
@@ -435,6 +439,10 @@ export function createApi(options: ApiOptions): Hono {
       return c.json({ players: players.map((p) => ({ handle: p.handle, name: p.name })) });
     },
 
+    async getMyActivity(c, { viewer }) {
+      return c.json(await myActivity(store, urls, viewer!.player, nowSeconds()));
+    },
+
     async getMyPhoto(c, { viewer }) {
       const photoId = pathParam(c, 'photoId');
       const size = pathParam(c, 'size');
@@ -539,6 +547,14 @@ export function createApi(options: ApiOptions): Hono {
     async unblockPlayer(c, { viewer }) {
       await unblockPlayer(store, viewer!.player, pathParam(c, 'handle'));
       return c.body(null, 204);
+    },
+
+    async sendFeedback(c, { data, viewer }) {
+      const body = await jsonBody(c);
+      const player = viewer!.player;
+      const { sign_count } = playerStats(player, (await data()).signs);
+      await sendFeedback({ store, mailer, urls, to: options.feedbackTo }, player, sign_count, body, nowSeconds());
+      return c.json({ sent: true }, 202);
     }
   };
 

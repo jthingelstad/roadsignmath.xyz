@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Road Sign Math API",
-    "version": "1.9.0",
+    "version": "1.10.0",
     "summary": "The signs, the map and the players of Road Sign Math.",
     "description": "Every public sign, the ways people found to make it true, the map and who’s playing, read by anyone; sign-in by email, your own account, and posting signs and ways from the app. Answers are JSON in UTF-8 with snake_case keys and carry an `API-Version` header. A request with a token is never cached. An error is `{\"error\": {\"code\", \"message\"}}`.",
     "license": {
@@ -220,7 +220,7 @@
             }
           },
           "503": {
-            "description": "The moderator or the hearts counter couldn’t answer just now; try again in a minute.",
+            "description": "The moderator, the hearts counter or the mail couldn’t answer just now; try again in a minute.",
             "content": {
               "application/json": {
                 "schema": {
@@ -540,7 +540,7 @@
             }
           },
           "503": {
-            "description": "The moderator or the hearts counter couldn’t answer just now; try again in a minute.",
+            "description": "The moderator, the hearts counter or the mail couldn’t answer just now; try again in a minute.",
             "content": {
               "application/json": {
                 "schema": {
@@ -993,7 +993,7 @@
             }
           },
           "503": {
-            "description": "The moderator or the hearts counter couldn’t answer just now; try again in a minute.",
+            "description": "The moderator, the hearts counter or the mail couldn’t answer just now; try again in a minute.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1118,7 +1118,7 @@
             }
           },
           "503": {
-            "description": "The moderator or the hearts counter couldn’t answer just now; try again in a minute.",
+            "description": "The moderator, the hearts counter or the mail couldn’t answer just now; try again in a minute.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1205,6 +1205,48 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Blocks"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/activity": {
+      "get": {
+        "operationId": "getMyActivity",
+        "summary": "What’s new on your signs",
+        "description": "The ways other players found and the hearts they gave on your signs (the ones you posted and the ones you are a finder of, held and hidden ones too) in the last 30 days, newest first, at most 100. Your own ways and hearts are left out, and so is anything by a player you blocked. Hearts from the website have no player and aren’t listed.",
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "What’s new on your signs",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyActivity"
                 }
               }
             }
@@ -1598,7 +1640,7 @@
             }
           },
           "503": {
-            "description": "The moderator or the hearts counter couldn’t answer just now; try again in a minute.",
+            "description": "The moderator, the hearts counter or the mail couldn’t answer just now; try again in a minute.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1699,7 +1741,7 @@
             }
           },
           "503": {
-            "description": "The moderator or the hearts counter couldn’t answer just now; try again in a minute.",
+            "description": "The moderator, the hearts counter or the mail couldn’t answer just now; try again in a minute.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1812,7 +1854,7 @@
             }
           },
           "503": {
-            "description": "The moderator or the hearts counter couldn’t answer just now; try again in a minute.",
+            "description": "The moderator, the hearts counter or the mail couldn’t answer just now; try again in a minute.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2010,6 +2052,88 @@
           }
         }
       }
+    },
+    "/api/v1/feedback": {
+      "post": {
+        "operationId": "sendFeedback",
+        "summary": "Send feedback",
+        "description": "Emails your message to the people who run Road Sign Math, with your name, handle, page, sign count and the `app` line. Your email address goes with it only when `reply_ok` is true, as the address a reply goes to. At most 10 a day. A 503 means it couldn’t be sent; try again in a minute.",
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackPost"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Send feedback",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackSent"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter or the body is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many tries for now; the message says when to try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The moderator, the hearts counter or the mail couldn’t answer just now; try again in a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2061,7 +2185,7 @@
           "api_version": {
             "type": "string",
             "examples": [
-              "1.9.0"
+              "1.10.0"
             ]
           },
           "signs": {
@@ -3568,6 +3692,205 @@
             "type": "integer",
             "minimum": 0,
             "description": "How many views were taken."
+          }
+        }
+      },
+      "FeedbackPost": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "What you want to tell us, trimmed; line breaks are kept."
+          },
+          "reply_ok": {
+            "type": "boolean",
+            "default": false,
+            "description": "True to send your email address along as the address a reply goes to."
+          },
+          "app": {
+            "type": "string",
+            "maxLength": 120,
+            "description": "The app’s version and the phone’s system, as one line.",
+            "examples": [
+              "0.9.0 (31) · iOS 26.1"
+            ]
+          }
+        }
+      },
+      "FeedbackSent": {
+        "type": "object",
+        "required": [
+          "sent"
+        ],
+        "properties": {
+          "sent": {
+            "type": "boolean",
+            "const": true
+          }
+        }
+      },
+      "Activity": {
+        "type": "object",
+        "required": [
+          "kind",
+          "at",
+          "sign",
+          "player",
+          "way"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "way",
+              "heart"
+            ]
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the way was found or the heart given."
+          },
+          "sign": {
+            "type": "object",
+            "required": [
+              "id",
+              "slug",
+              "title",
+              "photo_thumb_url"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "slug": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "photo_thumb_url": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "The first photo, small. A held or hidden sign’s comes from `/me/photos` with your token, and is null when you found the sign but didn’t post it."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          "player": {
+            "type": "object",
+            "description": "Who found the way or gave the heart. Handle and name are null until they give a name.",
+            "required": [
+              "handle",
+              "name",
+              "avatar_color",
+              "avatar_thumb_url"
+            ],
+            "properties": {
+              "handle": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "avatar_color": {
+                "type": "string",
+                "pattern": "^#[0-9A-F]{6}$"
+              },
+              "avatar_thumb_url": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          "way": {
+            "anyOf": [
+              {
+                "type": "object",
+                "description": "The way, for a way; null for a heart.",
+                "required": [
+                  "id",
+                  "text",
+                  "tex"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "tex": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "description": "LaTeX for drawing the math; null only if it no longer parses."
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "MyActivity": {
+        "type": "object",
+        "required": [
+          "days",
+          "items"
+        ],
+        "properties": {
+          "days": {
+            "type": "integer",
+            "const": 30,
+            "description": "How many days back it looks."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Activity"
+            },
+            "maxItems": 100
           }
         }
       },
