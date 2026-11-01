@@ -5,6 +5,7 @@
 import { Hono, type Context } from 'hono';
 import { BADGES, earnedBadges, newlyEarned, type Earned } from '../domain/badges.ts';
 import { normalizeNumber } from '../domain/equation.ts';
+import { signComplexity } from '../domain/complexity.ts';
 import { miles } from '../domain/geo.ts';
 import type { Sign, Way } from '../domain/types.ts';
 import type { Store } from '../store/store.ts';
@@ -290,6 +291,21 @@ export function createApi(options: ApiOptions): Hono {
       const count = (s: Sign) => h.counts?.get(signPath(s)) ?? 0;
       const popular = [...signs].sort((a, b) => count(b) - count(a)).slice(0, LIMITS.popularMax);
       return c.json({ signs: popular.map((s) => signSummary(urls, people, s, blocked, h)) });
+    },
+
+    async listSignsComplex(c, { data, hearts }) {
+      const [{ signs, people, blocked }, h] = await Promise.all([data(), hearts()]);
+      // A sign's complexity is its most complex way this reader sees: a blocked player's ways
+      // drop out, as everywhere else. The signs come newest first and the sort is stable, so
+      // ties stay newest first and the unsolved, at 0, come last.
+      const lists = await Promise.all(signs.map((s) => store.listWays(s.id)));
+      const scored = signs
+        .map((s, i) => ({ sign: s, complexity: signComplexity(lists[i].filter((w) => !blocked.has(w.playerId))) }))
+        .sort((a, b) => b.complexity - a.complexity)
+        .slice(0, LIMITS.complexMax);
+      return c.json({
+        signs: scored.map((x) => ({ ...signSummary(urls, people, x.sign, blocked, h), complexity: x.complexity }))
+      });
     },
 
     async listSimilarSigns(c, { data, hearts }) {

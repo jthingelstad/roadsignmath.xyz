@@ -397,14 +397,19 @@ export function tex(node: Node): string {
   }
 }
 
-/** The LaTeX for a way's text, or undefined when it doesn't parse. */
-export function texOf(text: string): string | undefined {
+/** A way's sides as trees, or undefined when the text doesn't parse. Says nothing of truth. */
+export function parse(text: string): Node[] | undefined {
   try {
-    return new Parser(tokenize(text)).equation().map(tex).join(' = ');
+    return new Parser(tokenize(text)).equation();
   } catch (e) {
     if (e instanceof ParseError) return undefined;
     throw e;
   }
+}
+
+/** The LaTeX for a way's text, or undefined when it doesn't parse. */
+export function texOf(text: string): string | undefined {
+  return parse(text)?.map(tex).join(' = ');
 }
 
 /** Every number literal, in reading order. The 2 of a square root is not one. */

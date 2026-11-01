@@ -122,6 +122,15 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
   hearts first, counting every heart a sign has had; ties and the unhearted come newest first
   (Jamie, 2026-10-31: "all-time hearts, newest breaks ties, unhearted signs last, app first").
   Without counts it is the newest. `popular` is a reserved slug, like `near` and `similar`.
+- **Complexity** (`GET /signs/complex`, the app's and the site's fourth sort; `src/domain/complexity.ts`):
+  at most 50 signs, the most complex math first. Jamie asked Claude to design it (2026-10-31: "it
+  should be based on some scoring of the math operators used and how many of them… more complex
+  math operators yields more complex sign"). Each operator in a way counts once, weighted: + and −
+  1, × 2, ÷ 3, a negative 2, √ and powers 4, ! 5; numbers, brackets and = count nothing. A sign
+  is its most complex way the reader sees, so a harder way found later moves it up; ties come
+  newest first and unsolved signs last, at 0. Each sign in the answer carries its `complexity`
+  for the app, but no page shows it: it orders signs by their math and is never a player's score.
+  `complex` is a reserved slug.
 - **Badges** (`src/domain/badges.ts`): 28 little road signs on five shelves (firsts, places,
   math, seasons, secret). Nothing about them is stored: they are worked out on every read from
   the shown signs and the ways on them that the reader sees (a block leaves out the blocked

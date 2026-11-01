@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Road Sign Math API",
-    "version": "1.8.0",
+    "version": "1.9.0",
     "summary": "The signs, the map and the players of Road Sign Math.",
     "description": "Every public sign, the ways people found to make it true, the map and who’s playing, read by anyone; sign-in by email, your own account, and posting signs and ways from the app. Answers are JSON in UTF-8 with snake_case keys and carry an `API-Version` header. A request with a token is never cached. An error is `{\"error\": {\"code\", \"message\"}}`.",
     "license": {
@@ -313,6 +313,33 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PopularSigns"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/signs/complex": {
+      "get": {
+        "operationId": "listSignsComplex",
+        "summary": "The signs with the most complex math",
+        "description": "At most 50 signs, the most complex math first, each with its `complexity`: its most complex way, scored by the operators it uses, each counted once: + and − 1, × 2, ÷ 3, a negative 2, √ and powers 4, ! 5 (numbers, brackets and = count nothing). Signs that tie come newest first, and signs nobody has solved last, at 0. It orders signs by their math; it is never a player’s score.",
+        "responses": {
+          "200": {
+            "description": "The signs with the most complex math",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplexSigns"
                 }
               }
             }
@@ -2034,7 +2061,7 @@
           "api_version": {
             "type": "string",
             "examples": [
-              "1.8.0"
+              "1.9.0"
             ]
           },
           "signs": {
@@ -2580,6 +2607,36 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Sign"
+            }
+          }
+        }
+      },
+      "ComplexSigns": {
+        "type": "object",
+        "required": [
+          "signs"
+        ],
+        "properties": {
+          "signs": {
+            "type": "array",
+            "items": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Sign"
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "complexity"
+                  ],
+                  "properties": {
+                    "complexity": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              ]
             }
           }
         }

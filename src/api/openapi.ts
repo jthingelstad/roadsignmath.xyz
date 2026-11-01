@@ -129,6 +129,9 @@ const SCHEMAS: Record<string, Schema> = {
     signs: array({ allOf: [ref('Sign'), object({ miles: { type: 'number', minimum: 0 } })] })
   }),
   PopularSigns: object({ signs: array(ref('Sign')) }),
+  ComplexSigns: object({
+    signs: array({ allOf: [ref('Sign'), object({ complexity: { type: 'integer', minimum: 0 } })] })
+  }),
   SimilarSigns: object({
     signs: array({ allOf: [ref('Sign'), object({ miles: { type: 'number', minimum: 0 } })] })
   }),
