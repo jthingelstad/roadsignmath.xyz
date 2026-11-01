@@ -128,6 +128,8 @@ Resources:
           PHOTO_BUCKET: !Ref PhotoBucket
           PHOTO_DISTRIBUTION_ID: !If [HasPhotoDistribution, !Ref PhotoDistributionId, !Ref AWS::NoValue]
           FROM_ADDRESS: !Sub "Road Sign Math <${FromAddress}>"
+          # Where players' feedback from the app goes (POST /api/v1/feedback; Jamie, 2026-10-31).
+          FEEDBACK_TO: admin@thingelstad.com
           SITE_URL: !Sub "https://${Domain}"
           RUNTIME_SECRET: !Ref RuntimeSecretName
           APPLE_TEAM_ID: !If [HasAppleTeam, !Ref AppleTeamId, !Ref AWS::NoValue]
@@ -201,8 +203,10 @@ Resources:
                 Action: cloudfront:CreateInvalidation
                 Resource: !Sub "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*"
               - Effect: Allow
-                # The sign-in email, only as Road Sign Math (src/mail/mailer.ts), never as
-                # another identity in this shared account.
+                # The sign-in email and players' feedback, only as Road Sign Math
+                # (src/mail/mailer.ts), never as another identity in this shared account. Any
+                # recipient: feedback goes to FEEDBACK_TO, with the player's address as Reply-To
+                # only when they ask for a reply.
                 Action: ses:SendEmail
                 Resource: !Sub "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/*"
                 Condition:

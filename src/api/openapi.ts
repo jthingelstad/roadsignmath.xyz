@@ -357,6 +357,73 @@ const SCHEMAS: Record<string, Schema> = {
     }
   },
   AppViewsAccepted: object({ accepted: { ...int, description: 'How many views were taken.' } }),
+  FeedbackPost: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['message'],
+    properties: {
+      message: {
+        type: 'string',
+        minLength: 1,
+        maxLength: LIMITS.feedbackMax,
+        description: 'What you want to tell us, trimmed; line breaks are kept.'
+      },
+      reply_ok: {
+        type: 'boolean',
+        default: false,
+        description: 'True to send your email address along as the address a reply goes to.'
+      },
+      app: {
+        type: 'string',
+        maxLength: LIMITS.feedbackAppMax,
+        description: 'The app’s version and the phone’s system, as one line.',
+        examples: ['0.9.0 (31) · iOS 26.1']
+      }
+    }
+  },
+  FeedbackSent: object({ sent: { type: 'boolean', const: true } }),
+  Activity: object({
+    kind: { type: 'string', enum: ['way', 'heart'] },
+    at: { type: 'string', format: 'date-time', description: 'When the way was found or the heart given.' },
+    sign: object({
+      id: str,
+      slug: str,
+      title: str,
+      photo_thumb_url: nullable({
+        type: 'string',
+        format: 'uri',
+        description:
+          'The first photo, small. A held or hidden sign’s comes from `/me/photos` with your token, and is ' +
+          'null when you found the sign but didn’t post it.'
+      })
+    }),
+    player: object(
+      {
+        handle: nullable(str),
+        name: nullable(str),
+        avatar_color: { type: 'string', pattern: '^#[0-9A-F]{6}$' },
+        avatar_thumb_url: nullable({ type: 'string', format: 'uri' })
+      },
+      'Who found the way or gave the heart. Handle and name are null until they give a name.'
+    ),
+    way: nullable(
+      object(
+        {
+          id: str,
+          text: str,
+          tex: nullable({
+            type: 'string',
+            description: 'LaTeX for drawing the math; null only if it no longer parses.'
+          })
+        },
+        'The way, for a way; null for a heart.'
+      )
+    )
+  }),
+  MyActivity: object({
+    days: { type: 'integer', const: LIMITS.activityDays, description: 'How many days back it looks.' },
+    items: { ...array(ref('Activity')), maxItems: LIMITS.activityMax }
+  }),
   SignInStart: object({ email: { type: 'string', format: 'email' } }),
   SignInStarted: object({
     login_id: { type: 'string', description: 'Send it back with the code or the link’s token.' },

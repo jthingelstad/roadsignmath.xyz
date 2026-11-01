@@ -66,6 +66,17 @@ test('SES gets both parts, and text alone when there is no HTML', async () => {
   assert.equal(both.Html!.Charset, 'UTF-8');
   assert.deepEqual(plain, { Text: { Data: 'Just text', Charset: 'UTF-8' } });
   assert.deepEqual(sent[0].Destination, { ToAddresses: ['player@example.test'] });
+  assert.equal(sent[0].ReplyToAddresses, undefined);
+});
+
+test('a Reply-To goes to SES only when the mail has one', async () => {
+  const sent: SendEmailCommand['input'][] = [];
+  const client = { send: async (command: SendEmailCommand) => void sent.push(command.input) };
+  const mailer = new SesMailer('Road Sign Math <signin@example.test>', client as never);
+  await mailer.send({ to: 'team@example.test', subject: 'Feedback', text: 'Hi', replyTo: 'player@example.test' });
+  assert.deepEqual(sent[0].ReplyToAddresses, ['player@example.test']);
+  assert.deepEqual(sent[0].Destination, { ToAddresses: ['team@example.test'] });
+  assert.equal(sent[0].FromEmailAddress, 'Road Sign Math <signin@example.test>');
 });
 
 test('in dev the HTML lands beside the text, to open in a browser', async () => {
@@ -84,6 +95,31 @@ test('in dev the HTML lands beside the text, to open in a browser', async () => 
     assert.equal(files[0].replace(/\.html$/, ''), files[1].replace(/\.txt$/, ''));
     assert.match(await readFile(join(folder, files[0]), 'utf8'), /^<!doctype html>/);
     assert.match(await readFile(join(folder, files[1]), 'utf8'), /^To: player@example\.test\nSubject: Your Road/);
+  } finally {
+    await rm(folder, { recursive: true, force: true });
+  }
+});
+
+test('in dev a Reply-To is written under the To', async () => {
+  const folder = await mkdtemp(join(tmpdir(), 'rsm-mail-'));
+  try {
+    const log = console.log;
+    console.log = () => {};
+    try {
+      await new FileMailer(folder).send({
+        to: 'team@example.test',
+        subject: 'Feedback',
+        text: 'Hi\n',
+        replyTo: 'player@example.test'
+      });
+    } finally {
+      console.log = log;
+    }
+    const [file] = await readdir(folder);
+    assert.equal(
+      await readFile(join(folder, file), 'utf8'),
+      'To: team@example.test\nReply-To: player@example.test\nSubject: Feedback\n\nHi\n'
+    );
   } finally {
     await rm(folder, { recursive: true, force: true });
   }

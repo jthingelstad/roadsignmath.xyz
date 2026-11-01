@@ -31,7 +31,8 @@ main ([`docs/DEPLOY.md`](docs/DEPLOY.md)).
   with everything they posted.
 - Posting from the app: upload photos, post a sign with its numbers and its
   first way (or unsolved), add more ways to anyone's sign, delete your own,
-  report a sign, and block a player. Claude moderates: it holds a post only when
+  report a sign, block a player, see the ways and hearts others leave on your
+  signs, and send feedback (it's emailed to us). Claude moderates: it holds a post only when
   it is clearly objectionable, looks again when someone reports one, and writes
   each photo's alt text.
 - Badges: little road signs a player collects (first sign, states, a ×

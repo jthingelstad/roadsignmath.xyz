@@ -6,7 +6,7 @@
  * Bump on every change to the surface. tools/export-api-contract.ts refuses a changed surface
  * under a version already in contracts/api-versions.json.
  */
-export const API_VERSION = '1.9.0';
+export const API_VERSION = '1.10.0';
 
 export const LIMITS = {
   /** Signs per page of the feed. */
@@ -46,7 +46,14 @@ export const LIMITS = {
   viewsMax: 20,
   viewPathMax: 100,
   viewBatchesAnHour: 120,
-  viewBatchesAllAnHour: 400
+  viewBatchesAllAnHour: 400,
+  /** Feedback: the message, the app's version line, and messages a day per player. */
+  feedbackMax: 2000,
+  feedbackAppMax: 120,
+  feedbackADay: 10,
+  /** What's new on your signs: how many days back, and items at most. */
+  activityDays: 30,
+  activityMax: 100
 } as const;
 
 export const ERRORS = {
@@ -58,7 +65,7 @@ export const ERRORS = {
   refused: 'The moderator wouldn’t show that profile photo; the message says why, for the player.',
   rate_limited: 'Too many tries for now; the message says when to try again.',
   internal: 'Something broke on the server.',
-  unavailable: 'The moderator or the hearts counter couldn’t answer just now; try again in a minute.'
+  unavailable: 'The moderator, the hearts counter or the mail couldn’t answer just now; try again in a minute.'
 } as const;
 
 export type ErrorCode = keyof typeof ERRORS;
@@ -432,6 +439,21 @@ export const ROUTES: Route[] = [
     response: 'Blocks'
   },
   {
+    operationId: 'getMyActivity',
+    method: 'get',
+    path: '/me/activity',
+    summary: 'What’s new on your signs',
+    description:
+      'The ways other players found and the hearts they gave on your signs (the ones you posted and the ones ' +
+      `you are a finder of, held and hidden ones too) in the last ${LIMITS.activityDays} days, newest first, at ` +
+      `most ${LIMITS.activityMax}. Your own ways and hearts are left out, and so is anything by a player you ` +
+      'blocked, signs they posted included. Hearts from the website have no player and aren’t listed.',
+    params: [],
+    auth: 'signed_in',
+    status: 200,
+    response: 'MyActivity'
+  },
+  {
     operationId: 'getMyPhoto',
     method: 'get',
     path: '/me/photos/{photoId}/{size}',
@@ -615,5 +637,21 @@ export const ROUTES: Route[] = [
     params: [handle],
     auth: 'signed_in',
     status: 204
+  },
+  {
+    operationId: 'sendFeedback',
+    method: 'post',
+    path: '/feedback',
+    summary: 'Send feedback',
+    description:
+      'Emails your message to the people who run Road Sign Math, with your name, handle, page, sign count and ' +
+      'the `app` line. Your email address goes with it only when `reply_ok` is true, as the address a reply ' +
+      `goes to. At most ${LIMITS.feedbackADay} a day. A 503 means it couldn’t be sent; try again in a minute.`,
+    params: [],
+    auth: 'signed_in',
+    body: 'FeedbackPost',
+    errors: ['rate_limited', 'unavailable'],
+    status: 202,
+    response: 'FeedbackSent'
   }
 ];
