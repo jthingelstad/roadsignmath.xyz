@@ -1226,7 +1226,7 @@
       "get": {
         "operationId": "getMyActivity",
         "summary": "What’s new on your signs",
-        "description": "The ways other players found and the hearts they gave on your signs (the ones you posted and the ones you are a finder of, held and hidden ones too) in the last 30 days, newest first, at most 100. Your own ways and hearts are left out, and so is anything by a player you blocked. Hearts from the website have no player and aren’t listed.",
+        "description": "The ways other players found and the hearts they gave on your signs (the ones you posted and the ones you are a finder of, held and hidden ones too) in the last 30 days, newest first, at most 100. Your own ways and hearts are left out, and so is anything by a player you blocked, signs they posted included. Hearts from the website have no player and aren’t listed.",
         "security": [
           {
             "token": []

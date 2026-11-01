@@ -149,6 +149,35 @@ test('ways and hearts by others on your signs, newest first, with who and the ma
   assert.deepEqual(nameless.player, { handle: null, name: null, avatar_color: '#006348', avatar_thumb_url: null });
 });
 
+test('a sign posted by a player you blocked drops out, though it names you a finder', async () => {
+  const { store, get } = await setup();
+  await addSign(
+    store,
+    sign({
+      id: id(6),
+      title: 'Eves Sign',
+      postedBy: eve.id,
+      finders: [
+        { playerId: eve.id, name: eve.name, role: 'found' },
+        { playerId: ada.id, name: ada.name, role: 'spotted' }
+      ]
+    })
+  );
+  await store.putWay(way(id(6), { id: 'w-dee-eves', playerId: dee.id, createdAt: ago(0, 5) }));
+  await store.putHeart({ playerId: cy.id, signId: id(6), uid: 'cy-6', createdAt: ago(0, 6) });
+  await store.putWay(way(id(1), { id: 'w-ben', playerId: ben.id, createdAt: ago(1) }));
+  assert.deepEqual(
+    (await get(ada)).body.items.map((i: Json) => `${i.kind} ${i.sign.slug}`),
+    ['way exit-seven']
+  );
+  // Unblocked, it is hers again.
+  await store.deleteBlock(ada.id, eve.id);
+  assert.deepEqual(
+    (await get(ada)).body.items.map((i: Json) => `${i.kind} ${i.sign.slug}`),
+    ['way eves-sign', 'heart eves-sign', 'way exit-seven']
+  );
+});
+
 test('another player sees their own signs’ activity, not yours', async () => {
   const { store, get } = await setup();
   await store.putWay(way(id(1), { id: 'w-ben', playerId: ben.id, createdAt: ago(1) }));

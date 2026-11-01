@@ -447,7 +447,7 @@ export const ROUTES: Route[] = [
       'The ways other players found and the hearts they gave on your signs (the ones you posted and the ones ' +
       `you are a finder of, held and hidden ones too) in the last ${LIMITS.activityDays} days, newest first, at ` +
       `most ${LIMITS.activityMax}. Your own ways and hearts are left out, and so is anything by a player you ` +
-      'blocked. Hearts from the website have no player and aren’t listed.',
+      'blocked, signs they posted included. Hearts from the website have no player and aren’t listed.',
     params: [],
     auth: 'signed_in',
     status: 200,

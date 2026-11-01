@@ -1,5 +1,6 @@
 // What's new on your signs (`GET /me/activity`): the ways other players found and the hearts
-// they gave on the signs you posted or are a finder of, in any state, newest first. Website
+// they gave on the signs you posted or are a finder of, in any state, newest first; a sign
+// posted by a player you blocked isn't listed. Website
 // kudos have no player, so they aren't here. Showing who hearted is Jamie's design (2026-10-31).
 
 import { LIMITS } from './api/contract.ts';
@@ -25,9 +26,11 @@ export async function myActivity(store: Store, urls: Urls, me: Player, now: numb
   const [signs, players, blocks] = await Promise.all([store.allSigns(), store.allPlayers(), store.listBlocks(me.id)]);
   const blocked = new Set(blocks.map((b) => b.blockedId));
   const people = new Map(players.map((p) => [p.id, p]));
-  const mine = new Map(
-    signs.filter((s) => s.postedBy === me.id || s.finders.some((f) => f.playerId === me.id)).map((s) => [s.id, s])
-  );
+  // A block hides the blocked player's signs everywhere, so one they posted naming you a finder
+  // isn't yours here either.
+  const yours = (s: Sign) =>
+    (s.postedBy === me.id || s.finders.some((f) => f.playerId === me.id)) && !blocked.has(s.postedBy);
+  const mine = new Map(signs.filter(yours).map((s) => [s.id, s]));
   const others = (playerId: string) => playerId !== me.id && !blocked.has(playerId) && people.has(playerId);
 
   const signRef = (sign: Sign) => {

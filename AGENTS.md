@@ -155,7 +155,8 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
 - **Activity** (`src/activity.ts`): `GET /me/activity`, signed in, is what's new on your signs
   for the app's You tab: the ways other players found and the hearts they gave in the last 30
   days, newest first, at most 100. Your signs are the ones you posted or are a finder of, in
-  any state. Your own ways and hearts and anything by a player you blocked are left out, and
+  any state. Your own ways and hearts and anything by a player you blocked (signs they posted
+  included) are left out, and
   so are the website's kudos, which have no player. Showing who hearted is Jamie's design
   (2026-10-31). It reads every player's heart rows, one query each: fine at this size.
 - **Posting** (`src/posting/`): `POST /photos` takes the photo itself and keeps it under
