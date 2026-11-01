@@ -1,5 +1,5 @@
 // The website's frame and the pieces its pages share, as the design draws them: the header with
-// the sign-plate logo and Map / Signs / How to play, the footer pointing at the first era's
+// the sign-plate logo and Map / Signs / Players / About, the footer pointing at the first era's
 // archive, avatars, the green sign plate the math sits on, and the map with its pins.
 
 import type { FC, PropsWithChildren } from 'hono/jsx';
@@ -49,6 +49,12 @@ h1, h2, h3 { font-weight: 900; letter-spacing: -0.01em; }
 .get { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 18px; border-radius: 10px;
   background: var(--green); color: #fff; font-weight: 800; text-decoration: none; margin-left: auto; }
 .get:hover { background: var(--green-dark); color: #fff; }
+.get[aria-current] { background: var(--green-dark); box-shadow: 0 0 0 2px var(--page), 0 0 0 4px var(--green-dark); }
+.testflight { display: inline-flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 24px; border-radius: 14px;
+  background: #fff; color: #18201C; font-weight: 900; font-size: 18px; text-decoration: none; align-self: flex-start; }
+.testflight:hover { background: #F2B300; color: #18201C; }
+.testflight:focus-visible { outline: 3px solid #F2B300; outline-offset: 3px; }
+.testflight small { display: block; font-weight: 600; font-size: 14px; color: #3B4540; }
 
 .foot { border-top: 1px solid var(--line); }
 .foot .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px; padding-top: 28px; padding-bottom: 40px;
@@ -125,8 +131,8 @@ export type PageMeta = {
   image?: string;
   /** The page's share card on cards.thingelstad.com, in place of a photo (src/web/share.ts). */
   card?: Card;
-  /** Which of Map, Signs and How to play the page is under. */
-  here?: 'map' | 'signs' | 'how';
+  /** Which of Map, Signs, Players and About the page is under, or the app's page. */
+  here?: 'map' | 'signs' | 'players' | 'about' | 'app';
   /** Adds Tinylytics' counter. The sign-in page leaves it out: its URL carries the link's token. */
   count?: boolean;
   /** Page-only CSS. */
@@ -238,17 +244,26 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
             <b>Road Sign Math</b>
           </a>
           <nav aria-label="Main">
-            <a href="/#map" aria-current={here === 'map' ? 'page' : undefined}>
+            <a href="/" aria-current={here === 'map' ? 'page' : undefined}>
               Map
             </a>
             <a href="/signs" aria-current={here === 'signs' ? 'page' : undefined}>
               Signs
             </a>
-            <a href="/#how" aria-current={here === 'how' ? 'page' : undefined}>
-              How to play
+            <a href="/players" aria-current={here === 'players' ? 'page' : undefined}>
+              Players
+            </a>
+            <a href="/about" aria-current={here === 'about' ? 'page' : undefined}>
+              About
             </a>
           </nav>
-          <a class="get" href="/#app" data-tinylytics-event="app.get" data-tinylytics-event-value="header">
+          <a
+            class="get"
+            href="/app"
+            aria-current={here === 'app' ? 'page' : undefined}
+            data-tinylytics-event="app.get"
+            data-tinylytics-event-value="header"
+          >
             <Phone />
             Get the app
           </a>

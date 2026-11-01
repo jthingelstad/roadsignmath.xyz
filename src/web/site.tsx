@@ -28,6 +28,8 @@ import { mathSvg } from './math.ts';
 import { feedAlternates } from './feeds.ts';
 import { createOpenWeb } from './open.tsx';
 import { homeCard, pinValue, playerCard, signCard } from './share.ts';
+import { mountAppPage } from './app-page.tsx';
+import { mountPlayers } from './players.tsx';
 import { mountSigns, waysFor } from './signs.tsx';
 import { sortOf, sortSigns } from './sorts.ts';
 import { US_BORDERS, US_LAND, US_MAP_SIZE } from './us-map.ts';
@@ -169,11 +171,6 @@ ${CHIP_STYLE}
 #app li::before { content: ''; flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: #F2B300; transform: translateY(-2px); }
 #app .join { flex: 0 1 340px; display: flex; flex-direction: column; gap: 12px; }
 #app .join p { font-size: 15px; }
-.testflight { display: inline-flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 24px; border-radius: 14px;
-  background: #fff; color: #18201C; font-weight: 900; font-size: 18px; text-decoration: none; align-self: flex-start; }
-.testflight:hover { background: #F2B300; color: #18201C; }
-.testflight:focus-visible { outline: 3px solid #F2B300; outline-offset: 3px; }
-.testflight small { display: block; font-weight: 600; font-size: 14px; color: #3B4540; }
 `;
 
 /** On Home, the year chips and the pins swap the map's panel in place instead of loading the page again. */
@@ -317,6 +314,8 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
     const entries: [string, string | undefined][] = [
       [`${urls.site}/`, shown.map(changed).sort().at(-1)],
       [`${urls.site}/signs`, shown.map(changed).sort().at(-1)],
+      [`${urls.site}/players`, undefined],
+      [`${urls.site}/app`, undefined],
       [`${urls.site}/about`, undefined],
       [`${urls.site}/privacy`, undefined],
       [`${urls.site}/data`, undefined],
@@ -350,6 +349,7 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
         title="About · Road Sign Math"
         description="Road Sign Math is a road trip game Jamie Thingelstad started in 2005 with a sign on I-94: 3 × 33 = 99. Twenty years later it's an iPhone app."
         url={`${urls.site}/about`}
+        here="about"
         style={ABOUT_STYLE}
       >
         <main class="wrap about">
@@ -769,6 +769,9 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
                   Open the link on your iPhone, install TestFlight if it asks, then tap Accept. It’s a beta: new
                   versions arrive on their own, and you can send feedback right from TestFlight.
                 </p>
+                <a href="/app" style="color: #fff; font-weight: 800">
+                  More about the app
+                </a>
               </div>
             </div>
           </section>
@@ -778,6 +781,8 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
   });
 
   mountSigns(site, { store, urls, people, counts });
+  mountPlayers(site, { store, urls, people });
+  mountAppPage(site, { urls });
 
   site.get('/signs/:slug', async (c) => {
     const signs = (await store.allSigns()).filter(isPublic);
@@ -911,7 +916,7 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
                       ))}
                     </ul>
                   )}
-                  <a class="another" href="/#app" data-tinylytics-event="app.get" data-tinylytics-event-value="sign">
+                  <a class="another" href="/app" data-tinylytics-event="app.get" data-tinylytics-event-value="sign">
                     {sign.ways.length ? 'Find another way in the app' : 'Solve it in the app'}
                   </a>
                 </section>
@@ -1026,6 +1031,7 @@ const PlayerPage: FC<{
         firstYear: stats.first_year
       })}
       feeds={feedAlternates({ title: `${player.name} · Road Sign Math`, base: `${urls.site}${base}` }, urls.site)}
+      here="players"
       style={PLAYER_STYLE}
     >
       <main class="player">
