@@ -6,7 +6,7 @@
  * Bump on every change to the surface. tools/export-api-contract.ts refuses a changed surface
  * under a version already in contracts/api-versions.json.
  */
-export const API_VERSION = '1.8.0';
+export const API_VERSION = '1.9.0';
 
 export const LIMITS = {
   /** Signs per page of the feed. */
@@ -16,6 +16,8 @@ export const LIMITS = {
   nearMax: 50,
   /** Signs in a "Popular" answer. */
   popularMax: 50,
+  /** Signs in a "Complexity" answer. */
+  complexMax: 50,
   /** How far "Nobody has posted this sign yet" looks, in miles. */
   similarMiles: 2,
   /** Numbers a similar-sign question may send. */
@@ -200,6 +202,21 @@ export const ROUTES: Route[] = [
     auth: 'public',
     status: 200,
     response: 'PopularSigns'
+  },
+  {
+    operationId: 'listSignsComplex',
+    method: 'get',
+    path: '/signs/complex',
+    summary: 'The signs with the most complex math',
+    description:
+      `At most ${LIMITS.complexMax} signs, the most complex math first, each with its \`complexity\`: its most ` +
+      'complex way, scored by the operators it uses, each counted once: + and − 1, × 2, ÷ 3, a negative 2, √ ' +
+      'and powers 4, ! 5 (numbers, brackets and = count nothing). Signs that tie come newest first, and signs ' +
+      'nobody has solved last, at 0. It orders signs by their math; it is never a player’s score.',
+    params: [],
+    auth: 'public',
+    status: 200,
+    response: 'ComplexSigns'
   },
   {
     operationId: 'listSimilarSigns',

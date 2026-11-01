@@ -20,7 +20,7 @@ const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const ROLES: FinderRole[] = ['found', 'took_photo', 'spotted'];
 const NUMBER = /^\d*\.?\d+$|^\d+\.$/;
 /** Slugs a sign can't have, because a route under /signs/ already uses the word. */
-const RESERVED_SLUGS = new Set(['near', 'popular', 'similar']);
+const RESERVED_SLUGS = new Set(['complex', 'near', 'popular', 'similar']);
 
 const tomorrow = 'Try again tomorrow.';
 const isoNow = (now: number): string => new Date(now * 1000).toISOString();
