@@ -97,6 +97,11 @@ h1, h2, h3 { font-weight: 900; letter-spacing: -0.01em; }
 .tile .soft { font-size: 14px; }
 .tile .heart { margin-top: 8px; }
 .tile .eq { overflow-wrap: anywhere; }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.sep { display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: currentColor; vertical-align: middle;
+  margin: 0 6px 3px; }
+.mj { display: inline-block; max-width: 100%; vertical-align: middle; }
+.mj svg { max-width: 100%; height: auto; vertical-align: middle; }
 @media (max-width: 599px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 12px; } .tile strong { font-size: 15px; } .tile .eq { font-size: 14px; } .tile .soft { font-size: 13px; } }
 .dist { position: absolute; left: 10px; top: 10px; padding: 3px 9px 1px; border-radius: 8px; background: #fff; color: #18201C;
   font-size: 13px; font-weight: 700; }
@@ -236,7 +241,7 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
             <a href="/#map" aria-current={here === 'map' ? 'page' : undefined}>
               Map
             </a>
-            <a href="/#latest" aria-current={here === 'signs' ? 'page' : undefined}>
+            <a href="/signs" aria-current={here === 'signs' ? 'page' : undefined}>
               Signs
             </a>
             <a href="/#how" aria-current={here === 'how' ? 'page' : undefined}>
