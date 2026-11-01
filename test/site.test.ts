@@ -59,7 +59,7 @@ test('home’s app section links the public TestFlight beta', async () => {
   // Tinylytics counts clicks on the way to the app.
   assert.match(
     html,
-    /<a class="get" href="\/#app" data-tinylytics-event="app\.get" data-tinylytics-event-value="header">/
+    /<a class="get" href="\/app" data-tinylytics-event="app\.get" data-tinylytics-event-value="header">/
   );
   assert.ok(html.includes('Join the iPhone beta'));
 });
@@ -292,7 +292,7 @@ test('a sign’s page has its numbers, where it is on the map, and the signs nea
   assert.match(html, /<span class="dist mono">0 mi<\/span>/);
   assert.match(
     html,
-    /<a class="another" href="\/#app" data-tinylytics-event="app\.get" data-tinylytics-event-value="sign">Find another way in the app<\/a>/
+    /<a class="another" href="\/app" data-tinylytics-event="app\.get" data-tinylytics-event-value="sign">Find another way in the app<\/a>/
   );
   assert.ok(!html.includes('Held Sign'));
 });
