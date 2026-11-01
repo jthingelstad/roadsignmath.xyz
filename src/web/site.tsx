@@ -7,7 +7,7 @@ import { Hono } from 'hono';
 import type { FC } from 'hono/jsx';
 import type { ApiOptions } from '../api/app.ts';
 import { earnedBadges } from '../domain/badges.ts';
-import { miles } from '../domain/geo.ts';
+import { miles, STATES } from '../domain/geo.ts';
 import type { Player, Sign, Way } from '../domain/types.ts';
 import {
   byNewest,
@@ -20,9 +20,9 @@ import {
   type People,
   type Urls
 } from '../api/views.ts';
-import { BadgeRow } from './badges.tsx';
-import { CHIP_STYLE, Eq, Facts, finderNames, Heart, nearbyScript, SORT_NOTES, SortChips, Tile } from './cards.tsx';
-import { ARCHIVE_URL, Avatar, logoSvg, longDay, Page, Phone, Plate, shortDay, TESTFLIGHT_URL } from './layout.tsx';
+import { BADGE_STYLE, BadgeCards } from './badges.tsx';
+import { CHIP_STYLE, Eq, Facts, finderNames, Heart, nearbyScript, Sep, SORT_NOTES, SortChips, Tile } from './cards.tsx';
+import { ARCHIVE_URL, Avatar, logoSvg, Page, Phone, Plate, shortDay, TESTFLIGHT_URL } from './layout.tsx';
 import { cluster, clusterName, countSigns, project, type Cluster } from './map.ts';
 import { mathSvg } from './math.ts';
 import { feedAlternates } from './feeds.ts';
@@ -30,7 +30,7 @@ import { createOpenWeb } from './open.tsx';
 import { homeCard, pinValue, playerCard, signCard } from './share.ts';
 import { mountAppPage } from './app-page.tsx';
 import { mountIcons } from './icons.ts';
-import { mountPlayers } from './players.tsx';
+import { mountPlayers, playingSince } from './players.tsx';
 import { mountSigns, waysFor } from './signs.tsx';
 import { sortOf, sortSigns } from './sorts.ts';
 import { US_BORDERS, US_LAND, US_MAP_SIZE } from './us-map.ts';
@@ -195,28 +195,181 @@ document.addEventListener('click', async (e) => {
   }
 });`;
 
+/** The trail back up: every step a link but the page itself. */
+const CRUMB_STYLE = `
+.crumbs ol { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; font-size: 15px; color: var(--ink2); }
+.crumbs li + li::before { content: '/'; margin: 0 10px; color: var(--soft); }
+.crumbs a { font-weight: 800; }
+`;
+
+const Crumbs: FC<{ trail: { name: string; href?: string }[] }> = ({ trail }) => (
+  <nav class="crumbs" aria-label="Breadcrumb">
+    <ol>
+      {trail.map((step) => (
+        <li>{step.href ? <a href={step.href}>{step.name}</a> : <span aria-current="page">{step.name}</span>}</li>
+      ))}
+    </ol>
+  </nav>
+);
+
+/** A count in words up to twelve, the way the design writes "Eight numbers". */
+const COUNT_WORDS = [
+  'No',
+  'One',
+  'Two',
+  'Three',
+  'Four',
+  'Five',
+  'Six',
+  'Seven',
+  'Eight',
+  'Nine',
+  'Ten',
+  'Eleven',
+  'Twelve'
+];
+const countWord = (n: number): string => COUNT_WORDS[n] ?? String(n);
+
+/** The town in a place label: its last two parts ("Bloomington, Minnesota"), or all of a short one. */
+const townOf = (label: string): string => {
+  const parts = label.split(',').map((p) => p.trim());
+  return parts.length > 2 ? parts.slice(-2).join(', ') : label;
+};
+
+const SHARE_ICON = (
+  <svg
+    viewBox="0 0 24 24"
+    width="18"
+    height="18"
+    aria-hidden="true"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" />
+  </svg>
+);
+const LINK_ICON = (
+  <svg
+    viewBox="0 0 24 24"
+    width="18"
+    height="18"
+    aria-hidden="true"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
+  </svg>
+);
+const FEED_ICON = (
+  <svg
+    viewBox="0 0 24 24"
+    width="18"
+    height="18"
+    aria-hidden="true"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2.4"
+    stroke-linecap="round"
+  >
+    <path d="M5 11a8 8 0 0 1 8 8M5 5a14 14 0 0 1 14 14" />
+    <circle cx="6" cy="18" r="1.6" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+const ARROW = (d: string) => (
+  <svg
+    viewBox="0 0 24 24"
+    width="22"
+    height="22"
+    aria-hidden="true"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d={d} />
+  </svg>
+);
+
+/** The sign posted just before or after this one, or, at either end, where the line stops. */
+const Turn: FC<{ sign: Summary | undefined; way: 'older' | 'newer' }> = ({ sign, way }) => {
+  const label = way === 'older' ? 'Older' : 'Newer';
+  if (!sign) {
+    return (
+      <div class={`turn end ${way}`}>
+        <span class="words">
+          <span class="k">{label}</span>
+          <strong>{way === 'older' ? 'This is the first sign' : 'This is the newest sign'}</strong>
+          <a href="/signs">See every sign</a>
+        </span>
+      </div>
+    );
+  }
+  const shot = sign.photos[0] ? <img src={sign.photos[0].thumb_url} alt="" loading="lazy" /> : null;
+  const words = (
+    <span class="words">
+      <span class="k">{label}</span>
+      <strong>{sign.title}</strong>
+      <span class="soft">
+        <Facts items={[finderNames(sign), shortDay(sign.found_on)]} />
+      </span>
+    </span>
+  );
+  return way === 'older' ? (
+    <a class="turn older" href={`/signs/${sign.slug}`}>
+      {ARROW('M19 12H5M11 6l-6 6 6 6')}
+      {shot}
+      {words}
+    </a>
+  ) : (
+    <a class="turn newer" href={`/signs/${sign.slug}`}>
+      {words}
+      {shot}
+      {ARROW('M5 12h14M13 6l6 6-6 6')}
+    </a>
+  );
+};
+
 const SIGN_STYLE = `
-.sign > .wrap { padding-top: 24px; padding-bottom: 56px; display: flex; flex-direction: column; gap: 40px; }
-.cols { display: flex; flex-wrap: wrap; gap: 24px 32px; align-items: flex-start; }
-.photos { flex: 1 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.sign { background: var(--ground); }
+.sign > .wrap { padding-top: 20px; padding-bottom: 56px; display: flex; flex-direction: column; gap: 40px; }
+${CRUMB_STYLE}
+.cols { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "photos" "side" "spot"; gap: 32px; }
+@media (min-width: 900px) {
+  .cols { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); grid-template-rows: auto 1fr; column-gap: 48px;
+    grid-template-areas: "photos side" "spot side"; }
+}
+.photos { grid-area: photos; display: flex; flex-direction: column; gap: 20px; }
 .photos img { width: 100%; height: auto; border-radius: 16px; display: block; background: var(--photo); }
-.side { flex: 1 1 340px; max-width: 480px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
-.by { display: flex; align-items: center; gap: 12px; }
-.by .names { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-.by .names strong { font-size: 17px; }
-.by .names span { font-size: 14px; color: var(--soft); }
+.side { grid-area: side; display: flex; flex-direction: column; gap: 20px; }
+.side h1 { margin: 0; font-size: clamp(34px, 4.6vw, 50px); line-height: 1.05; }
+.by { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; color: var(--ink2); }
 .by .faces { display: flex; }
-.by .faces .avatar + .avatar { margin-left: -10px; box-shadow: 0 0 0 2px var(--page); }
-.copy { min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1.5px solid var(--line2); background: var(--card);
-  font: inherit; font-size: 15px; font-weight: 800; color: var(--ink); cursor: pointer; }
-.side h1 { margin: 0; font-size: 34px; line-height: 1.1; }
-.said { display: flex; flex-direction: column; gap: 4px; }
-.said p { margin: 0; }
-.said .caption { font-size: 17px; }
-.said .soft { font-size: 14px; }
-.side section { display: flex; flex-direction: column; gap: 10px; }
-.side h2 { margin: 0; font-size: 18px; }
-.ways { padding-top: 16px; border-top: 1px solid var(--line); }
+.by .faces .avatar + .avatar { margin-left: -10px; box-shadow: 0 0 0 2px var(--ground); }
+.by a { font-weight: 800; color: var(--ink); }
+.by .sep { margin: 0 2px 3px; }
+.acts { display: flex; flex-wrap: wrap; gap: 10px; }
+.act { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 999px;
+  border: 1.5px solid var(--line2); background: var(--card); font: inherit; font-size: 15px; font-weight: 800; color: var(--ink); cursor: pointer; }
+.act:hover { border-color: var(--ink); }
+.act[hidden] { display: none; }
+.acts .tinylytics_kudos { min-height: 44px; padding: 0 16px; background: var(--card); }
+.first { display: flex; flex-direction: column; gap: 8px; }
+.first .plate > span { padding: 20px 24px; font-size: clamp(30px, 3.4vw, 42px); }
+.credit { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0; font-size: 15px; color: var(--ink2); }
+.credit a { font-weight: 800; }
+.credit .count { margin-left: auto; padding-left: 12px; font-size: 14px; color: var(--soft); }
+.caption { margin: 0; font-size: 18px; }
+.unsolved { margin: 0; font-size: 18px; font-weight: 800; }
+.ways { display: flex; flex-direction: column; gap: 4px; }
+.ways h2 { margin: 0; font-size: 18px; }
 .ways ul { margin: 0; padding: 0; list-style: none; }
 .ways li { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; }
 .ways li + li { border-top: 1px solid var(--rule); }
@@ -225,18 +378,48 @@ const SIGN_STYLE = `
 .ways .eq svg { max-width: 100%; height: auto; vertical-align: middle; }
 .ways .soft { font-size: 13px; }
 .ways .soft a { color: var(--soft); }
-.another { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; border-radius: 14px;
-  background: var(--green); color: #fff; font-weight: 800; font-size: 17px; text-decoration: none; }
+.cta { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 24px; padding: 20px; border-radius: 16px; background: var(--tint);
+  color: #18201C; }
+.cta > div { flex: 1 1 200px; }
+.cta strong { display: block; font-weight: 800; }
+.cta p { margin: 2px 0 0; color: #3B4540; }
+.another { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 20px; border-radius: 10px;
+  background: var(--green); color: #fff; font-weight: 800; text-decoration: none; }
 .another:hover { background: var(--green-dark); color: #fff; }
-.nums { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 8px; }
-.nums li { min-width: 44px; height: 40px; padding: 0 10px; border-radius: 10px; background: var(--card); border: 1.5px solid var(--line2);
-  font-size: 18px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
-.where { position: relative; display: block; height: 200px; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: var(--card); }
+.spot { grid-area: spot; align-self: start; display: flex; flex-direction: column; gap: 14px; padding: 18px; background: var(--card); border: 1px solid var(--line);
+  border-radius: 16px; }
+.spot .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.spot h2 { margin: 0; font-size: 18px; }
+.spot .label { flex: 1 1 200px; font-size: 15px; color: var(--ink2); }
+.spot .head a { font-size: 15px; font-weight: 800; }
+.where { position: relative; display: block; height: 300px; border-radius: 12px; overflow: hidden; background: var(--ground); }
 .where img { position: absolute; width: 1462px; height: 915px; max-width: none; display: block; }
 .where .pin { left: 50%; top: 50%; }
-.side .place { margin: 0; font-size: 14px; color: var(--ink2); }
-.near { display: flex; flex-direction: column; gap: 16px; padding-top: 28px; border-top: 1px solid var(--line); }
-.near h2 { margin: 0; font-size: 26px; }
+.spot .note { margin: 0; font-size: 14px; color: var(--soft); }
+.lede { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; margin-bottom: 18px; }
+.lede h2 { margin: 0; font-size: clamp(24px, 3vw, 30px); }
+.lede p { margin: 0; color: var(--ink2); }
+.nums { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+.nums li { display: flex; flex-direction: column; gap: 2px; padding: 14px; background: var(--card); border: 1px solid var(--line);
+  border-radius: 12px; }
+.nums b { font-size: 28px; font-weight: 900; line-height: 1.15; }
+.nums .from { font-size: 14px; color: var(--ink2); overflow-wrap: anywhere; }
+.nums .why { font-size: 13px; color: var(--soft); }
+.turns { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 16px; }
+.turn { display: flex; align-items: center; gap: 14px; min-height: 96px; padding: 14px 18px; background: var(--card);
+  border: 1px solid var(--line); border-radius: 14px; color: var(--ink); text-decoration: none; }
+a.turn:hover { border-color: var(--green-ink); color: var(--ink); }
+.turn > svg { flex: 0 0 auto; color: var(--green-ink); }
+.turn img { flex: 0 0 auto; width: 64px; height: 64px; border-radius: 8px; object-fit: cover; background: var(--photo); }
+.turn .words { display: flex; flex-direction: column; min-width: 0; }
+.turn .k { font-size: 14px; color: var(--soft); }
+.turn strong { font-size: 18px; line-height: 1.25; }
+.turn .soft { font-size: 14px; }
+.turn.newer { justify-content: flex-end; text-align: right; }
+.turn.end { border-style: dashed; background: transparent; }
+.turn.end a { font-size: 14px; font-weight: 800; }
+.near { display: flex; flex-direction: column; gap: 16px; }
+.near h2 { margin: 0; font-size: clamp(24px, 3vw, 30px); }
 `;
 
 const SIGN_SCRIPT = `
@@ -246,37 +429,54 @@ if (copy && navigator.clipboard) {
   copy.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(copy.dataset.url);
-      copy.textContent = 'Link copied';
+      copy.querySelector('span').textContent = 'Link copied';
     } catch {}
   });
+}
+const share = document.querySelector('.share');
+if (share && navigator.share) {
+  share.hidden = false;
+  share.addEventListener('click', () => navigator.share({ title: share.dataset.title, url: share.dataset.url }).catch(() => {}));
 }`;
 
 const PLAYER_STYLE = `
-.player > .wrap { max-width: 960px; padding-top: 32px; padding-bottom: 56px; display: flex; flex-direction: column; gap: 28px; }
+.player { background: var(--ground); }
+.player > .wrap { padding-top: 20px; padding-bottom: 56px; display: flex; flex-direction: column; gap: 40px; }
+${CRUMB_STYLE}
 .who-is { display: flex; flex-wrap: wrap; align-items: center; gap: 20px 40px; }
-.who-is .avatar { width: 96px !important; height: 96px !important; font-size: 42px !important; }
-@media (min-width: 700px) { .who-is { padding-left: 24px; } .who-is .avatar { width: 140px !important; height: 140px !important; font-size: 60px !important; } }
-.who-is > div { flex: 1 1 300px; display: flex; flex-direction: column; gap: 14px; }
-.who-is h1 { margin: 0; font-size: 32px; }
-.who-is dl { margin: 0; display: flex; flex-wrap: wrap; gap: 8px 32px; font-size: 17px; }
-.who-is dl div { display: flex; gap: 6px; }
-.who-is dd { margin: 0; font-weight: 900; }
-.who-is dt { color: var(--ink2); }
-.who-is p { margin: 0; color: var(--ink2); }
-.player h2 { margin: 0 0 -12px; font-size: 18px; }
-.tabs { display: flex; justify-content: center; gap: 48px; border-top: 1px solid var(--line); }
-.tabs a { display: flex; align-items: center; min-height: 48px; padding: 0 6px; font-size: 14px; font-weight: 800;
-  letter-spacing: .08em; text-transform: uppercase; color: var(--soft); text-decoration: none; }
-.tabs a[aria-current] { color: var(--ink); box-shadow: inset 0 2px 0 var(--ink); }
-.squares { margin: -20px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
-.squares a { position: relative; display: block; aspect-ratio: 1 / 1; background: var(--photo); text-decoration: none; }
+.who-is > .avatar { box-shadow: 0 0 0 4px var(--page), 0 0 0 5px var(--line); }
+@media (max-width: 599px) { .who-is > .avatar { width: 96px !important; height: 96px !important; font-size: 40px !important; } }
+.who-is .id { flex: 1 1 320px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.who-is h1 { margin: 0; font-size: clamp(40px, 6vw, 56px); line-height: 1; }
+.who-is .bio { margin: 6px 0 0; font-size: 20px; color: var(--ink2); }
+.who-is .since { margin: 0; color: var(--ink2); }
+.stats { margin: 0; display: flex; gap: 40px; }
+.stats div { display: flex; flex-direction: column; align-items: center; }
+.stats dd { margin: 0; order: -1; font-size: 36px; font-weight: 900; line-height: 1.1; }
+.stats dt { color: var(--ink2); }
+.feed { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 18px; border-radius: 999px;
+  border: 1.5px solid var(--line2); background: var(--card); color: var(--ink); font-weight: 800; text-decoration: none; }
+.feed:hover { border-color: var(--ink); color: var(--ink); }
+.feed svg { color: #D9661A; }
+.lede { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-bottom: 18px; }
+.lede h2 { margin: 0; font-size: clamp(26px, 3.5vw, 32px); }
+.lede p { margin: 0; color: var(--ink2); }
+.lede .chips { margin-left: auto; }
+${CHIP_STYLE}
+${BADGE_STYLE}
+.squares { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: 24px 20px; }
+@media (max-width: 599px) { .squares { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 12px; } }
+.squares a { display: flex; flex-direction: column; gap: 2px; color: var(--ink); text-decoration: none; }
+.squares .shot { position: relative; display: block; aspect-ratio: 1 / 1; margin-bottom: 8px; border-radius: 12px; overflow: hidden;
+  background: var(--photo); }
 .squares img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .squares .tag { position: absolute; left: 6px; right: 6px; bottom: 6px; background: #006348; border-radius: 8px; padding: 2px; }
 .squares .tag span { display: block; border: 1.5px solid #fff; border-radius: 6px; padding: 4px 6px 2px; color: #fff; font-size: 13px;
   font-weight: 800; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-@media (max-width: 560px) { .squares .tag { left: 4px; right: 4px; bottom: 4px; } .squares .tag span { font-size: 11px; padding: 3px 4px 1px; } }
-.player .map { margin-top: -12px; }
-.player .badges { margin: 0; }
+.squares strong { font-size: 17px; line-height: 1.25; }
+.squares .soft { font-size: 14px; }
+@media (max-width: 599px) { .squares .tag { left: 4px; right: 4px; bottom: 4px; } .squares .tag span { font-size: 11px; padding: 3px 4px 1px; } .squares strong { font-size: 15px; } .squares .soft { font-size: 13px; } }
 `;
 
 /** The pages, mounted beside the API. Every page is public and cached for a minute. */
@@ -823,6 +1023,15 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
       wayCount: sign.ways.length,
       numbers
     });
+    // Older and newer, in the order the signs were posted (the Latest sort).
+    const order = [...signs].sort(byNewest);
+    const at = order.findIndex((s) => s.id === found.id);
+    const [newer, older] = [order[at - 1], order[at + 1]].map((s) => s && card(s));
+    const [firstWay, ...moreWays] = sign.ways;
+    const state = sign.place.state && STATES[sign.place.state];
+    // Where a number was read, only when some number was read from more than itself.
+    const from = (n: { value: string; text: string | null }) => (n.text && n.text !== n.value ? n.text : null);
+    const read = sign.numbers.some((n) => from(n) || n.why);
     return c.html(
       <Page
         title={`${sign.title} · Road Sign Math`}
@@ -847,6 +1056,13 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
             <data hidden class="p-number" value={n} />
           ))}
           <div class="wrap">
+            <Crumbs
+              trail={[
+                { name: 'All signs', href: '/signs' },
+                ...(state ? [{ name: state, href: `/signs?state=${sign.place.state}` }] : []),
+                { name: sign.title }
+              ]}
+            />
             <div class="cols">
               <div class="photos">
                 {sign.photos.map((p) => (
@@ -854,44 +1070,58 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
                 ))}
               </div>
               <div class="side">
-                <div class="by">
+                <h1 class="p-name">{sign.title}</h1>
+                <p class="by">
                   <span class="faces">
                     {sign.finders.map((f) => (
-                      <Avatar name={f.name} {...faceOf(f.handle)} size={44} />
+                      <Avatar name={f.name} {...faceOf(f.handle)} size={32} />
                     ))}
                   </span>
-                  <span class="names">
-                    <strong>
-                      <Finders sign={sign} />
-                    </strong>
-                    <span>{sign.place.label}</span>
+                  <span>
+                    <Finders sign={sign} /> found it on{' '}
+                    <time class="dt-published" datetime={sign.found_on}>
+                      {shortDay(sign.found_on)}
+                    </time>
                   </span>
-                  <button type="button" class="copy" data-url={sign.url} hidden>
-                    Copy link
+                  <Sep />
+                  <span>{townOf(sign.place.label)}</span>
+                </p>
+                <div class="acts">
+                  <Heart sign={sign} />
+                  <button type="button" class="act share" data-url={sign.url} data-title={sign.title} hidden>
+                    {SHARE_ICON}
+                    <span>Share</span>
+                  </button>
+                  <button type="button" class="act copy" data-url={sign.url} hidden>
+                    {LINK_ICON}
+                    <span>Copy link</span>
                   </button>
                 </div>
-                <h1 class="p-name">{sign.title}</h1>
-                {sign.first_way && <Plate way={sign.first_way} />}
-                <div class="said">
-                  {sign.caption && <p class="caption">{sign.caption}</p>}
-                  <p class="soft">
-                    <time class="dt-published" datetime={sign.found_on}>
-                      {longDay(sign.found_on)}
-                    </time>
-                  </p>
-                </div>
-                <div>
-                  <Heart sign={sign} />
-                </div>
-                <section class="ways" aria-labelledby="ways-h">
-                  <h2 id="ways-h">
-                    {sign.ways.length === 0
-                      ? 'Nobody has solved it yet'
-                      : `${sign.ways.length} ${sign.ways.length === 1 ? 'way' : 'ways'} so far`}
-                  </h2>
-                  {sign.ways.length > 0 && (
+                {firstWay ? (
+                  <div class="first">
+                    <Plate way={firstWay} />
+                    <p class="credit">
+                      {firstWay.by && (
+                        <>
+                          <a href={`/players/${firstWay.by.handle}`}>{firstWay.by.name || firstWay.by.handle}</a>
+                          <Sep />
+                        </>
+                      )}
+                      <span>both sides are {firstWay.value}</span>
+                      <span class="count">
+                        {sign.ways.length} {sign.ways.length === 1 ? 'way' : 'ways'} so far
+                      </span>
+                    </p>
+                  </div>
+                ) : (
+                  <p class="unsolved">Nobody has solved it yet.</p>
+                )}
+                {sign.caption && <p class="caption">{sign.caption}</p>}
+                {moreWays.length > 0 && (
+                  <section class="ways" aria-labelledby="ways-h">
+                    <h2 id="ways-h">More ways</h2>
                     <ul>
-                      {sign.ways.map((w) => (
+                      {moreWays.map((w) => (
                         <li>
                           <Avatar name={w.by?.name || w.by?.handle || '?'} {...faceOf(w.by?.handle)} size={32} />
                           <span class="what">
@@ -908,7 +1138,8 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
                             <span class="soft">
                               {w.by && (
                                 <>
-                                  <a href={`/players/${w.by.handle}`}>{w.by.name || w.by.handle}</a> ·{' '}
+                                  <a href={`/players/${w.by.handle}`}>{w.by.name || w.by.handle}</a>
+                                  <Sep />
                                 </>
                               )}
                               both sides are {w.value}
@@ -917,47 +1148,67 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
                         </li>
                       ))}
                     </ul>
-                  )}
-                  <a class="another" href="/app" data-tinylytics-event="app.get" data-tinylytics-event-value="sign">
-                    {sign.ways.length ? 'Find another way in the app' : 'Solve it in the app'}
-                  </a>
-                </section>
-                {sign.numbers.length > 0 && (
-                  <section aria-labelledby="nums-h">
-                    <h2 id="nums-h">The numbers</h2>
-                    <ul class="nums" aria-label="Numbers on the sign">
-                      {sign.numbers.map((n) => (
-                        <li class="mono" title={n.text ?? undefined}>
-                          {n.value}
-                        </li>
-                      ))}
-                    </ul>
                   </section>
                 )}
-                <section aria-labelledby="where-h">
-                  <h2 id="where-h">Where</h2>
-                  {spot && (
-                    <a
-                      class="where"
-                      href={`/?at=${sign.slug}#map`}
-                      aria-label={`${sign.place.label}. See it on the map`}
-                    >
-                      <img
-                        src="/us-map.svg"
-                        alt=""
-                        style={`left: calc(50% - ${((spot.x / 100) * 1462).toFixed(1)}px); top: calc(50% - ${((spot.y / 100) * 915).toFixed(1)}px)`}
-                      />
-                      <span class="pin on" aria-hidden="true" />
-                    </a>
-                  )}
-                  <p class="place">
-                    {sign.place.label}
-                    {spot && sign.place.approximate && ' (the pin is on the town, not the exact spot)'}
-                    {!spot && ' (no pin on the map)'}
-                  </p>
-                </section>
+                <div class="cta">
+                  <div>
+                    <strong>{firstWay ? 'See another way to make it true?' : 'Can you make it true?'}</strong>
+                    <p>Ways are added from the app, where the keypad checks your math as you go.</p>
+                  </div>
+                  <a class="another" href="/app" data-tinylytics-event="app.get" data-tinylytics-event-value="sign">
+                    {firstWay ? 'Find another way in the app' : 'Solve it in the app'} <span aria-hidden="true">→</span>
+                  </a>
+                </div>
               </div>
+              <section class="spot" aria-labelledby="where-h">
+                <div class="head">
+                  <h2 id="where-h">Where</h2>
+                  <span class="label">{sign.place.label}</span>
+                  {spot && <a href={`/?at=${sign.slug}#map`}>See it on the map</a>}
+                </div>
+                {spot && (
+                  <a class="where" href={`/?at=${sign.slug}#map`} tabindex={-1} aria-hidden="true">
+                    <img
+                      src="/us-map.svg"
+                      alt=""
+                      style={`left: calc(50% - ${((spot.x / 100) * 1462).toFixed(1)}px); top: calc(50% - ${((spot.y / 100) * 915).toFixed(1)}px)`}
+                    />
+                    <span class="pin on" aria-hidden="true" />
+                  </a>
+                )}
+                {(!spot || sign.place.approximate) && (
+                  <p class="note">
+                    {spot ? 'The pin is on the town, not the exact spot.' : 'There’s no pin on the map for this one.'}
+                  </p>
+                )}
+              </section>
             </div>
+            {sign.numbers.length > 0 && (
+              <section aria-labelledby="nums-h">
+                <div class="lede">
+                  <h2 id="nums-h">The numbers on this sign</h2>
+                  <p>
+                    {countWord(sign.numbers.length)} {sign.numbers.length === 1 ? 'number' : 'numbers'}
+                    {read && `, and where ${sign.numbers.length === 1 ? 'it was' : 'each one was'} read`}.
+                  </p>
+                </div>
+                <ul class="nums" aria-label="Numbers on the sign">
+                  {sign.numbers.map((n) => (
+                    <li>
+                      <b class="mono">{n.value}</b>
+                      {from(n) && <span class="from">from {from(n)}</span>}
+                      {n.why && <span class="why">{n.why}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+            {order.length > 1 && (
+              <nav class="turns" aria-label="Older and newer signs">
+                <Turn sign={older} way="older" />
+                <Turn sign={newer} way="newer" />
+              </nav>
+            )}
             {nearby.length > 0 && (
               <section class="near" aria-labelledby="near-h">
                 <h2 id="near-h">Nearby</h2>
@@ -993,6 +1244,7 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
         everyone={everyone}
         stats={stats}
         badges={badges}
+        since={playingSince(player, shown, ways)}
         view={view}
         summary={summary(everyone)}
       />
@@ -1011,17 +1263,18 @@ const PlayerPage: FC<{
   everyone: People;
   stats: ReturnType<typeof playerStats>;
   badges: ReturnType<typeof earnedBadgeView>[];
+  since: string | null;
   view: 'signs' | 'map';
   summary: (s: Sign) => Summary;
-}> = ({ urls, player, stats, badges, view, summary }) => {
-  const since = stats.first_year ? ` since ${stats.first_year}` : '';
+}> = ({ urls, player, stats, badges, since, view, summary }) => {
   const { clusters, unpinned } = cluster(stats.signs);
   const base = `/players/${player.handle}`;
   const photo = player.avatar ? photoUrl(urls, player.avatar, 'large') : null;
+  const found = stats.first_year ? ` since ${stats.first_year}` : '';
   return (
     <Page
       title={`${player.name} · Road Sign Math`}
-      description={`Road signs ${player.name} found${since}.`}
+      description={`Road signs ${player.name} found${found}.`}
       url={`${urls.site}${base}`}
       card={playerCard({
         path: base,
@@ -1038,6 +1291,7 @@ const PlayerPage: FC<{
     >
       <main id="main" class="player">
         <div class="wrap">
+          <Crumbs trail={[{ name: 'All players', href: '/players' }, { name: player.name }]} />
           <div class="who-is h-card">
             <data hidden class="u-url" value={`${urls.site}${base}`} />
             {photo && <data hidden class="u-photo" value={photo} />}
@@ -1045,54 +1299,73 @@ const PlayerPage: FC<{
             <data hidden class="p-sign-count" value={String(stats.sign_count)} />
             <data hidden class="p-state-count" value={String(stats.states.length)} />
             {stats.first_year && <data hidden class="p-first-year" value={String(stats.first_year)} />}
-            <Avatar name={player.name} color={player.avatarColor} photo={player.avatar} size={140} />
-            <div>
+            <Avatar name={player.name} color={player.avatarColor} photo={player.avatar} size={136} />
+            <div class="id">
               <h1 class="p-name">{player.name}</h1>
-              <dl>
-                <div>
-                  <dt>{stats.sign_count === 1 ? 'sign' : 'signs'}</dt>
-                  <dd style="order: -1">{stats.sign_count}</dd>
-                </div>
-                <div>
-                  <dt>{stats.states.length === 1 ? 'state' : 'states'}</dt>
-                  <dd style="order: -1">{stats.states.length}</dd>
-                </div>
-                {stats.first_year && (
-                  <div>
-                    <dt>first sign</dt>
-                    <dd>{stats.first_year}</dd>
-                  </div>
-                )}
-              </dl>
-              {player.bio && <p class="p-note">{player.bio}</p>}
+              {player.bio && <p class="bio p-note">{player.bio}</p>}
+              {since && <p class="since">Playing since {since.slice(0, 4)}</p>}
             </div>
+            {stats.sign_count > 0 && (
+              <>
+                <dl class="stats">
+                  <div>
+                    <dt>{stats.sign_count === 1 ? 'sign' : 'signs'}</dt>
+                    <dd>{stats.sign_count}</dd>
+                  </div>
+                  <div>
+                    <dt>{stats.states.length === 1 ? 'state' : 'states'}</dt>
+                    <dd>{stats.states.length}</dd>
+                  </div>
+                </dl>
+                <a class="feed" href={`${base}/feed.xml`} type="application/atom+xml">
+                  {FEED_ICON}
+                  Follow {player.name}’s signs (feed)
+                </a>
+              </>
+            )}
           </div>
           {badges.length > 0 && (
             <section aria-labelledby="badges-h">
-              <h2 id="badges-h" style="margin-bottom: 8px">
-                Badges
-              </h2>
-              <BadgeRow badges={badges} />
+              <div class="lede">
+                <h2 id="badges-h">Badges</h2>
+                <p>Earned on the road. Some badges are secret until someone finds them.</p>
+              </div>
+              <BadgeCards badges={badges} />
             </section>
           )}
           {stats.sign_count > 0 && (
-            <>
-              <nav class="tabs" aria-label={`${player.name}’s signs as`}>
-                <a href={base} aria-current={view === 'signs' ? 'page' : undefined}>
-                  Signs
-                </a>
-                <a href={`${base}?view=map`} aria-current={view === 'map' ? 'page' : undefined}>
-                  Map
-                </a>
-              </nav>
+            <section aria-labelledby="signs-h">
+              <div class="lede">
+                <h2 id="signs-h">{player.name}’s signs</h2>
+                <nav class="chips" aria-label={`${player.name}’s signs as`}>
+                  <a class="chip" href={base} aria-current={view === 'signs' ? 'page' : undefined}>
+                    Signs
+                    <Sep />
+                    {stats.sign_count}
+                  </a>
+                  <a class="chip" href={`${base}?view=map`} aria-current={view === 'map' ? 'page' : undefined}>
+                    Map
+                  </a>
+                </nav>
+              </div>
               {view === 'signs' ? (
                 <ul class="squares" aria-label={`${player.name}’s signs`}>
                   {stats.signs.map(summary).map((s) => (
                     <li>
-                      <a href={`/signs/${s.slug}`} title={s.title}>
-                        {s.photos[0] && <img src={s.photos[0].thumb_url} alt={s.photos[0].alt} loading="lazy" />}
-                        <span class="tag">
-                          <span>{s.first_way?.text ?? s.title}</span>
+                      <a href={`/signs/${s.slug}`}>
+                        <span class="shot">
+                          {s.photos[0] && <img src={s.photos[0].thumb_url} alt="" loading="lazy" />}
+                          {s.first_way && (
+                            <span class="tag" aria-hidden="true">
+                              <span>{s.first_way.text}</span>
+                            </span>
+                          )}
+                        </span>
+                        <strong>{s.title}</strong>
+                        <span class="soft">
+                          <Facts
+                            items={[shortDay(s.found_on), (s.place.state && STATES[s.place.state]) || s.place.label]}
+                          />
                         </span>
                       </a>
                     </li>
@@ -1110,7 +1383,7 @@ const PlayerPage: FC<{
                   <NoPin signs={unpinned} />
                 </div>
               )}
-            </>
+            </section>
           )}
         </div>
       </main>

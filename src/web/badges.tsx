@@ -4,6 +4,7 @@
 
 import type { FC } from 'hono/jsx';
 import type { earnedBadgeView } from '../api/views.ts';
+import { shortDay } from './layout.tsx';
 
 export type BadgeView = ReturnType<typeof earnedBadgeView>;
 
@@ -111,24 +112,29 @@ const Art: FC<{ badge: BadgeView }> = ({ badge }) => {
   }
 };
 
-/** One earned badge: its sign, its name, and a link to the sign that earned it. */
+/** One earned badge: its sign, its name, how it is earned, and a link to the sign that earned it. */
 const Earned: FC<{ badge: BadgeView }> = ({ badge }) => {
   const name = badge.step === null ? badge.name : `${badge.name}: ${badge.step}`;
-  const story = `${badge.how} Earned ${badge.earned_on} with ${badge.sign.title}.`;
   return (
     <li>
-      <a href={`/signs/${badge.sign.slug}`} title={`${name}. ${story}`}>
-        <svg viewBox="0 0 64 64" width="56" height="56" role="img" aria-label={`${name}. ${story}`}>
+      <a href={`/signs/${badge.sign.slug}`}>
+        <svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true">
           <Art badge={badge} />
         </svg>
-        <span>{name}</span>
+        <span class="what">
+          <strong>{name}</strong>
+          <span>{badge.how}</span>
+          <span class="with">
+            Earned {shortDay(badge.earned_on)} with {badge.sign.title}
+          </span>
+        </span>
       </a>
     </li>
   );
 };
 
-/** A player's earned badges in a row. Nothing about the ones not earned, and no count. */
-export const BadgeRow: FC<{ badges: BadgeView[] }> = ({ badges }) => (
+/** A player's earned badges as cards. Nothing about the ones not earned, and no count. */
+export const BadgeCards: FC<{ badges: BadgeView[] }> = ({ badges }) => (
   <ul class="badges">
     {badges.map((b) => (
       <Earned badge={b} />
@@ -137,10 +143,14 @@ export const BadgeRow: FC<{ badges: BadgeView[] }> = ({ badges }) => (
 );
 
 export const BADGE_STYLE = `
-.badges { list-style: none; padding: 0; margin: 8px 0 24px; display: flex; flex-wrap: wrap; gap: 14px 10px; }
-.badges li { width: 84px; }
-.badges a { display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none;
-  text-align: center; font-size: 12px; line-height: 1.25; color: var(--soft); }
-.badges a:hover span { color: var(--ink); }
-.badges svg { display: block; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .18)); }
+.badges { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: 12px; }
+.badges a { display: flex; align-items: flex-start; gap: 14px; height: 100%; padding: 16px; background: var(--card);
+  border: 1px solid var(--line); border-radius: 14px; color: var(--ink); text-decoration: none; }
+.badges a:hover { border-color: var(--green-ink); color: var(--ink); }
+.badges svg { flex: 0 0 auto; display: block; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .18)); }
+.badges .what { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.badges strong { font-size: 17px; }
+.badges .what span { font-size: 15px; color: var(--ink2); }
+.badges .what .with { margin-top: 4px; font-size: 13px; color: var(--soft); }
 `;
