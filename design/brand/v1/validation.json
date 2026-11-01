@@ -1,0 +1,100 @@
+{
+  "status": "passed",
+  "icons": [
+    {
+      "name": "highway",
+      "size": [
+        1024,
+        1024
+      ],
+      "mode": "RGB",
+      "sRGB": true,
+      "foreground_bounds": [
+        99,
+        231,
+        918,
+        846
+      ],
+      "maximum_layer_composite_difference_255": 0,
+      "sha256": "04fc513f6b5c55bc4ced8d1ba91cb681059b48b8c186294170455bf396072591"
+    },
+    {
+      "name": "sunshine",
+      "size": [
+        1024,
+        1024
+      ],
+      "mode": "RGB",
+      "sRGB": true,
+      "foreground_bounds": [
+        99,
+        231,
+        918,
+        846
+      ],
+      "maximum_layer_composite_difference_255": 1,
+      "sha256": "f91690fb9596d8978f418e08fec1196fc0a016f1a0f76d80008bc69426350ab3"
+    },
+    {
+      "name": "division",
+      "size": [
+        1024,
+        1024
+      ],
+      "mode": "RGB",
+      "sRGB": true,
+      "foreground_bounds": [
+        132,
+        162,
+        917,
+        870
+      ],
+      "maximum_layer_composite_difference_255": 1,
+      "sha256": "677aecd7982b187aafe9e2e99a91d2ddf1a3091366f4f2e9abfbc3bd6e8e485a"
+    },
+    {
+      "name": "factorial",
+      "size": [
+        1024,
+        1024
+      ],
+      "mode": "RGB",
+      "sRGB": true,
+      "foreground_bounds": [
+        117,
+        133,
+        907,
+        908
+      ],
+      "maximum_layer_composite_difference_255": 1,
+      "sha256": "e9df46d1daa0144f00eadd4794f2b1b52d539cef97e95d34830bc57089585d3f"
+    },
+    {
+      "name": "four-ways",
+      "size": [
+        1024,
+        1024
+      ],
+      "mode": "RGB",
+      "sRGB": true,
+      "foreground_bounds": [
+        66,
+        66,
+        958,
+        958
+      ],
+      "maximum_layer_composite_difference_255": 1,
+      "sha256": "a8f85922a4f4890968ffc6b084186bbcdbe2d99d49bea5ba8d505e12b8ea6e1f"
+    }
+  ],
+  "identical_highway_sunshine_geometry": true,
+  "svg_files_validated": 33,
+  "png_files_validated": 47,
+  "vector_only_distribution_svgs": true,
+  "transparent_logo_exports_have_clear_margins": true,
+  "size_previews": [
+    64,
+    40,
+    24
+  ]
+}

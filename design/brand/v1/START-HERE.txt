@@ -1,0 +1,99 @@
+ROAD SIGN MATH — IDENTITY COLLECTION v1.0
+Prepared October 31, 2026
+
+THE COLLECTION
+Highway is the primary logo and default app icon: a square-root radical becomes
+an exit arrow. Sunshine uses exactly the same silhouette in yellow and deep
+green. Division carries the exit-arrow language into a division glyph. Factorial
+puts 3! on a route shield. Four Ways puts +, minus, multiplication, and division
+on a green sign plate.
+
+OPEN FIRST
+previews/collection.png — the whole collection, primary logo, and size checks.
+
+INDIVIDUAL APP ICONS
+icons/png-1024/highway.png        Default
+icons/png-1024/sunshine.png       Alternate
+icons/png-1024/division.png       Alternate
+icons/png-1024/factorial.png      Alternate
+icons/png-1024/four-ways.png      Alternate
+
+Each is a full 1024 x 1024 square, solid-color RGB PNG with an sRGB profile.
+The corners are intentionally filled. The operating system applies its mask.
+Do not use the rounded preview images as app-icon source artwork.
+
+EDITABLE ICON ARTWORK AND LAYERS
+icons/svg/ — five vector master SVGs, one per icon. Shapes remain editable.
+icons/layers/<name>/ — aligned background and foreground in SVG and PNG.
+Each layer uses the same 1024 x 1024 canvas; do not trim transparent margins.
+The foreground PNGs have transparent backgrounds; background PNGs are opaque.
+These files are source material for a future Icon Composer / Xcode handoff.
+A native .icon document and separate dark, clear, or tinted appearance variants
+are not included. Check system-rendered appearances during app integration.
+No code, asset catalogs, settings, or application behavior was changed.
+
+PRIMARY LOGO AND WORDMARK
+logo/lockup-horizontal-color.svg / .png — green signature plus ink wordmark.
+logo/lockup-horizontal-green.svg / .png — all-green horizontal logo.
+logo/lockup-horizontal-white.svg / .png — reversed logo for dark backgrounds.
+logo/lockup-stacked-green.svg / .png — centered vertical arrangement.
+logo/lockup-stacked-white.svg / .png — reversed vertical arrangement.
+logo/wordmark-green.svg / .png — words alone, highway green.
+logo/wordmark-ink.svg / .png — words alone, dark ink.
+logo/wordmark-white.svg / .png — words alone, white.
+logo/mark-green.svg / .png — unframed Radical Route signature alone.
+logo/mark-ink.svg / .png — signature alone in dark ink.
+logo/mark-white.svg / .png — signature alone in white.
+
+All logo PNGs have transparent backgrounds. White artwork may look blank
+against a white viewer: place it on a dark background. Logo SVG lettering is
+converted to vector paths, so the files do not require installed fonts.
+Use SVGs for scaling; PNG lockups and wordmarks are exported 2400 pixels wide.
+The standalone mark PNGs are 1024 pixels square.
+
+TYPE
+Overpass, weight 900, with optical kerning and slightly tightened tracking.
+This keeps the identity related to the app's existing road-sign-inspired type.
+type/Overpass-variable.ttf is the unmodified original font from the app's
+public repository. Its SIL Open Font License is included alongside it.
+type/wordmark-live-type.svg is the editable text source. Install the included
+font before opening that file. Use the outlined logo files for distribution.
+
+COLOR
+Highway green  #006348   Default icon and primary signature
+Deep green     #004A36   Symbols on yellow, dark presentation ground
+Sign yellow    #F2B300   Sunshine, Division, and Factorial backgrounds
+Ink            #18201C   Primary wordmark on light backgrounds
+Paper          #F3F5F2   Presentation background, not an app-icon border
+White          #FFFFFF   Symbols on green and reversed logos
+
+USAGE
+Preserve each mark's proportions; scale uniformly. Keep clear space around
+the primary logo at least equal to the thickness of the signature's horizontal
+stroke. Do not add outlines, gradients, shadows, or warning-sign enclosures.
+Use the complete supplied icon canvas rather than resizing the symbol within it.
+Rounded previews are approximate presentation masks, not Apple's exact mask.
+Small-size previews at 64, 40, and 24 pixels are in previews/small/.
+
+PRODUCTION CHECKS
+All five icon PNGs are square, opaque RGB, 1024 x 1024, and tagged sRGB.
+All foreground layers stay inside the shared canvas without edge clipping.
+Highway and Sunshine share byte-identical foreground alpha geometry.
+Layer compositing was compared with the flat icon exports.
+All distribution SVGs contain real vector shapes, not embedded bitmaps or
+font-dependent text. Lettering remains legible in the supplied size previews.
+This is a design handoff, not an installed or submitted app-icon set.
+
+PROVENANCE AND SCOPE
+The concepts were explored with OpenAI image generation in the design session.
+Final artwork was redrawn as deterministic vector geometry with outlined type;
+it is not a crop or automatic bitmap trace of those concept sheets.
+Everything in this package was prepared outside the app and website repos.
+
+REFERENCES
+Apple: App icons
+https://developer.apple.com/design/human-interface-guidelines/app-icons
+Apple: Configuring your app icon using an asset catalog
+https://developer.apple.com/documentation/xcode/configuring-your-app-icon
+Overpass source and license in the app repository
+https://github.com/jthingelstad/roadsignmath-ios/tree/main/RoadSignMath/Fonts

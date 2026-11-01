@@ -1,0 +1,72 @@
+{
+  "collection": "Road Sign Math",
+  "version": "1.0",
+  "default": "highway",
+  "colors": {
+    "highway-green": "#006348",
+    "deep-green": "#004A36",
+    "sign-yellow": "#F2B300",
+    "ink": "#18201C",
+    "paper": "#F3F5F2",
+    "white": "#FFFFFF"
+  },
+  "icons": [
+    {
+      "id": "highway",
+      "name": "Highway",
+      "role": "Default icon",
+      "background": "#006348",
+      "svg": "icons/svg/highway.svg",
+      "png": "icons/png-1024/highway.png",
+      "layers": "icons/layers/highway/"
+    },
+    {
+      "id": "sunshine",
+      "name": "Sunshine",
+      "role": "Alternate icon",
+      "background": "#F2B300",
+      "svg": "icons/svg/sunshine.svg",
+      "png": "icons/png-1024/sunshine.png",
+      "layers": "icons/layers/sunshine/"
+    },
+    {
+      "id": "division",
+      "name": "Division",
+      "role": "Alternate icon",
+      "background": "#F2B300",
+      "svg": "icons/svg/division.svg",
+      "png": "icons/png-1024/division.png",
+      "layers": "icons/layers/division/"
+    },
+    {
+      "id": "factorial",
+      "name": "Factorial",
+      "role": "Alternate icon",
+      "background": "#F2B300",
+      "svg": "icons/svg/factorial.svg",
+      "png": "icons/png-1024/factorial.png",
+      "layers": "icons/layers/factorial/"
+    },
+    {
+      "id": "four-ways",
+      "name": "Four Ways",
+      "role": "Alternate icon",
+      "background": "#006348",
+      "svg": "icons/svg/four-ways.svg",
+      "png": "icons/png-1024/four-ways.png",
+      "layers": "icons/layers/four-ways/"
+    }
+  ],
+  "typeface": {
+    "family": "Overpass",
+    "weight": 900,
+    "license": "SIL Open Font License 1.1",
+    "artwork": "All SVG lettering converted to paths; editable live-type sources and font also included."
+  },
+  "export_notes": [
+    "App-icon PNGs are 1024x1024 RGB, sRGB, square, opaque.",
+    "Rounded icons are previews only.",
+    "Layer sources share the 1024x1024 coordinate frame; foregrounds have transparent backgrounds.",
+    "No Xcode project, asset catalog, or application code was changed."
+  ]
+}

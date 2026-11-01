@@ -3,7 +3,7 @@
 // Read-only, public, cached a minute, and built from the same store and views as the API. There
 // is no sign-in here: posting and finding another way happen in the app.
 
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import type { FC } from 'hono/jsx';
 import type { ApiOptions } from '../api/app.ts';
 import { earnedBadges } from '../domain/badges.ts';
@@ -21,8 +21,9 @@ import {
   type Urls
 } from '../api/views.ts';
 import { BADGE_STYLE, BadgeCards } from './badges.tsx';
+import { BIMI_SVG, BRAND_FILES, HIGHWAY_SVG } from './brand.ts';
 import { CHIP_STYLE, Eq, Facts, finderNames, Heart, nearbyScript, Sep, SORT_NOTES, SortChips, Tile } from './cards.tsx';
-import { ARCHIVE_URL, Avatar, logoSvg, Page, Phone, Plate, shortDay, TESTFLIGHT_URL } from './layout.tsx';
+import { ARCHIVE_URL, Avatar, brandUrl, Page, Phone, Plate, shortDay, TESTFLIGHT_URL } from './layout.tsx';
 import { cluster, clusterName, countSigns, project, type Cluster } from './map.ts';
 import { mathSvg } from './math.ts';
 import { feedAlternates } from './feeds.ts';
@@ -492,10 +493,17 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
     c.header('Cache-Control', c.res.status === 200 ? 'public, max-age=60' : 'no-store');
   });
 
-  // The map's picture and the logo never change between releases; browsers keep them a day.
+  // The map's picture, the logo and the icon never change between releases; browsers keep them a day.
   const DAY = 'public, max-age=86400';
-  site.get('/us-map.svg', (c) => c.body(US_MAP_SVG, 200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': DAY }));
-  site.get('/favicon.svg', (c) => c.body(logoSvg(), 200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': DAY }));
+  const svg = (body: string) => (c: Context) =>
+    c.body(body, 200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': DAY });
+  site.get('/us-map.svg', svg(US_MAP_SVG));
+  // The Highway icon, the identity's default, as the package draws it.
+  site.get('/favicon.svg', svg(HIGHWAY_SVG));
+  for (const [file, body] of Object.entries(BRAND_FILES)) site.get(brandUrl(file), svg(body));
+  // Highway for mail apps that read BIMI: the roadsignmath.xyz zone's default._bimi record names
+  // this address, so it stays put whatever version the package is.
+  site.get('/brand/road-sign-math-bimi.svg', svg(BIMI_SVG));
   mountIcons(site);
 
   // For search engines: every page that answers 200. The API and the sign-in link's landing

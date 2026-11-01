@@ -1,9 +1,10 @@
 // The website's frame and the pieces its pages share, as the design draws them: the skip link, the
-// header with the sign-plate logo and Map / Signs / Players / About, the footer pointing at the
+// header with the Road Sign Math logo and Map / Signs / Players / About, the footer pointing at the
 // first era's archive and the licence, avatars, the green sign plate the math sits on, and the map
 // with its pins. Every page's <main> is `id="main"`, where the skip link goes.
 
 import type { FC, PropsWithChildren } from 'hono/jsx';
+import { BRAND_VERSION, LOCKUP_SIZE } from './brand.ts';
 import { LICENSE } from './data.ts';
 import { mathSvg } from './math.ts';
 import { CARD_HEIGHT, CARD_WIDTH, type Card } from './share.ts';
@@ -42,10 +43,9 @@ h1, h2, h3 { font-weight: 900; letter-spacing: -0.01em; }
 
 .top { border-bottom: 1px solid var(--line); background: var(--page); }
 .top .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 28px; padding-top: 10px; padding-bottom: 10px; }
-.brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--ink); }
-.brand b { font-size: 21px; font-weight: 900; letter-spacing: -0.01em; }
-.logo { display: block; flex: 0 0 auto; height: 52px; width: 52px; }
-.logo svg { display: block; width: 100%; height: 100%; }
+.brand { display: block; flex: 0 0 auto; }
+.lockup { display: block; }
+.lockup img { display: block; height: 44px; width: auto; }
 .top nav { display: flex; flex-wrap: wrap; gap: 0 24px; flex: 1 1 auto; font-weight: 700; order: 3; width: 100%; }
 .top nav a { color: var(--ink); text-decoration: none; padding: 10px 0; border-bottom: 3px solid transparent; }
 .top nav a[aria-current] { border-bottom-color: var(--green); }
@@ -64,7 +64,7 @@ h1, h2, h3 { font-weight: 900; letter-spacing: -0.01em; }
 .foot .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px; padding-top: 28px; padding-bottom: 40px;
   font-size: 15px; color: var(--ink2); }
 .foot p { margin: 0; flex: 1 1 320px; line-height: 1.5; }
-.foot .logo { height: 40px; width: 40px; }
+.foot .lockup img { height: 32px; }
 .foot nav { display: flex; gap: 20px; font-weight: 700; }
 
 .avatar { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%;
@@ -153,29 +153,26 @@ const ALTERNATES = [
   { type: 'text/markdown', title: 'Road Sign Math for AI tools', href: '/llms.txt' }
 ];
 
-const logoMarkup = new Map<boolean, string>();
-/**
- * The design's logo, √(5 − 1) = 2 (the Twin Lakes sign) on a sign plate, as one SVG. `square`
- * fills the corners too, for icons a phone rounds itself (src/web/icons.ts).
- */
-export const logoSvg = (square = false): string => {
-  let markup = logoMarkup.get(square);
-  if (markup === undefined) {
-    const math = mathSvg('\\sqrt{5 - 1} = 2');
-    const box = /viewBox="([^"]+)"/.exec(math)?.[1] ?? '0 0 100 40';
-    const inner = math.replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '');
-    markup =
-      // MathJax's glyphs are <use xlink:href>: served on its own (/favicon.svg), an SVG is strict XML and needs the prefix declared.
-      `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 64 64">` +
-      `<rect width="64" height="64" rx="${square ? 0 : 12}" fill="#006348"/>` +
-      `<rect x="5.5" y="5.5" width="53" height="53" rx="8.5" fill="none" stroke="#fff" stroke-width="3"/>` +
-      `<svg x="11" y="22" width="42" height="20" viewBox="${box}" color="#fff">${inner}</svg></svg>`;
-    logoMarkup.set(square, markup);
-  }
-  return markup;
-};
+/** The logo files' address on the site (site.tsx serves them from brand.ts). */
+export const brandUrl = (file: string): string => `/brand/${BRAND_VERSION}/${file}`;
 
-export const Logo: FC = () => <span class="logo" aria-hidden="true" dangerouslySetInnerHTML={{ __html: logoSvg() }} />;
+/**
+ * The identity's primary horizontal logo, the Radical Route mark and the wordmark, as the package
+ * supplies it: green and ink on light, all white on dark, following the same `prefers-color-scheme`
+ * as the colours above. `height` is in pixels; the width keeps the file's proportions. `alt` is
+ * the logo's name where it stands for the site, and empty where the words beside it say it.
+ */
+export const Lockup: FC<{ height: number; alt: string }> = ({ height, alt }) => (
+  <picture class="lockup">
+    <source srcset={brandUrl('lockup-horizontal-white.svg')} media="(prefers-color-scheme: dark)" />
+    <img
+      src={brandUrl('lockup-horizontal-color.svg')}
+      alt={alt}
+      width={String(Math.round((LOCKUP_SIZE.width * height) / LOCKUP_SIZE.height))}
+      height={String(height)}
+    />
+  </picture>
+);
 
 const Phone: FC<{ size?: number }> = ({ size = 18 }) => (
   <svg
@@ -255,8 +252,7 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
       <header class="top">
         <div class="wrap">
           <a class="brand" href="/">
-            <Logo />
-            <b>Road Sign Math</b>
+            <Lockup height={44} alt="Road Sign Math" />
           </a>
           <nav aria-label="Main">
             <a href="/" aria-current={here === 'map' ? 'page' : undefined}>
@@ -287,7 +283,7 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
       {children}
       <footer class="foot">
         <div class="wrap">
-          <Logo />
+          <Lockup height={32} alt="" />
           <p>
             Road Sign Math was created by Jamie Thingelstad in 2005. The first era’s signs, 2005 to 2014, are kept in{' '}
             <a href={ARCHIVE_URL} style="font-weight: 700">

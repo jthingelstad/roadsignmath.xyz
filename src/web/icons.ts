@@ -1,22 +1,28 @@
-// The site's icons beside /favicon.svg, all drawn from the logo: /favicon.ico for browsers and
-// readers that ask for it by name, /apple-touch-icon.png for an iPhone's home screen (corners
-// filled, since iOS rounds them itself), and the web manifest with its two PNG sizes. Rendered
-// with sharp on first ask and kept for the life of the instance.
+// The site's icons beside /favicon.svg, all drawn from the identity's Highway icon (brand.ts, the
+// package's icons/svg/highway.svg): /favicon.ico for browsers and readers that ask for it by name,
+// /apple-touch-icon.png for an iPhone's home screen, and the web manifest with its two PNG sizes.
+// Each is the whole square canvas, opaque, corners filled: a phone rounds them itself, and the
+// package asks for the complete canvas, never the symbol resized within it. Rendered with sharp on
+// first ask and kept for the life of the instance.
 
 import type { Context, Hono } from 'hono';
 import sharp from 'sharp';
-import { logoSvg } from './layout.tsx';
+import { HIGHWAY_SVG } from './brand.ts';
 
 const DAY = 'public, max-age=86400';
 /** The sizes /favicon.ico holds, smallest first. */
 export const ICO_SIZES = [16, 32, 48] as const;
 
-/** The logo drawn at `size` pixels square: the SVG is 64 units, so it's rasterised at that scale, not stretched. */
-const png = async (size: number, square = false): Promise<Buffer> => {
-  let image = sharp(Buffer.from(logoSvg(square)), { density: (72 * size) / 64 }).resize(size, size);
-  if (square) image = image.flatten({ background: '#006348' });
-  return image.png().toBuffer();
-};
+/** Highway green, the icon's ground and the manifest's theme. */
+const GREEN = '#006348';
+
+/** The icon drawn at `size` pixels square: the SVG is 1024 units, so it's rasterised at that scale, not stretched. */
+const png = (size: number): Promise<Buffer> =>
+  sharp(Buffer.from(HIGHWAY_SVG), { density: (72 * size) / 1024 })
+    .resize(size, size)
+    .flatten({ background: GREEN })
+    .png()
+    .toBuffer();
 
 /** An .ico file holding PNG images, which every browser since Internet Explorer 9 reads. */
 export const icoOf = (images: { size: number; png: Buffer }[]): Buffer => {
@@ -43,7 +49,7 @@ let made: Promise<Icons> | undefined;
 const icons = (): Promise<Icons> => {
   made ??= (async () => {
     const [touch, small, large, ...ico] = await Promise.all([
-      png(180, true),
+      png(180),
       png(192),
       png(512),
       ...ICO_SIZES.map((size) => png(size))
@@ -56,7 +62,11 @@ const icons = (): Promise<Icons> => {
   return made;
 };
 
-/** The manifest: the name, colours and icons a phone uses when the site is added to its home screen. */
+/**
+ * The manifest: the name, colours and icons a phone uses when the site is added to its home screen.
+ * The icons are `any`, not `maskable`: Highway's mark reaches 490 of the canvas's 512 units out from
+ * the middle, past the circle of 410 a maskable icon keeps safe, so a round mask would cut it.
+ */
 export const MANIFEST = {
   name: 'Road Sign Math',
   short_name: 'Road Sign Math',
@@ -64,7 +74,7 @@ export const MANIFEST = {
   start_url: '/',
   display: 'browser',
   background_color: '#FFFFFF',
-  theme_color: '#006348',
+  theme_color: GREEN,
   icons: [
     { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
     { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
