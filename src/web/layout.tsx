@@ -4,7 +4,6 @@
 // with its pins. Every page's <main> is `id="main"`, where the skip link goes.
 
 import type { FC, PropsWithChildren } from 'hono/jsx';
-import { BADGE_STYLE } from './badges.tsx';
 import { LICENSE } from './data.ts';
 import { mathSvg } from './math.ts';
 import { CARD_HEIGHT, CARD_WIDTH, type Card } from './share.ts';
@@ -116,8 +115,7 @@ h1, h2, h3 { font-weight: 900; letter-spacing: -0.01em; }
 @media (max-width: 599px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 12px; } .tile strong { font-size: 15px; } .tile .eq { font-size: 14px; } .tile .soft { font-size: 13px; } }
 .dist { position: absolute; left: 10px; top: 10px; padding: 3px 9px 1px; border-radius: 8px; background: #fff; color: #18201C;
   font-size: 13px; font-weight: 700; }
-
-${BADGE_STYLE}`;
+`;
 
 /** The heart buttons, only on pages that load Tinylytics' script (it fills them in). */
 const HEART_STYLE = `.tinylytics_kudos { font: inherit; font-size: 15px; line-height: 1; color: var(--ink); background: transparent;

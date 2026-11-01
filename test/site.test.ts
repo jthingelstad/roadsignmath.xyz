@@ -118,7 +118,6 @@ test('a sign’s math is drawn as SVG on its plate and on every card, with the t
   const { app, slug } = await setup();
   const page = await (await app.request(`/signs/${slug('Newer Sign')}`)).text();
   assert.match(page, /<div class="plate"><span role="img" aria-label="18 ÷ 6 = 3"><svg aria-hidden="true" /);
-  assert.match(page, /<span class="eq" role="img" aria-label="18 ÷ 6 = 3"><svg aria-hidden="true" /);
   assert.match(
     await (await app.request('/')).text(),
     /<span class="eq mj" role="img" aria-label="7 \+ 12 = 19"><svg aria-hidden="true" /
@@ -188,11 +187,16 @@ test('a player’s page shows the badges they earned as road signs, and nothing 
   const html = await res.text();
   assert.ok(html.includes('<h1 class="p-name">Ada</h1>'));
   assert.match(html, /<ul class="badges">/);
-  assert.match(
-    html,
-    /<a href="\/signs\/older-sign" title="First Sign\. Post your first sign\. Earned 2026-01-10 with Older Sign\.">/
+  // Each badge says how it is earned, and links to the sign that earned it.
+  assert.ok(
+    html.includes('<a href="/signs/older-sign"><svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true">')
   );
-  assert.match(html, /<svg viewBox="0 0 64 64" width="56" height="56" role="img" aria-label="Fair Share\./);
+  assert.ok(
+    html.includes(
+      '<span class="what"><strong>First Sign</strong><span>Post your first sign.</span><span class="with">Earned Jan 10, 2026 with Older Sign</span></span>'
+    )
+  );
+  assert.ok(html.includes('<strong>Fair Share</strong><span>Use ÷ in a way.</span>'));
   assert.ok(!html.includes('Lookout'), 'no badge that isn’t earned');
   assert.ok(!/\d+ badges?/i.test(html), 'no count');
   assert.ok(!html.includes('Held Sign'));
@@ -289,13 +293,17 @@ test('a sign’s page has its numbers, where it is on the map, and the signs nea
   const { app, slug } = await setup();
   const html = await (await app.request(`/signs/${slug('Newer Sign')}`)).text();
   assert.match(html, /<ul class="nums" aria-label="Numbers on the sign">/);
-  assert.match(html, /<a class="where" href="\/\?at=newer-sign#map"/);
-  assert.match(html, /Testville, Minnesota \(the pin is on the town, not the exact spot\)/);
+  assert.ok(
+    html.includes('<span class="label">Testville, Minnesota</span><a href="/?at=newer-sign#map">See it on the map</a>')
+  );
+  assert.match(html, /<a class="where" href="\/\?at=newer-sign#map" tabindex="-1" aria-hidden="true">/);
+  assert.ok(html.includes('<p class="note">The pin is on the town, not the exact spot.</p>'));
   assert.match(html, /<h2 id="near-h">Nearby<\/h2>/);
   assert.match(html, /<span class="dist mono">0 mi<\/span>/);
-  assert.match(
-    html,
-    /<a class="another" href="\/app" data-tinylytics-event="app\.get" data-tinylytics-event-value="sign">Find another way in the app<\/a>/
+  assert.ok(
+    html.includes(
+      '<a class="another" href="/app" data-tinylytics-event="app.get" data-tinylytics-event-value="sign">Find another way in the app <span aria-hidden="true">→</span></a>'
+    )
   );
   assert.ok(!html.includes('Held Sign'));
 });
@@ -304,9 +312,154 @@ test('a player’s page shows their signs as photos, or on the map', async () =>
   const { app } = await setup();
   const grid = await (await app.request('/players/ada')).text();
   assert.match(grid, /<ul class="squares" aria-label="Ada’s signs">/);
-  assert.match(grid, /<a href="\/players\/ada" aria-current="page">Signs<\/a>/);
+  assert.ok(grid.includes(`<a class="chip" href="/players/ada" aria-current="page">Signs${SEP}2</a>`));
+  // Each square: the photo with its math on a plate (read out, not hidden), then the title, the day and the state.
+  assert.ok(
+    grid.includes(
+      `<span class="tag"><span>7 + 12 = 19</span></span></span><strong>Newer Sign</strong><span class="soft">Jan 10, 2026${SEP}Minnesota</span>`
+    )
+  );
   const map = await (await app.request('/players/ada?view=map')).text();
   assert.ok(!map.includes('class="squares"'));
   assert.match(map, /<a class="pin many" href="\/\?at=newer-sign#map"/);
-  assert.match(map, /<a href="\/players\/ada\?view=map" aria-current="page">Map<\/a>/);
+  assert.match(map, /<a class="chip" href="\/players\/ada\?view=map" aria-current="page">Map<\/a>/);
+});
+
+test('a player’s page leads with the way back, when they started, their feed, and no badge count', async () => {
+  const { app } = await setup();
+  const html = await (await app.request('/players/ada')).text();
+  assert.ok(
+    html.includes(
+      '<nav class="crumbs" aria-label="Breadcrumb"><ol><li><a href="/players">All players</a></li><li><span aria-current="page">Ada</span></li></ol></nav>'
+    )
+  );
+  assert.ok(
+    html.includes(
+      '<div class="id"><h1 class="p-name">Ada</h1><p class="bio p-note">Counts everything.</p><p class="since">Playing since 2026</p></div>'
+    )
+  );
+  assert.ok(
+    html.includes('<dl class="stats"><div><dt>signs</dt><dd>2</dd></div><div><dt>state</dt><dd>1</dd></div></dl>')
+  );
+  assert.match(
+    html,
+    /<a class="feed" href="\/players\/ada\/feed\.xml" type="application\/atom\+xml"><svg [^>]*>.*?<\/svg>Follow Ada’s signs \(feed\)<\/a>/
+  );
+  assert.ok(!/<dt>badges?<\/dt>/.test(html), 'others see the badges, never a count');
+  assert.ok(html.includes('Earned on the road. Some badges are secret until someone finds them.'));
+});
+
+test('a sign’s page reads like the design: the way back, the title, who found it and when, the first way', async () => {
+  const { app } = await setup();
+  const html = await (await app.request('/signs/newer-sign')).text();
+  assert.ok(
+    html.includes(
+      '<nav class="crumbs" aria-label="Breadcrumb"><ol><li><a href="/signs">All signs</a></li><li><a href="/signs?state=MN">Minnesota</a></li><li><span aria-current="page">Newer Sign</span></li></ol></nav>'
+    )
+  );
+  const order = [
+    '<h1 class="p-name">',
+    '<p class="by">',
+    '<div class="acts">',
+    '<div class="first">',
+    '<div class="cta">'
+  ].map((part) => html.indexOf(part));
+  assert.ok(
+    order.every((at, i) => at > 0 && (i === 0 || at > order[i - 1])),
+    `in the design’s order: ${order}`
+  );
+  assert.ok(
+    html.includes(
+      `<a href="/players/ada">Ada</a> found it on <time class="dt-published" datetime="2026-01-10">Jan 10, 2026</time></span>${SEP}<span>Testville, Minnesota</span></p>`
+    )
+  );
+  // Share shows only where the browser can share; copy only where it can copy.
+  assert.match(
+    html,
+    /<button type="button" class="act share" data-url="https:\/\/example\.test\/signs\/newer-sign" data-title="Newer Sign" hidden="">/
+  );
+  assert.match(
+    html,
+    /<button type="button" class="act copy" data-url="https:\/\/example\.test\/signs\/newer-sign" hidden="">/
+  );
+  assert.match(html, /<div class="first"><div class="plate"><span role="img" aria-label="18 ÷ 6 = 3">/);
+  assert.ok(
+    html.includes(
+      `<p class="credit"><a href="/players/ada">Ada</a>${SEP}<span>both sides are 3</span><span class="count">1 way so far</span></p>`
+    )
+  );
+  assert.ok(!html.includes('id="ways-h"'), 'no list of more ways when there is only the first');
+  assert.ok(html.includes('<strong>See another way to make it true?</strong>'));
+});
+
+test('a sign’s page lists the ways after the first, and asks for one when there is none', async () => {
+  const { app, store } = await setup();
+  await store.addWay(
+    way('01JS0000000000000000000002', {
+      id: 'way-second',
+      text: '18 − 6 = 12',
+      value: '12',
+      numbers: ['18', '6', '12'],
+      createdAt: '2026-02-02T00:00:00.000Z'
+    })
+  );
+  const two = await (await app.request('/signs/newer-sign')).text();
+  assert.ok(two.includes('<span class="count">2 ways so far</span>'));
+  assert.match(
+    two,
+    /<h2 id="ways-h">More ways<\/h2><ul><li>.*?<span class="eq" role="img" aria-label="18 − 6 = 12"><svg aria-hidden="true" /s
+  );
+  assert.equal(two.match(/both sides are/g)?.length, 2);
+
+  await store.putSign(
+    sign({
+      id: '01JS0000000000000000000009',
+      title: 'Open Sign',
+      postedAt: '2026-03-01T00:00:00.000Z',
+      wayCount: 0,
+      firstWay: undefined
+    })
+  );
+  const none = await (await app.request('/signs/open-sign')).text();
+  assert.ok(none.includes('<p class="unsolved">Nobody has solved it yet.</p>'));
+  assert.ok(!none.includes('class="first"'));
+  assert.ok(none.includes('<strong>Can you make it true?</strong>'));
+  assert.ok(none.includes('>Solve it in the app <span aria-hidden="true">→</span></a>'));
+});
+
+test('a sign’s numbers say where each one was read, and the page steps to the older and newer signs', async () => {
+  const { app, store } = await setup();
+  await store.putSign(
+    sign({
+      id: '01JS0000000000000000000009',
+      title: 'Read Sign',
+      postedAt: '2026-01-15T00:00:00.000Z',
+      numbers: [{ value: '2', text: 'HOV 2+', why: 'Read as 2' }, { value: '82', text: '82nd St' }, { value: '1' }]
+    })
+  );
+  const html = await (await app.request('/signs/read-sign')).text();
+  assert.ok(
+    html.includes('<h2 id="nums-h">The numbers on this sign</h2><p>Three numbers, and where each one was read.</p>')
+  );
+  assert.ok(
+    html.includes(
+      '<ul class="nums" aria-label="Numbers on the sign"><li><b class="mono">2</b><span class="from">from HOV 2+</span><span class="why">Read as 2</span></li><li><b class="mono">82</b><span class="from">from 82nd St</span></li><li><b class="mono">1</b></li></ul>'
+    )
+  );
+  // Posted between the other two, so it has both an older and a newer sign.
+  assert.match(
+    html,
+    /<a class="turn older" href="\/signs\/older-sign">.*?<span class="k">Older<\/span><strong>Older Sign<\/strong>/s
+  );
+  assert.match(
+    html,
+    /<a class="turn newer" href="\/signs\/newer-sign"><span class="words"><span class="k">Newer<\/span><strong>Newer Sign<\/strong>/
+  );
+
+  // A number read as itself says nothing more; the ends of the line say so.
+  const newest = await (await app.request('/signs/newer-sign')).text();
+  assert.ok(newest.includes('<p>Three numbers.</p>'));
+  assert.ok(newest.includes('<strong>This is the newest sign</strong><a href="/signs">See every sign</a>'));
+  const first = await (await app.request('/signs/older-sign')).text();
+  assert.ok(first.includes('<strong>This is the first sign</strong><a href="/signs">See every sign</a>'));
 });
