@@ -1,0 +1,20 @@
+Integrate the approved Road Sign Math identity into the iPhone app and companion website. Read the applicable container and repo AGENTS.md guides first and preserve ongoing work.
+
+The complete design package is at design/brand/v1 in each project. Read START-HERE.txt and view previews/collection.png before implementation. The package is supplied in both project checkouts on Otto. The design handoff was copied as files, with no commits or pushes.
+
+Approved collection:
+- Highway: primary logo and default app icon, green with white Radical Route mark.
+- Sunshine: yellow version of the same mark.
+- Division: yellow division-and-exit-arrow icon.
+- Factorial: yellow icon with green 3! route shield.
+- Four Ways: green sign with +, minus, multiplication, and division.
+
+iPhone app:
+Use Highway as the default and add the other four as selectable alternatives in Settings > App icon. Show the current selection, preserve it across launches, and handle icon-change failures gracefully. Keep Highway as the app's brand identity regardless of the user's home-screen choice. Update existing brand-logo assets where appropriate. Use the full square icons/png-1024 exports or supplied icons/layers sources; never use rounded previews as app-icon sources. Complete and verify the required system appearance variants using the current project approach and Apple guidance.
+
+Website:
+Use the primary mark and matching wordmark in appropriate header/footer branding, and update favicon, Apple touch icon, and web manifest images to match. Use the supplied outlined SVGs and appropriate light/dark logo variants. Preserve responsive layout and accessibility. The companion GitHub repo is jthingelstad/roadsignmath.xyz; the checkout folder may have a different name.
+
+Preserve the approved geometry, proportions, colors, and typography. Do not substitute generic symbols or redesign the artwork. Do not change the equation plates, gameplay, or unrelated UI. Keep font licensing intact.
+
+Run the relevant checks for each repo and visually verify small icons, icon selection, light/dark appearances, and the website at mobile and desktop widths. Prepare the changes for review and report what changed and any remaining limitations. Do not merge, deploy, or upload a build as part of this handoff.
