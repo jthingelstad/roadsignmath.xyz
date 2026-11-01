@@ -25,15 +25,23 @@ const dee: Player = {
   avatarColor: '#004C80',
   createdAt: '2026-01-04T00:00:00.000Z'
 };
+const eve: Player = {
+  id: '01JEEEEEEEEEEEEEEEEEEEEEEE',
+  handle: 'eve',
+  name: 'Eve',
+  avatarColor: '#C8102E',
+  createdAt: '2026-01-05T00:00:00.000Z'
+};
 const id = (n: number) => `01JS${String(n).padStart(22, '0')}`;
 
 /**
  * Ada (with a bio) found signs in 2024 and 2025, Ben one in 2025 and a held one in 2026, Cy has
- * only a way on Ada's sign (a badge, no sign), and Dee has nothing on the map.
+ * only a way on Ada's sign (a badge, no sign), Eve posted an unsolved sign a friend found (First
+ * Sign, but not a sign of their own), and Dee has nothing on the map.
  */
 async function setup() {
   const store = new MemoryStore();
-  for (const p of [ada, ben, cy, dee]) await addPlayer(store, p);
+  for (const p of [ada, ben, cy, dee, eve]) await addPlayer(store, p);
   const by = (p: Player) => ({ postedBy: p.id, finders: [{ playerId: p.id, name: p.name, role: 'found' as const }] });
   const place = (state: string) => ({ label: `A town, ${state}`, state, lat: 44, lng: -93, approximate: true });
   await addSign(
@@ -71,6 +79,20 @@ async function setup() {
     })
   );
   await addSign(store, sign({ id: id(4), title: 'Ben Held', foundOn: '2026-01-01', visibility: 'held', ...by(ben) }));
+  await addSign(
+    store,
+    sign({
+      id: id(5),
+      title: 'Eve Posted',
+      foundOn: '2026-03-01',
+      postedAt: '2026-03-02T00:00:00.000Z',
+      place: place('SD'),
+      postedBy: eve.id,
+      finders: [{ name: 'A friend', role: 'found' }],
+      firstWay: undefined,
+      wayCount: 0
+    })
+  );
   await store.addWay(way(id(1), { id: 'W1' }));
   await store.addWay(way(id(2), { id: 'W2', text: '18 ÷ 6 = 3', value: '3', numbers: ['18', '6', '3'] }));
   await store.addWay(way(id(3), { id: 'W3', playerId: ben.id }));
@@ -99,8 +121,9 @@ test('/players lists everyone with a sign or a badge, newest player first', asyn
   const { res, html } = await page('/players');
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('cache-control'), 'public, max-age=60');
-  // Cy started with a way in 2026, Ben with a sign in 2025, Ada in 2024; Dee has nothing yet.
-  assert.deepEqual(names(html), ['Cy', 'Ben', 'Ada']);
+  // Eve started by posting a sign in March 2026, Cy with a way in February, Ben with a sign in
+  // 2025, Ada in 2024; Dee has nothing yet.
+  assert.deepEqual(names(html), ['Eve', 'Cy', 'Ben', 'Ada']);
   assert.match(html, /<a href="\/players" aria-current="page">Players<\/a>/);
   // A bio stands in for when they started.
   assert.match(html, /<h2>Ada<\/h2><span class="sub">Counts everything\.<\/span>/);
@@ -120,6 +143,11 @@ test('/players lists everyone with a sign or a badge, newest player first', asyn
   assert.match(
     html,
     /<span class="label">Newest way<\/span><div class="plate"><span role="img" aria-label="19 − 12 = 7">.*?<b>Ada Old<\/b>/
+  );
+  // A sign Eve posted for a friend dates when Eve started, without counting as their sign.
+  assert.match(
+    html,
+    /<h2>Eve<\/h2><span class="sub">Playing since 2026<\/span><\/span><\/span><span class="newest"><span class="label">Newest post<\/span><b>Eve Posted<\/b>/
   );
   assert.match(
     html,

@@ -45,9 +45,9 @@ const PLAYERS_STYLE = `
 type Row = {
   player: Player;
   stats: ReturnType<typeof playerStats>;
-  /** The day they started: their first sign found, or their first way written. */
+  /** The day they started: their first sign found or posted, or their first way written. */
   since: string;
-  /** Their newest sign, or the newest sign they found another way on. */
+  /** Their newest sign, the newest sign they found another way on, or the newest they posted. */
   newest?: { sign: Sign; label: string; way: { text: string; tex: string | null } | null };
 };
 
@@ -63,12 +63,21 @@ export function playerRows(everyone: People, shown: Sign[], ways: Map<string, Wa
       const theirWays = allWays
         .filter((w) => w.playerId === player.id)
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-      const since = [...stats.signs.map((s) => s.foundOn), ...theirWays.map((w) => w.createdAt.slice(0, 10))].sort()[0];
+      // A sign they posted for other finders counts as playing (it earns First Sign), not as theirs.
+      const posted = shown.filter((s) => s.postedBy === player.id).sort(byNewest);
+      const since = [
+        ...stats.signs.map((s) => s.foundOn),
+        ...posted.map((s) => s.foundOn),
+        ...theirWays.map((w) => w.createdAt.slice(0, 10))
+      ].sort()[0];
       const top = stats.signs[0];
       const wayOn = theirWays.map((w) => ({ w, sign: shown.find((s) => s.id === w.signId) })).find((x) => x.sign);
+      const post = posted[0];
       const newest = top
         ? { sign: top, label: 'Newest sign', way: top.firstWay ? tex(top.firstWay.text) : null }
-        : wayOn?.sign && { sign: wayOn.sign, label: 'Newest way', way: tex(wayOn.w.text) };
+        : wayOn?.sign
+          ? { sign: wayOn.sign, label: 'Newest way', way: tex(wayOn.w.text) }
+          : post && { sign: post, label: 'Newest post', way: post.firstWay ? tex(post.firstWay.text) : null };
       return [{ player, stats, since: since ?? '', ...(newest && { newest }) }];
     })
     .sort((a, b) => b.since.localeCompare(a.since) || a.player.name.localeCompare(b.player.name));
