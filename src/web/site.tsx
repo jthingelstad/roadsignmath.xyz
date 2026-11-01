@@ -29,6 +29,7 @@ import { feedAlternates } from './feeds.ts';
 import { createOpenWeb } from './open.tsx';
 import { homeCard, pinValue, playerCard, signCard } from './share.ts';
 import { mountAppPage } from './app-page.tsx';
+import { mountIcons } from './icons.ts';
 import { mountPlayers } from './players.tsx';
 import { mountSigns, waysFor } from './signs.tsx';
 import { sortOf, sortSigns } from './sorts.ts';
@@ -295,6 +296,7 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
   const DAY = 'public, max-age=86400';
   site.get('/us-map.svg', (c) => c.body(US_MAP_SVG, 200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': DAY }));
   site.get('/favicon.svg', (c) => c.body(logoSvg(), 200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': DAY }));
+  mountIcons(site);
 
   // For search engines: every page that answers 200. The API and the sign-in link's landing
   // are not pages to index.
@@ -352,7 +354,7 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
         here="about"
         style={ABOUT_STYLE}
       >
-        <main class="wrap about">
+        <main id="main" class="wrap about">
           <h1>About</h1>
           <p class="lead">
             Road Sign Math is a road trip game. Find a road sign whose numbers make a true equation, take its picture,
@@ -457,7 +459,7 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
         title="Privacy · Road Sign Math"
         description="What Road Sign Math keeps, what is public, and how to delete your account."
       >
-        <main class="wrap" style="padding-top: 32px; padding-bottom: 48px; max-width: 720px">
+        <main id="main" class="wrap" style="padding-top: 32px; padding-bottom: 48px; max-width: 720px">
           <h1>Privacy</h1>
           <p>
             Road Sign Math is a small road trip game Jamie Thingelstad runs for fun. This is what it keeps and who sees
@@ -516,7 +518,7 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
     c.header('Referrer-Policy', 'no-referrer');
     return c.html(
       <Page title="Sign in · Road Sign Math" description="Sign in to Road Sign Math in the iPhone app." count={false}>
-        <main class="wrap" style="padding-top: 32px; padding-bottom: 48px; max-width: 720px">
+        <main id="main" class="wrap" style="padding-top: 32px; padding-bottom: 48px; max-width: 720px">
           <h1>Sign in on your iPhone</h1>
           <p>
             This link signs you in to the Road Sign Math app. Open it on the iPhone where the app is installed, or type
@@ -572,7 +574,7 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
         style={HOME_STYLE}
         script={HOME_SCRIPT + (sort === 'nearby' ? nearbyScript(HOME_SIGNS) : '')}
       >
-        <main>
+        <main id="main">
           <section id="map" class="hero h-feed" aria-labelledby="hero-h">
             <data hidden class="p-name" value="Road Sign Math" />
             <data hidden class="u-url" value={`${urls.site}/`} />
@@ -831,7 +833,7 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
         style={SIGN_STYLE}
         script={SIGN_SCRIPT}
       >
-        <main class="sign h-entry">
+        <main id="main" class="sign h-entry">
           <data hidden class="u-url" value={sign.url} />
           {sign.photos[0] && <data hidden class="u-photo" value={sign.photos[0].url} />}
           <data hidden class="p-location" value={sign.place.label} />
@@ -1034,7 +1036,7 @@ const PlayerPage: FC<{
       here="players"
       style={PLAYER_STYLE}
     >
-      <main class="player">
+      <main id="main" class="player">
         <div class="wrap">
           <div class="who-is h-card">
             <data hidden class="u-url" value={`${urls.site}${base}`} />

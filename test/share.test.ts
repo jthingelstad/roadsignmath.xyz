@@ -70,7 +70,7 @@ test('a card’s alt text says what it shows', () => {
 test('a sign page is an h-entry with what its card shows, and names its card', async () => {
   const { app, store } = await setup();
   const html = await page(app, '/signs/solved-sign');
-  assert.match(html, /<main class="sign h-entry">/);
+  assert.match(html, /<main id="main" class="sign h-entry">/);
   assert.match(html, /<h1 class="p-name">Solved Sign<\/h1>/);
   assert.match(html, /<time class="dt-published" datetime="2026-01-10">/);
   assert.deepEqual(data(html, 'u-url'), ['https://example.test/signs/solved-sign']);

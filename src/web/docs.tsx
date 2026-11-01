@@ -207,7 +207,7 @@ for (const sign of signs) {
       url={`${site}/data`}
       style={DOCS_STYLE}
     >
-      <main class="wrap docs">
+      <main id="main" class="wrap docs">
         <h1>Feeds and data</h1>
         <p class="lede">
           Every sign on Road Sign Math is open to read. Follow new signs in a feed reader, or build something with them:
