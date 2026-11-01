@@ -313,10 +313,10 @@ test('a player’s page shows their signs as photos, or on the map', async () =>
   const grid = await (await app.request('/players/ada')).text();
   assert.match(grid, /<ul class="squares" aria-label="Ada’s signs">/);
   assert.ok(grid.includes(`<a class="chip" href="/players/ada" aria-current="page">Signs${SEP}2</a>`));
-  // Each square: the photo with its math on a plate, then the title, the day and the state.
+  // Each square: the photo with its math on a plate (read out, not hidden), then the title, the day and the state.
   assert.ok(
     grid.includes(
-      `<span class="tag" aria-hidden="true"><span>7 + 12 = 19</span></span></span><strong>Newer Sign</strong><span class="soft">Jan 10, 2026${SEP}Minnesota</span>`
+      `<span class="tag"><span>7 + 12 = 19</span></span></span><strong>Newer Sign</strong><span class="soft">Jan 10, 2026${SEP}Minnesota</span>`
     )
   );
   const map = await (await app.request('/players/ada?view=map')).text();

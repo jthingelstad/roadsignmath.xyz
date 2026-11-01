@@ -1356,7 +1356,7 @@ const PlayerPage: FC<{
                         <span class="shot">
                           {s.photos[0] && <img src={s.photos[0].thumb_url} alt="" loading="lazy" />}
                           {s.first_way && (
-                            <span class="tag" aria-hidden="true">
+                            <span class="tag">
                               <span>{s.first_way.text}</span>
                             </span>
                           )}
