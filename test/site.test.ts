@@ -278,7 +278,10 @@ test('the map picture and the icon are served and kept a day', async () => {
     assert.equal(res.status, 200, path);
     assert.equal(res.headers.get('content-type'), 'image/svg+xml');
     assert.equal(res.headers.get('cache-control'), 'public, max-age=86400');
-    assert.match(await res.text(), /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox=/);
+    assert.match(
+      await res.text(),
+      /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" (xmlns:xlink="http:\/\/www\.w3\.org\/1999\/xlink" )?viewBox=/
+    );
   }
 });
 

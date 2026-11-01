@@ -1,9 +1,11 @@
-// The website's frame and the pieces its pages share, as the design draws them: the header with
-// the sign-plate logo and Map / Signs / Players / About, the footer pointing at the first era's
-// archive, avatars, the green sign plate the math sits on, and the map with its pins.
+// The website's frame and the pieces its pages share, as the design draws them: the skip link, the
+// header with the sign-plate logo and Map / Signs / Players / About, the footer pointing at the
+// first era's archive and the licence, avatars, the green sign plate the math sits on, and the map
+// with its pins. Every page's <main> is `id="main"`, where the skip link goes.
 
 import type { FC, PropsWithChildren } from 'hono/jsx';
 import { BADGE_STYLE } from './badges.tsx';
+import { LICENSE } from './data.ts';
 import { mathSvg } from './math.ts';
 import { CARD_HEIGHT, CARD_WIDTH, type Card } from './share.ts';
 import { TINYLYTICS_SCRIPT, TINYLYTICS_SITE } from './tinylytics.ts';
@@ -35,6 +37,9 @@ img { max-width: 100%; }
 .soft { color: var(--soft); }
 h1, h2, h3 { font-weight: 900; letter-spacing: -0.01em; }
 :focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
+.skip { position: absolute; left: 12px; top: -80px; z-index: 10; padding: 10px 16px; border-radius: 8px; background: var(--yellow);
+  color: #18201C; font-weight: 800; text-decoration: none; }
+.skip:focus { top: 12px; color: #18201C; }
 
 .top { border-bottom: 1px solid var(--line); background: var(--page); }
 .top .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 28px; padding-top: 10px; padding-bottom: 10px; }
@@ -150,20 +155,26 @@ const ALTERNATES = [
   { type: 'text/markdown', title: 'Road Sign Math for AI tools', href: '/llms.txt' }
 ];
 
-let logoMarkup: string | undefined;
-/** The design's logo, √(5 − 1) = 2 (the Twin Lakes sign) on a sign plate, as one SVG. */
-export const logoSvg = (): string => {
-  if (logoMarkup === undefined) {
+const logoMarkup = new Map<boolean, string>();
+/**
+ * The design's logo, √(5 − 1) = 2 (the Twin Lakes sign) on a sign plate, as one SVG. `square`
+ * fills the corners too, for icons a phone rounds itself (src/web/icons.ts).
+ */
+export const logoSvg = (square = false): string => {
+  let markup = logoMarkup.get(square);
+  if (markup === undefined) {
     const math = mathSvg('\\sqrt{5 - 1} = 2');
     const box = /viewBox="([^"]+)"/.exec(math)?.[1] ?? '0 0 100 40';
     const inner = math.replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '');
-    logoMarkup =
-      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">` +
-      `<rect width="64" height="64" rx="12" fill="#006348"/>` +
+    markup =
+      // MathJax's glyphs are <use xlink:href>: served on its own (/favicon.svg), an SVG is strict XML and needs the prefix declared.
+      `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 64 64">` +
+      `<rect width="64" height="64" rx="${square ? 0 : 12}" fill="#006348"/>` +
       `<rect x="5.5" y="5.5" width="53" height="53" rx="8.5" fill="none" stroke="#fff" stroke-width="3"/>` +
       `<svg x="11" y="22" width="42" height="20" viewBox="${box}" color="#fff">${inner}</svg></svg>`;
+    logoMarkup.set(square, markup);
   }
-  return logoMarkup;
+  return markup;
 };
 
 export const Logo: FC = () => <span class="logo" aria-hidden="true" dangerouslySetInnerHTML={{ __html: logoSvg() }} />;
@@ -206,7 +217,10 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
       <title>{title}</title>
       <meta name="description" content={description} />
       <meta name="theme-color" content="#006348" />
+      <link rel="icon" href="/favicon.ico" sizes="48x48" />
       <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+      <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+      <link rel="manifest" href="/site.webmanifest" />
       {url && <link rel="canonical" href={url} />}
       <meta property="og:site_name" content="Road Sign Math" />
       <meta property="og:title" content={title} />
@@ -237,6 +251,9 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
       <style dangerouslySetInnerHTML={{ __html: STYLE + (count ? HEART_STYLE : '') + style }} />
     </head>
     <body>
+      <a class="skip" href="#main">
+        Skip to content
+      </a>
       <header class="top">
         <div class="wrap">
           <a class="brand" href="/">
@@ -277,6 +294,10 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
             Road Sign Math was created by Jamie Thingelstad in 2005. The first era’s signs, 2005 to 2014, are kept in{' '}
             <a href={ARCHIVE_URL} style="font-weight: 700">
               the archive on Things I’ve built
+            </a>
+            . Signs and photos are shared under{' '}
+            <a href={LICENSE.url} rel="license" style="font-weight: 700">
+              {LICENSE.name}
             </a>
             .
           </p>

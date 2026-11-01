@@ -21,6 +21,7 @@ import { TinylyticsUnavailable, VIEW_PATH, type Hit, type Tinylytics } from '../
 import { nowSeconds } from '../store/store.ts';
 import { limit } from './input.ts';
 import { appSiteAssociation } from '../web/apple.ts';
+import { notFoundPage } from '../web/not-found.tsx';
 import { createSite } from '../web/site.tsx';
 import {
   addWay,
@@ -588,8 +589,9 @@ export function createApp(given: ApiOptions): Hono {
     app.get('/apple-app-site-association', serve);
   }
   app.route('/', createSite(options));
+  const page = notFoundPage(options);
   app.notFound((c) => {
-    if (!c.req.path.startsWith('/api/')) return c.text('Not found', 404);
+    if (!c.req.path.startsWith('/api/')) return page(c);
     c.header('API-Version', API_VERSION);
     c.header('Cache-Control', 'no-store');
     return c.json({ error: { code: 'not_found', message: 'No such route' } }, 404);
