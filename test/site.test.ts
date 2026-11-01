@@ -5,6 +5,7 @@ import { MemoryMailer } from '../src/mail/mailer.ts';
 import { MemoryPhotoStore } from '../src/photos.ts';
 import { MemoryStore } from '../src/store/memory.ts';
 import { addPlayer } from '../src/store/store.ts';
+import { HIGHWAY_SVG } from '../src/web/brand.ts';
 import { ScriptedModerator } from './support/moderator.ts';
 import { ada, sign, way } from './support/fixtures.ts';
 
@@ -282,10 +283,10 @@ test('the map picture and the icon are served and kept a day', async () => {
     assert.equal(res.status, 200, path);
     assert.equal(res.headers.get('content-type'), 'image/svg+xml');
     assert.equal(res.headers.get('cache-control'), 'public, max-age=86400');
-    assert.match(
-      await res.text(),
-      /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" (xmlns:xlink="http:\/\/www\.w3\.org\/1999\/xlink" )?viewBox=/
-    );
+    const svg = await res.text();
+    assert.match(svg, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" /, path);
+    // The icon is the identity's Highway, as the package draws it.
+    if (path === '/favicon.svg') assert.equal(svg, HIGHWAY_SVG);
   }
 });
 
