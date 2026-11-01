@@ -62,6 +62,8 @@ export type ApiOptions = {
   appleTeamId?: string;
   /** Hearts' counts and the app's views; without it hearts are off (counts null) and views dropped. */
   tinylytics?: Tinylytics;
+  /** Every sign's heart count, read once a minute: one cache the API and the site share. */
+  heartCounts?: HeartCounts;
 };
 
 /** The viewer's two-letter country from CloudFront, when it sent one. */
@@ -166,7 +168,7 @@ export function createApi(options: ApiOptions): Hono {
   const { store, urls, mailer, clientIp = cloudFrontIp } = options;
   const { tinylytics } = options;
   const deps = { store, photos: options.photos, moderator: options.moderator, tinylytics };
-  const heartDeps = { store, tinylytics, counts: new HeartCounts(tinylytics) };
+  const heartDeps = { store, tinylytics, counts: options.heartCounts ?? new HeartCounts(tinylytics) };
   const api = new Hono();
 
   /** The signs this reader sees, newest first, and every player by id. Read whole: there are few. */
@@ -574,7 +576,8 @@ export function createApi(options: ApiOptions): Hono {
 }
 
 /** The whole server: the API under /api/v1 and the website's pages beside it. */
-export function createApp(options: ApiOptions): Hono {
+export function createApp(given: ApiOptions): Hono {
+  const options = { ...given, heartCounts: given.heartCounts ?? new HeartCounts(given.tinylytics) };
   const app = new Hono();
   app.route('/api/v1', createApi(options));
   if (options.appleTeamId) {

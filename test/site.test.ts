@@ -8,6 +8,9 @@ import { addPlayer } from '../src/store/store.ts';
 import { ScriptedModerator } from './support/moderator.ts';
 import { ada, sign, way } from './support/fixtures.ts';
 
+/** The drawn dot between two facts, with the comma screen readers hear. */
+const SEP = '<span class="sep"><span class="vh">, </span></span>';
+
 async function setup(appleTeamId?: string) {
   const store = new MemoryStore();
   await addPlayer(store, ada);
@@ -111,12 +114,15 @@ test('a sign has its own page; a held or unknown one is not found', async () => 
   assert.equal(missing.headers.get('cache-control'), 'no-store');
 });
 
-test('a sign’s math is drawn as SVG on its plate, with the text for screen readers; cards carry the text', async () => {
+test('a sign’s math is drawn as SVG on its plate and on every card, with the text for screen readers', async () => {
   const { app, slug } = await setup();
   const page = await (await app.request(`/signs/${slug('Newer Sign')}`)).text();
   assert.match(page, /<div class="plate"><span role="img" aria-label="18 ÷ 6 = 3"><svg aria-hidden="true" /);
   assert.match(page, /<span class="eq" role="img" aria-label="18 ÷ 6 = 3"><svg aria-hidden="true" /);
-  assert.match(await (await app.request('/')).text(), /<span class="eq">7 \+ 12 = 19<\/span>/);
+  assert.match(
+    await (await app.request('/')).text(),
+    /<span class="eq mj" role="img" aria-label="7 \+ 12 = 19"><svg aria-hidden="true" /
+  );
 });
 
 test('apple-app-site-association opens the sign-in link and sign pages in the app', async () => {
@@ -230,15 +236,15 @@ test('home puts every shown sign on the map: pins, clusters, the year filter and
     /<a class="pin many" href="\/\?at=north-one#map"[^>]*aria-label="Minnesota: 2 signs" aria-current="true"/
   );
   assert.match(html, /<a class="pin" href="\/\?at=far-away#map"[^>]*aria-label="Far Away town: 1 sign"/);
-  assert.match(html, /<h2 id="picked-h">Minnesota · 2 signs<\/h2>/);
+  assert.ok(html.includes(`<h2 id="picked-h">Minnesota${SEP}2 signs</h2>`));
   assert.match(html, /Not on the map: <a href="\/signs\/nowhere">Nowhere<\/a> \(Somewhere on I-90\)/);
-  assert.match(html, /<a href="\/\?year=2025#map" data-map="">2025 · 1<\/a>/);
+  assert.ok(html.includes(`<a href="/?year=2025#map" data-map="">2025${SEP}1</a>`));
   assert.match(html, /<dd class="mono p-sign-count">4<\/dd>/);
 
   // A year leaves the other years' signs off the map, and a pin picks its place.
   const year = await (await app.request('/?year=2024&at=far-away')).text();
   assert.match(year, /aria-label="North Two town: 1 sign"/);
-  assert.match(year, /<h2 id="picked-h">Far Away town · 1 sign<\/h2>/);
+  assert.ok(year.includes(`<h2 id="picked-h">Far Away town${SEP}1 sign</h2>`));
   assert.match(year, /<a href="\/\?year=2024#map" aria-current="true" data-map="">/);
   // An unknown year or place falls back to everything, never an error.
   assert.equal((await app.request('/?year=1999&at=nope')).status, 200);

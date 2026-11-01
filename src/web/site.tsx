@@ -21,12 +21,15 @@ import {
   type Urls
 } from '../api/views.ts';
 import { BadgeRow } from './badges.tsx';
+import { CHIP_STYLE, Eq, Facts, finderNames, Heart, nearbyScript, SORT_NOTES, SortChips, Tile } from './cards.tsx';
 import { ARCHIVE_URL, Avatar, logoSvg, longDay, Page, Phone, Plate, shortDay, TESTFLIGHT_URL } from './layout.tsx';
 import { cluster, clusterName, countSigns, project, type Cluster } from './map.ts';
 import { mathSvg } from './math.ts';
 import { feedAlternates } from './feeds.ts';
 import { createOpenWeb } from './open.tsx';
 import { homeCard, pinValue, playerCard, signCard } from './share.ts';
+import { mountSigns, waysFor } from './signs.tsx';
+import { sortOf, sortSigns } from './sorts.ts';
 import { US_BORDERS, US_LAND, US_MAP_SIZE } from './us-map.ts';
 
 type Summary = ReturnType<typeof signSummary>;
@@ -41,8 +44,6 @@ const US_MAP_SVG =
 const escapeXml = (text: string): string =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-const finderNames = (s: Summary): string => s.finders.map((f) => f.name).join(', ');
-
 /** The finders by name, each player's name a link to their page. */
 const Finders: FC<{ sign: Summary }> = ({ sign }) => (
   <>
@@ -54,49 +55,6 @@ const Finders: FC<{ sign: Summary }> = ({ sign }) => (
     ))}
   </>
 );
-
-/**
- * Tinylytics' kudos button, filled in by its script with ❤️ and the count. The count is kept at
- * the sign's path, the same one the app's hearts use, so both add up together.
- */
-const Heart: FC<{ sign: { slug: string; title: string } }> = ({ sign }) => (
-  <button
-    type="button"
-    class="tinylytics_kudos"
-    data-path={`/signs/${sign.slug}`}
-    aria-label={`Heart the ${sign.title} sign`}
-  />
-);
-
-/** A way's math as one line of text: what fits on a card. */
-const EqText: FC<{ sign: Summary }> = ({ sign }) =>
-  sign.first_way ? <span class="eq">{sign.first_way.text}</span> : <span class="soft">Not solved yet</span>;
-
-/** A square photo with the title, the math and who found it: the latest grid and Nearby. */
-const Tile: FC<{ sign: Summary; distance?: string; place?: boolean }> = ({ sign, distance, place }) => {
-  const photo = sign.photos[0];
-  return (
-    <li class="tile">
-      <a href={`/signs/${sign.slug}`}>
-        <span class="shot">
-          {photo && <img src={photo.thumb_url} alt={photo.alt} loading="lazy" />}
-          {distance && <span class="dist mono">{distance}</span>}
-        </span>
-        <span class="words">
-          <strong>{sign.title}</strong>
-          <EqText sign={sign} />
-          <span class="soft">
-            {finderNames(sign)} · {shortDay(sign.found_on)}
-            {place && ` · ${sign.place.label}`}
-          </span>
-        </span>
-      </a>
-      <div class="heart">
-        <Heart sign={sign} />
-      </div>
-    </li>
-  );
-};
 
 /** The pins, as links: `href` says where each one goes. */
 const Pins: FC<{ clusters: Cluster[]; href: (c: Cluster) => string; on?: string }> = ({ clusters, href, on }) => (
@@ -151,6 +109,9 @@ const ABOUT_STYLE = `
 /** Things I've built, where each era of the game has its page. */
 const THINGS_URL = 'https://thingelstad.xyz/things/';
 
+/** Signs in Home's list; the rest are a click away on /signs. */
+const HOME_SIGNS = 12;
+
 const HOME_STYLE = `
 .hero { background: var(--ground); border-bottom: 1px solid var(--line); scroll-margin-top: 0; }
 .hero > .wrap { display: flex; flex-wrap: wrap; gap: 28px 32px; align-items: flex-start; padding-top: 28px; padding-bottom: 36px; }
@@ -185,6 +146,12 @@ const HOME_STYLE = `
 .band h2 { margin: 0; font-size: 32px; }
 .band .lede { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; }
 .band .lede p { margin: 0; flex: 1; color: var(--soft); }
+.band .lede h2 { margin-right: 12px; }
+.sortline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: -8px; }
+.all { align-self: flex-start; display: inline-flex; align-items: center; min-height: 48px; padding: 0 20px; border-radius: 10px;
+  border: 1.5px solid var(--line2); font-weight: 800; color: var(--ink); text-decoration: none; }
+.all:hover { border-color: var(--ink); }
+${CHIP_STYLE}
 #how { background: var(--ground); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .steps { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 20px; }
 .steps li { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
@@ -315,9 +282,11 @@ const PLAYER_STYLE = `
 `;
 
 /** The pages, mounted beside the API. Every page is public and cached for a minute. */
-export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>): Hono {
+export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store' | 'urls' | 'heartCounts'>): Hono {
   const site = new Hono();
   const people = async (): Promise<People> => new Map((await store.allPlayers()).map((p) => [p.id, p]));
+  /** Hearts by path for Popular; undefined without Tinylytics or when they can't be read. */
+  const counts = async () => heartCounts?.counts();
   const summary = (everyone: People) => (s: Sign) => signSummary(urls, everyone, s);
   site.use(async (c, next) => {
     await next();
@@ -347,6 +316,7 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
     const changed = (s: Sign) => [s.postedAt, ...(ways.get(s.id) ?? []).map((w) => w.createdAt)].sort().at(-1)!;
     const entries: [string, string | undefined][] = [
       [`${urls.site}/`, shown.map(changed).sort().at(-1)],
+      [`${urls.site}/signs`, shown.map(changed).sort().at(-1)],
       [`${urls.site}/about`, undefined],
       [`${urls.site}/privacy`, undefined],
       [`${urls.site}/data`, undefined],
@@ -563,6 +533,11 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
   site.get('/', async (c) => {
     const [signs, everyone] = await Promise.all([store.allSigns(), people()]);
     const shown = signs.filter(isPublic).sort(byNewest);
+    const sort = sortOf(c.req.query('sort'));
+    const listed = sortSigns(shown, sort, {
+      counts: sort === 'popular' ? await counts() : undefined,
+      ways: sort === 'complexity' ? await waysFor(store, shown) : undefined
+    });
     const yearOf = (s: Sign) => s.foundOn.slice(0, 4);
     const years = [...new Set(shown.map(yearOf))].sort().reverse();
     const year = years.find((y) => y === c.req.query('year'));
@@ -595,7 +570,7 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
         card={homeCard({ signCount: shown.length, playerCount: players.length, stateCount: states.size, pins })}
         here="map"
         style={HOME_STYLE}
-        script={HOME_SCRIPT}
+        script={HOME_SCRIPT + (sort === 'nearby' ? nearbyScript(HOME_SIGNS) : '')}
       >
         <main>
           <section id="map" class="hero h-feed" aria-labelledby="hero-h">
@@ -654,7 +629,7 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
                     </a>
                     {years.map((y) => (
                       <a href={link({ year: y })} aria-current={y === year ? 'true' : undefined} data-map="">
-                        {y} · {shown.filter((s) => yearOf(s) === y).length}
+                        <Facts items={[y, String(shown.filter((s) => yearOf(s) === y).length)]} />
                       </a>
                     ))}
                   </div>
@@ -665,7 +640,11 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
                 </div>
                 <section class="picked" aria-live="polite" aria-labelledby="picked-h">
                   <h2 id="picked-h">
-                    {picked ? `${clusterName(picked)} · ${countSigns(picked.signs.length)}` : 'No signs on the map yet'}
+                    {picked ? (
+                      <Facts items={[clusterName(picked), countSigns(picked.signs.length)]} />
+                    ) : (
+                      'No signs on the map yet'
+                    )}
                   </h2>
                   {picked && (
                     <ul>
@@ -675,9 +654,9 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
                             {s.photos[0] && <img src={s.photos[0].thumb_url} alt="" loading="lazy" />}
                             <span class="words">
                               <strong>{s.title}</strong>
-                              <EqText sign={s} />
+                              <Eq sign={s} />
                               <span class="soft">
-                                {finderNames(s)} · {shortDay(s.found_on)}
+                                <Facts items={[finderNames(s), shortDay(s.found_on)]} />
                               </span>
                             </span>
                           </a>
@@ -691,17 +670,34 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
             </div>
           </section>
 
-          <section id="latest" class="band" aria-labelledby="latest-h">
+          <section id="signs" class="band" aria-labelledby="signs-h">
             <div class="wrap">
               <div class="lede">
-                <h2 id="latest-h">Latest signs</h2>
-                <p>Newest first. Every sign posted from the app shows up here.</p>
+                <h2 id="signs-h">Signs</h2>
+                <SortChips on={sort} href={(key) => (key === 'latest' ? '/#signs' : `/?sort=${key}#signs`)} />
               </div>
-              <ul class="tiles">
-                {shown.map(card).map((s) => (
-                  <Tile sign={s} place />
+              <div class="sortline">
+                <p class="sortnote">
+                  {SORT_NOTES[sort]}
+                  {sort === 'latest' && ' Every sign posted from the app shows up here.'}
+                </p>
+                {sort === 'nearby' && (
+                  <button type="button" class="locate" hidden>
+                    Use my location
+                  </button>
+                )}
+              </div>
+              {/* Nearby lists every sign, the rest hidden, so the browser can bring the closest up. */}
+              <ul class="tiles" data-nearby={sort === 'nearby' ? '' : undefined}>
+                {(sort === 'nearby' ? listed : listed.slice(0, HOME_SIGNS)).map((s, i) => (
+                  <Tile sign={card(s)} place hidden={i >= HOME_SIGNS} />
                 ))}
               </ul>
+              {shown.length > HOME_SIGNS && (
+                <a class="all" href={sort === 'latest' ? '/signs' : `/signs?sort=${sort}`}>
+                  All {shown.length} signs
+                </a>
+              )}
             </div>
           </section>
 
@@ -780,6 +776,8 @@ export function createSite({ store, urls }: Pick<ApiOptions, 'store' | 'urls'>):
       </Page>
     );
   });
+
+  mountSigns(site, { store, urls, people, counts });
 
   site.get('/signs/:slug', async (c) => {
     const signs = (await store.allSigns()).filter(isPublic);
