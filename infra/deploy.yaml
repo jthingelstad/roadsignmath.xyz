@@ -368,6 +368,13 @@ Resources:
                 Resource:
                   - !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:web-function/${ApplicationStackName}-web/endpoint/*"
                   - !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:web-function/${ApplicationStackName}-web/revision/*"
+              # scripts/release.sh clears the website's pages from the edge once a release is live
+              # (src/edge-cache.ts). CloudFront ids are generated and the distribution is the
+              # application stack's, so the grant is every distribution in the account.
+              - Sid: ClearEdgeCache
+                Effect: Allow
+                Action: cloudfront:CreateInvalidation
+                Resource: !Sub "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*"
               - Sid: WebFunctionPolicies
                 Effect: Allow
                 Action: [lambda:GetResourcePolicy, lambda:PutResourcePolicy]

@@ -13,8 +13,11 @@ us-east-1:
   Its revision's description is the commit it was built from.
 - **CloudFront** in front, for `roadsignmath.xyz` and `www.roadsignmath.xyz` (which redirects
   to the apex). `/api/*` and everything else go to the function, signed with an origin access
-  control, so nothing reaches the function except through CloudFront. `/p/*` is the shown
-  photos, from the photo bucket, cached for a year.
+  control, so nothing reaches the function except through CloudFront. The website's pages are
+  kept at the edge for a day (Popular six hours) and cleared whenever one changes: the function
+  clears the distribution after a request that writes a sign, a way or a player, and each release
+  clears it ([`src/edge-cache.ts`](../src/edge-cache.ts)). The API's public reads are kept a
+  minute. `/p/*` is the shown photos, from the photo bucket, cached for a year.
 - **The table** (`roadsignmath-xyz`): one DynamoDB table, on demand, with point-in-time
   recovery, deletion protection and a TTL on `expiresAt`. A stack delete keeps it.
 - **The photo bucket**: versioned and private. CloudFront reads `p/` only. Uploads nobody posted
@@ -60,7 +63,9 @@ follows each green `validate` run on main:
    [`scripts/release.sh`](../scripts/release.sh) uploads the zip to
    `native/app/<sha256>.zip` (written once, never changed), runs one stack update through the
    service role (a new revision of this build, and `live` moved to it), confirms the endpoint's
-   CloudFront grant ([`tools/web-platform.ts`](../tools/web-platform.ts)) and probes the
+   CloudFront grant ([`tools/web-platform.ts`](../tools/web-platform.ts)), clears the
+   distribution's cache (`/*`; a warning, not a failure, until the deploy stack grants the role
+   `cloudfront:CreateInvalidation`) and probes the
    release ([`tools/release-probe.ts`](../tools/release-probe.ts)): `live` serves an active
    revision of this commit, and `GET /api/v1` answers through the distribution's own
    `cloudfront.net` name. The probe reads nothing of any player's.

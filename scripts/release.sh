@@ -156,6 +156,19 @@ while :; do
 done
 [[ "$live" == "$COMMIT" ]] || refuse "the stack now runs $live, released by another run"
 
+# CloudFront keeps the website's pages up to a day (src/edge-cache.ts), and a release can change
+# every one, so clear them all. Only the reason is printed: the error names the role and account.
+# Until the deploy stack grants the GitHub role cloudfront:CreateInvalidation (infra/deploy.yaml,
+# applied by the owner) a denial is a warning, not a failed release.
+if CLEAR_ERROR=$(aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION" --paths '/*' \
+  --query Invalidation.Id --output text 2>&1 >/dev/null); then
+  echo "edge cache cleared"
+elif [[ "$CLEAR_ERROR" == *AccessDenied* ]]; then
+  echo "::warning::the deploy role can't clear the edge cache yet; apply infra/deploy.yaml. Pages may show the last release for up to a day." >&2
+else
+  refuse "$COMMIT is live but the edge cache wasn't cleared; run the release again"
+fi
+
 "${RELEASE[@]}" probe --commit "$COMMIT" >/dev/null \
   || refuse "$COMMIT is live but failed its probe; revert the merge to roll back"
 echo "released $COMMIT"

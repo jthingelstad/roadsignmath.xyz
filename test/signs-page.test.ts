@@ -107,7 +107,7 @@ test('/signs lists every shown sign, newest first, grouped by the year it was fo
   const { page } = await setup();
   const { res, html } = await page('/signs');
   assert.equal(res.status, 200);
-  assert.equal(res.headers.get('cache-control'), 'public, max-age=60');
+  assert.equal(res.headers.get('cache-control'), 'public, max-age=60, s-maxage=86400');
   assert.deepEqual(titles(html), ['Unsolved', 'Fraction', 'Root', 'Plain']);
   assert.ok(html.indexOf('<h2 id="y2026">2026</h2>') < html.indexOf('<h2 id="y2025">2025</h2>'));
   assert.match(html, /<a href="\/signs" aria-current="page">Signs<\/a>/);

@@ -1,6 +1,7 @@
 // The `/api/v1` API on Hono. Every answer carries `API-Version`; every error is
-// `{"error": {"code", "message"}}`. Public reads are cached for a minute at the edge; a reader
-// with a token also sees their own held signs and not the players they blocked.
+// `{"error": {"code", "message"}}`. Public reads are cached for a minute at the edge (the
+// website's pages longer: src/edge-cache.ts); a reader with a token also sees their own held signs
+// and not the players they blocked.
 
 import { Hono, type Context } from 'hono';
 import { BADGES, earnedBadges, newlyEarned, type Earned } from '../domain/badges.ts';
@@ -10,6 +11,7 @@ import { miles } from '../domain/geo.ts';
 import type { Sign, Way } from '../domain/types.ts';
 import type { Store } from '../store/store.ts';
 import { API_VERSION, LIMITS, ROUTES } from './contract.ts';
+import { PageChanges, type EdgeCache } from '../edge-cache.ts';
 import { ApiError, fail, STATUS } from './errors.ts';
 import { deleteAccount, removeAvatar, setAvatar, updateMe } from '../auth/account.ts';
 import { finishSignIn, network, signOut, startSignIn, viewerFor, type Viewer } from '../auth/auth.ts';
@@ -69,6 +71,8 @@ export type ApiOptions = {
   heartCounts?: HeartCounts;
   /** Where players' feedback is emailed; without it `POST /feedback` answers 503. */
   feedbackTo?: string;
+  /** Cleared after a request that changed a page (src/edge-cache.ts); without it nothing is. */
+  edgeCache?: EdgeCache;
 };
 
 /** The viewer's two-letter country from CloudFront, when it sent one. */
@@ -594,8 +598,14 @@ export function createApi(options: ApiOptions): Hono {
 
 /** The whole server: the API under /api/v1 and the website's pages beside it. */
 export function createApp(given: ApiOptions): Hono {
-  const options = { ...given, heartCounts: given.heartCounts ?? new HeartCounts(given.tinylytics) };
+  const changes = given.edgeCache ? new PageChanges(given.edgeCache) : undefined;
+  const options = {
+    ...given,
+    store: changes ? changes.watch(given.store) : given.store,
+    heartCounts: given.heartCounts ?? new HeartCounts(given.tinylytics)
+  };
   const app = new Hono();
+  if (changes) app.use('*', changes.middleware());
   app.route('/api/v1', createApi(options));
   if (options.appleTeamId) {
     const association = JSON.stringify(appSiteAssociation(options.appleTeamId));

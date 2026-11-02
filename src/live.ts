@@ -7,6 +7,7 @@
 
 import type { ApiOptions } from './api/app.ts';
 import { cloudFrontIp } from './api/app.ts';
+import { CloudFrontEdgeCache } from './edge-cache.ts';
 import { SesMailer } from './mail/mailer.ts';
 import { KeyedModerator } from './moderation/moderator.ts';
 import { S3PhotoStore } from './photos.ts';
@@ -18,7 +19,10 @@ import { DynamoStore } from './store/dynamo.ts';
 export type LiveConfig = {
   table: string;
   photoBucket: string;
-  /** The distribution serving /p/, for clearing a hidden photo from its caches; none on the first deploy. */
+  /**
+   * The stack's distribution, for clearing a hidden photo and changed pages from its caches; none
+   * on the first deploy. (Named for the photos, its first use.)
+   */
   photoDistributionId?: string;
   fromAddress: string;
   /** Where players' feedback is emailed. */
@@ -69,6 +73,7 @@ export function liveOptions(config: LiveConfig): ApiOptions {
     moderator: new KeyedModerator(moderatorKey(config)),
     clientIp: cloudFrontIp,
     appleTeamId: config.appleTeamId,
-    tinylytics: new KeyedTinylytics(tinylyticsKey(config))
+    tinylytics: new KeyedTinylytics(tinylyticsKey(config)),
+    edgeCache: config.photoDistributionId ? new CloudFrontEdgeCache(config.photoDistributionId) : undefined
   };
 }

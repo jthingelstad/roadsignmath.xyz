@@ -1,7 +1,7 @@
 // The website, as the design draws it: Home (the map of every sign, who's playing, the latest
 // signs, how to play, the app), a page per sign and a page per player with their badges.
-// Read-only, public, cached a minute, and built from the same store and views as the API. There
-// is no sign-in here: posting and finding another way happen in the app.
+// Read-only, public, cached at the edge until a page changes (src/edge-cache.ts), and built from
+// the same store and views as the API. There is no sign-in here: posting and finding another way happen in the app.
 
 import { Hono, type Context } from 'hono';
 import type { FC } from 'hono/jsx';
@@ -34,6 +34,7 @@ import { mountIcons } from './icons.ts';
 import { mountPlayers, playingSince } from './players.tsx';
 import { mountSigns, waysFor } from './signs.tsx';
 import { sortOf, sortSigns } from './sorts.ts';
+import { PAGE_CACHE, POPULAR_CACHE } from '../edge-cache.ts';
 import { US_BORDERS, US_LAND, US_MAP_SIZE } from './us-map.ts';
 
 type Summary = ReturnType<typeof signSummary>;
@@ -480,7 +481,10 @@ ${BADGE_STYLE}
 @media (max-width: 599px) { .squares .tag { left: 4px; right: 4px; bottom: 4px; } .squares .tag span { font-size: 11px; padding: 3px 4px 1px; } .squares strong { font-size: 15px; } .squares .soft { font-size: 13px; } }
 `;
 
-/** The pages, mounted beside the API. Every page is public and cached for a minute. */
+/**
+ * The pages, mounted beside the API. Every page is public: CloudFront keeps it a day (Popular six
+ * hours) and is cleared when a page changes; browsers keep it a minute.
+ */
 export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store' | 'urls' | 'heartCounts'>): Hono {
   const site = new Hono();
   const people = async (): Promise<People> => new Map((await store.allPlayers()).map((p) => [p.id, p]));
@@ -490,7 +494,8 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
   site.use(async (c, next) => {
     await next();
     if (c.res.headers.get('Cache-Control')) return;
-    c.header('Cache-Control', c.res.status === 200 ? 'public, max-age=60' : 'no-store');
+    const popular = sortOf(c.req.query('sort')) === 'popular';
+    c.header('Cache-Control', c.res.status !== 200 ? 'no-store' : popular ? POPULAR_CACHE : PAGE_CACHE);
   });
 
   // The map's picture, the logo and the icon never change between releases; browsers keep them a day.

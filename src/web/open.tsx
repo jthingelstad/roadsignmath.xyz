@@ -1,5 +1,5 @@
 // The open-web routes: the feeds, the open data files, llms.txt and the /data page. Mounted on
-// the site, so they are public and cached a minute like every page. The files and feeds are
+// the site, so they are public and cached at the edge like every page. The files and feeds are
 // served with `Access-Control-Allow-Origin: *`, so any web page can fetch them.
 //
 // CloudFront compresses application/json and text/plain, but not application/atom+xml,

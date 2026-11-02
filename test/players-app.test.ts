@@ -120,7 +120,7 @@ test('/players lists everyone with a sign or a badge, newest player first', asyn
   const { page } = await setup();
   const { res, html } = await page('/players');
   assert.equal(res.status, 200);
-  assert.equal(res.headers.get('cache-control'), 'public, max-age=60');
+  assert.equal(res.headers.get('cache-control'), 'public, max-age=60, s-maxage=86400');
   // Eve started by posting a sign in March 2026, Cy with a way in February, Ben with a sign in
   // 2025, Ada in 2024; Dee has nothing yet.
   assert.deepEqual(names(html), ['Eve', 'Cy', 'Ben', 'Ada']);
