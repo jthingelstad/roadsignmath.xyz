@@ -92,7 +92,7 @@ function assertOpen(res: Response, type: string) {
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('content-type'), `${type}; charset=utf-8`);
   assert.equal(res.headers.get('access-control-allow-origin'), '*');
-  assert.equal(res.headers.get('cache-control'), 'public, max-age=60');
+  assert.equal(res.headers.get('cache-control'), 'public, max-age=60, s-maxage=86400');
 }
 
 /** No player's email, and nothing held or hidden. */

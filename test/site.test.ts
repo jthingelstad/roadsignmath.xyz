@@ -39,7 +39,7 @@ test('the home page lists shown signs, newest first, and is cached', async () =>
   const { app } = await setup();
   const res = await app.request('/');
   assert.equal(res.status, 200);
-  assert.equal(res.headers.get('cache-control'), 'public, max-age=60');
+  assert.equal(res.headers.get('cache-control'), 'public, max-age=60, s-maxage=86400');
   const html = await res.text();
   assert.ok(html.indexOf('Newer Sign') < html.indexOf('Older Sign'));
   assert.ok(!html.includes('Held Sign'));

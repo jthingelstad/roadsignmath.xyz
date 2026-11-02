@@ -46,7 +46,7 @@ Parameters:
     Type: String
     Default: ""
     AllowedPattern: '^$|^E[A-Z0-9]+$'
-    Description: This stack's own distribution id, from its last release (empty on the first). The server clears a hidden sign's photos from it. A parameter because the function cannot name the distribution in front of it without a cycle.
+    Description: This stack's own distribution id, from its last release (empty on the first). The server clears a hidden sign's photos and changed pages from it. A parameter because the function cannot name the distribution in front of it without a cycle.
   # Public by nature (every AASA file and signed app shows it), but kept out of the repository
   # like the other ids: scripts/release.sh passes it when APPLE_TEAM_ID is set, and every later
   # release keeps the stack's value. Empty, the site serves no apple-app-site-association.
@@ -196,7 +196,8 @@ Resources:
                 Action: s3:ListBucket
                 Resource: !GetAtt PhotoBucket.Arn
               - Effect: Allow
-                # Clears a hidden sign's photos (/p/<id>/*) from CloudFront's caches. The
+                # Clears a hidden sign's photos (/p/<id>/*) and, after a request that changed a
+                # page, every page (/*, src/edge-cache.ts) from CloudFront's caches. The
                 # function cannot name this stack's distribution without a cycle (the
                 # distribution names the function), so the grant is every distribution in the
                 # account; the code asks only for the one in PHOTO_DISTRIBUTION_ID.
@@ -358,20 +359,21 @@ Resources:
         SigningBehavior: always
         SigningProtocol: sigv4
 
-  # The server decides what is cached: a public read says `public, max-age=60` and anything
-  # personal or failed says `no-store` (src/api/app.ts). MinTTL and DefaultTTL 0 make CloudFront
-  # follow that, and MaxTTL 60 caps it. Authorization is in the key, which is also how CloudFront
-  # forwards it, so a signed-in answer is never shared; the query is in the key, so
-  # /signs/near?lat=...&lng=... is cached per point.
+  # The server decides what is cached: an API read says `public, max-age=60`, a website page
+  # adds `s-maxage=86400` (Popular 21600) and the server clears the distribution when a page
+  # changes (src/edge-cache.ts), and anything personal or failed says `no-store`. MinTTL and
+  # DefaultTTL 0 make CloudFront follow that, and MaxTTL a day caps it. Authorization is in the
+  # key, which is also how CloudFront forwards it, so a signed-in answer is never shared; the
+  # query is in the key, so /signs/near?lat=...&lng=... is cached per point.
   WebCachePolicy:
     Type: AWS::CloudFront::CachePolicy
     Properties:
       CachePolicyConfig:
         Name: !Sub "${AWS::StackName}-web"
-        Comment: The server's Cache-Control, at most a minute
+        Comment: The server's Cache-Control, at most a day
         MinTTL: 0
         DefaultTTL: 0
-        MaxTTL: 60
+        MaxTTL: 86400
         ParametersInCacheKeyAndForwardedToOrigin:
           EnableAcceptEncodingGzip: true
           EnableAcceptEncodingBrotli: true
