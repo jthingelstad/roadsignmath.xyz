@@ -40,7 +40,10 @@ Two small stacks beside it, applied by hand and never from a workflow:
 
 - `roadsignmath-xyz-deploy` ([`infra/deploy.yaml`](../infra/deploy.yaml)): the GitHub deploy
   role (`RoadSignMathGitHubDeploy`), the CloudFormation service role every release runs as
-  (`RoadSignMathCloudFormation`), and the code bucket the code zips go to.
+  (`RoadSignMathCloudFormation`), and the code bucket the code zips go to. The service role can
+  read the account's shared `edge` web ACL, which the distribution uses (projects-sysadmin's
+  `edge-waf` stack, since 2026-11-02; its rules count and none blocks yet): CloudFront reads it
+  as the caller on every update of the distribution.
 - `roadsignmath-xyz-backup` ([`infra/backup.yaml`](../infra/backup.yaml)): a monthly AWS Backup
   copy of the table and the photo bucket, kept until removed by hand.
 
