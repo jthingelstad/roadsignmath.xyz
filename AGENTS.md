@@ -49,7 +49,7 @@ ids or ARNs, local paths, or photos of plates or faces that weren't meant to be 
 | `src/seed/` | Builds the launch set from the micro.blog export and `seed/microblog.json`. |
 | `src/dev.ts` | The local server on port 8787, reading `.data/` (ignored by git). |
 | `src/server.ts` | The live server: `src/live.ts` wires the table, photo bucket, SES and the moderator from the stack's environment, and `src/listen.ts` serves on the address the platform gives. The moderator's and Tinylytics' keys are read from the runtime secret (`src/secrets.ts`). |
-| `infra/` | The stacks: `template.yaml` (the app: web function, table, photos, mail, CloudFront, alarms), `deploy.yaml` (deploy roles and code bucket) and `backup.yaml` (monthly backups). Only the app stack deploys on merge. |
+| `infra/` | The stacks: `template.yaml` (the app: web function, table, photos, mail, CloudFront, the alarm topic), `deploy.yaml` (deploy roles and code bucket) and `backup.yaml` (monthly backups). Only the app stack deploys on merge. |
 | `scripts/`, `deploy.sh` | The release: `build-release.sh` builds with no credentials, `release.sh` deploys and probes; `deploy.sh` runs both from the Mac. |
 | `seed/microblog.json` | The 16 micro.blog signs: titles, finders, numbers, places, alt text. |
 | `tools/` | `export-api-contract.ts` (`npm run contract`), `us-map.ts` (`npm run us-map`), `app-assets.ts` (`npm run app-assets`), `brand.ts` (`npm run brand`), `seed-microblog.ts` (`npm run seed`), and the release tools: `build-server.ts` (`npm run build:server`), `package-native.ts`, `native-artifacts.ts`, `web-platform.ts`, `release-probe.ts`, all run through `release-cli.ts`. |
