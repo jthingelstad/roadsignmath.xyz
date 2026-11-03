@@ -309,6 +309,8 @@ test('llms.txt keeps the llmstxt.org shape and points at the data, feeds and API
     assert.ok(text.includes(`](${SITE}${path})`), path);
   }
   assert.ok(text.includes(`](${SITE}/api/v1/openapi.json)`));
+  assert.ok(text.includes('- [Mastodon](https://mastodon.social/@roadsignmath): @roadsignmath@mastodon.social'));
+  assert.ok(text.includes('- [Bluesky](https://bsky.app/profile/roadsignmath.xyz): @roadsignmath.xyz'));
   assert.ok(text.includes(`- [Newer Sign](${SITE}/signs/newer-sign): 19 − 12 = 7.`));
   assert.ok(text.includes('- [Nowhere Sign]'));
   const full = await app.request('/llms-full.txt');
