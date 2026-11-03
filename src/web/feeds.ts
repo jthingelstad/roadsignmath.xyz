@@ -1,9 +1,18 @@
 // The feeds of new signs: Atom at /feed.xml and JSON Feed 1.1 at /feed.json, and the same pair
 // for each player at /players/<handle>/feed.xml and feed.json (the signs they found). An item is
 // a sign: its page is the item's link and id, posted_at is when it was published and its newest
-// way when it last changed. The content is the photos, the math as text (feed readers can't
-// draw the site's LaTeX), the caption, who found it, when and where, and the other ways. No
-// tracking pixel: none of the site's pages or files carry one per reader.
+// way when it last changed. No tracking pixel: none of the site's pages or files carry one per
+// reader.
+//
+// Every item is a short post with no title, the way micro.blog writes its own. Micro.blog reads
+// /feed.json and cross-posts each new sign to Mastodon and Bluesky: an item with a title goes out
+// as just the title and a link, and one without goes out as its text with its photos attached
+// (alt text too). So the text leads with the sign's name and its math (as text: nothing outside
+// the site can draw its LaTeX), then the caption, who found it, when and where, any other ways,
+// and the sign's address as a bare URL (a link's words don't survive the trip to Mastodon), with
+// the photos after it. Keep it short: Bluesky takes 300 characters and micro.blog cuts a longer
+// post there with a link back. Both feeds carry the same item, and an item's id never changes, or
+// micro.blog would import every sign again.
 
 import { STATES } from '../domain/geo.ts';
 import type { Player, Sign } from '../domain/types.ts';
@@ -67,46 +76,35 @@ const xml = (text: string): string =>
 const names = (list: string[]): string =>
   list.length <= 2 ? list.join(' and ') : `${list.slice(0, -1).join(', ')} and ${list.at(-1)}`;
 
-/** One sign as a feed item: its title, a one-line summary, and the content as HTML and as text. */
+/** One sign as a feed item: the post's text as HTML and as plain text, and its tags. */
 function itemOf(data: OpenData, sign: Sign) {
   const record = signRecord(data, sign);
   const finders = names(record.finders.map((f) => f.name));
   const [first, ...others] = record.ways;
   const found = `Found by ${finders} on ${longDay(record.found_on)}. ${record.place.label}.`;
-  const math = first ? first.text : 'Nobody has solved it yet.';
+  const math = first ? first.text : 'nobody has solved it yet';
   const html = [
-    ...record.photos.map(
-      (p) => `<p><img src="${xml(p.url)}" alt="${xml(p.alt)}" width="${p.width}" height="${p.height}"></p>`
-    ),
-    first ? `<p><strong>${xml(first.text)}</strong></p>` : `<p><em>${xml(math)}</em></p>`,
+    `<p>${xml(record.title)}: ${first ? `<strong>${xml(math)}</strong>` : `<em>${xml(math)}</em>`}</p>`,
     ...(record.caption ? [`<p>${xml(record.caption)}</p>`] : []),
     `<p>${xml(found)}</p>`,
-    ...(others.length
-      ? [
-          `<p>More ways to make it true:</p>`,
-          `<ul>${others.map((w) => `<li>${xml(w.text)}${w.by ? ` (${xml(w.by.name || w.by.handle)})` : ''}</li>`).join('')}</ul>`
-        ]
-      : []),
-    `<p><a href="${xml(record.url)}">See it on Road Sign Math</a></p>`
+    ...others.map((w) => `<p>Another way: ${xml(w.text)}${w.by ? ` (${xml(w.by.name || w.by.handle)})` : ''}</p>`),
+    `<p><a href="${xml(record.url)}">${xml(record.url)}</a></p>`,
+    ...record.photos.map(
+      (p) => `<p><img src="${xml(p.url)}" alt="${xml(p.alt)}" width="${p.width}" height="${p.height}"></p>`
+    )
   ].join('\n');
   const text = [
-    math,
+    `${record.title}: ${math}`,
     ...(record.caption ? [record.caption] : []),
     found,
-    ...others.map((w) => `Another way: ${w.text}`),
+    ...others.map((w) => `Another way: ${w.text}${w.by ? ` (${w.by.name || w.by.handle})` : ''}`),
     record.url
   ].join('\n\n');
   const tags = [
     record.place.state ? (STATES[record.place.state] ?? record.place.state) : null,
     record.found_on.slice(0, 4)
   ];
-  return {
-    record,
-    summary: first ? `${first.text}. ${found}` : `${math} ${found}`,
-    html,
-    text,
-    tags: tags.filter((t): t is string => !!t)
-  };
+  return { record, html, text, tags: tags.filter((t): t is string => !!t) };
 }
 
 /** A feed with no signs still needs a date; the Unix epoch keeps its bytes the same every time. */
@@ -115,10 +113,11 @@ const EMPTY_UPDATED = '1970-01-01T00:00:00.000Z';
 export function atomFeed(data: OpenData, feed: Feed): string {
   const self = `${feed.base}/feed.xml`;
   const entries = feed.signs.map((sign) => {
-    const { record, summary, html, tags } = itemOf(data, sign);
+    const { record, html, tags } = itemOf(data, sign);
     return [
       '  <entry>',
-      `    <title>${xml(record.title)}</title>`,
+      // Atom asks every entry for a title; an empty one is a post without one, as in the JSON Feed.
+      '    <title type="text"></title>',
       `    <link href="${xml(record.url)}" rel="alternate" type="text/html"/>`,
       `    <id>${xml(record.url)}</id>`,
       `    <published>${record.posted_at}</published>`,
@@ -127,7 +126,6 @@ export function atomFeed(data: OpenData, feed: Feed): string {
         (f) => `    <author><name>${xml(f.name)}</name>${f.url ? `<uri>${xml(f.url)}</uri>` : ''}</author>`
       ),
       ...tags.map((t) => `    <category term="${xml(t)}"/>`),
-      `    <summary type="text">${xml(summary)}</summary>`,
       `    <content type="html">${xml(html)}</content>`,
       '  </entry>'
     ].join('\n');
@@ -161,12 +159,10 @@ export function jsonFeed(data: OpenData, feed: Feed) {
     language: 'en-US',
     authors: [{ name: 'Road Sign Math', url: `${data.urls.site}/` }],
     items: feed.signs.map((sign) => {
-      const { record, summary, html, text, tags } = itemOf(data, sign);
+      const { record, html, text, tags } = itemOf(data, sign);
       return {
         id: signUrl(data.urls, sign),
         url: record.url,
-        title: record.title,
-        summary,
         content_html: html,
         content_text: text,
         ...(record.photos[0] ? { image: record.photos[0].url } : {}),
