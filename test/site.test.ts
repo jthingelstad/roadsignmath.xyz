@@ -90,6 +90,23 @@ test('the about page tells the story, links the archive and the beta, and every 
   assert.ok(xml.includes('<loc>https://example.test/about</loc>'));
 });
 
+test('every page names the Mastodon and Bluesky accounts new signs go to, rel=me for verification', async () => {
+  const { app } = await setup();
+  const mastodon = 'https://mastodon.social/@roadsignmath';
+  const bluesky = 'https://bsky.app/profile/roadsignmath.xyz';
+  for (const path of ['/', '/signs', '/players', '/about', '/privacy', '/data']) {
+    const html = await (await app.request(path)).text();
+    for (const url of [mastodon, bluesky]) {
+      assert.ok(html.includes(`<link rel="me" href="${url}"/>`), `${path} head: ${url}`);
+      assert.ok(html.includes(`<a href="${url}" rel="me">`), `${path} footer: ${url}`);
+    }
+  }
+  const about = await (await app.request('/about')).text();
+  assert.ok(about.includes('<h2>Follow along</h2>'));
+  assert.ok(about.includes('@roadsignmath@mastodon.social'));
+  assert.ok(about.includes('@roadsignmath.xyz'));
+});
+
 test('every sign has a heart: Tinylytics’ kudos button at the sign’s path', async () => {
   const { app, slug } = await setup();
   const home = await (await app.request('/')).text();

@@ -13,6 +13,14 @@ import { TINYLYTICS_SCRIPT, TINYLYTICS_SITE } from './tinylytics.ts';
 export const ARCHIVE_URL = 'https://thingelstad.xyz/things/road-sign-math/';
 /** The public TestFlight invite for Jamie's Beta group: the way into the iPhone app until it's on the App Store. */
 export const TESTFLIGHT_URL = 'https://testflight.apple.com/join/Httdw7ZY';
+/**
+ * Where new signs are syndicated: Road Sign Math's own accounts. Every page names them with
+ * `rel="me"`, which is how Mastodon verifies the profile's link to this site.
+ */
+export const FOLLOW = [
+  { name: 'Mastodon', handle: '@roadsignmath@mastodon.social', url: 'https://mastodon.social/@roadsignmath' },
+  { name: 'Bluesky', handle: '@roadsignmath.xyz', url: 'https://bsky.app/profile/roadsignmath.xyz' }
+] as const;
 
 /** The design's colours, with a dark set beside them. */
 const STYLE = `
@@ -65,7 +73,7 @@ h1, h2, h3 { font-weight: 900; letter-spacing: -0.01em; }
   font-size: 15px; color: var(--ink2); }
 .foot p { margin: 0; flex: 1 1 320px; line-height: 1.5; }
 .foot .lockup img { height: 32px; }
-.foot nav { display: flex; gap: 20px; font-weight: 700; }
+.foot nav { display: flex; flex-wrap: wrap; gap: 8px 20px; font-weight: 700; }
 
 .avatar { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%;
   color: #fff; font-weight: 900; width: 36px; height: 36px; }
@@ -237,6 +245,9 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
       {[...feeds, ...ALTERNATES].map((a) => (
         <link rel="alternate" type={a.type} title={a.title} href={a.href} />
       ))}
+      {FOLLOW.map((f) => (
+        <link rel="me" href={f.url} />
+      ))}
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
       <link
@@ -299,6 +310,13 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
             <a href="/about">About</a>
             <a href="/privacy">Privacy</a>
             <a href="/data">Feeds and data</a>
+          </nav>
+          <nav aria-label="Follow">
+            {FOLLOW.map((f) => (
+              <a href={f.url} rel="me">
+                {f.name}
+              </a>
+            ))}
           </nav>
         </div>
       </footer>

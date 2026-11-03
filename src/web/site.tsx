@@ -23,7 +23,7 @@ import {
 import { BADGE_STYLE, BadgeCards } from './badges.tsx';
 import { BIMI_SVG, BRAND_FILES, HIGHWAY_SVG } from './brand.ts';
 import { CHIP_STYLE, Eq, Facts, finderNames, Heart, nearbyScript, Sep, SORT_NOTES, SortChips, Tile } from './cards.tsx';
-import { ARCHIVE_URL, Avatar, brandUrl, Page, Phone, Plate, shortDay, TESTFLIGHT_URL } from './layout.tsx';
+import { ARCHIVE_URL, Avatar, brandUrl, FOLLOW, Page, Phone, Plate, shortDay, TESTFLIGHT_URL } from './layout.tsx';
 import { cluster, clusterName, countSigns, project, type Cluster } from './map.ts';
 import { mathSvg } from './math.ts';
 import { feedAlternates } from './feeds.ts';
@@ -644,6 +644,21 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
             The first Road Sign Math had rules, scores and scoreboards. This one doesn’t. There are badges, little road
             signs for your first sign, new states, every season and a few secrets, but no scores and nothing to rank.
             The fun is in the finding, and anyone can find another way to make a sign work.
+          </p>
+
+          <h2>Follow along</h2>
+          <p>
+            Every new sign is posted to{' '}
+            {FOLLOW.map((f, i) => (
+              <>
+                {i > 0 && ' and '}
+                {f.name} as{' '}
+                <a href={f.url} rel="me">
+                  {f.handle}
+                </a>
+              </>
+            ))}
+            . The site has its own <a href="/data">feeds</a> too.
           </p>
 
           <h2>Who makes it</h2>
