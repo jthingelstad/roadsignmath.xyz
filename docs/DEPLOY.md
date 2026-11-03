@@ -31,10 +31,13 @@ us-east-1:
   answer 503 and change nothing; without the second, every sign's `hearts` is null, hearting
   answers 503, and app views are dropped. Everything else works either way. The function reads
   the Tinylytics key again within an hour of a change (five minutes while it is missing).
-- **Logs and alarms**: the function's log (90 days), the distribution's access log in
-  `/roadsignmath-xyz/web-access` (24 months, no client IP, path or query), and count-only alarms
-  on server errors, the endpoint's ceilings and the hourly sign-in limit. They go to the
-  `roadsignmath-xyz-alarms` topic, which feeds the `projects-ops-alerts` queue.
+- **Logs and the alarm topic**: the function's log (90 days), the distribution's access log in
+  `/roadsignmath-xyz/web-access` (24 months, no client IP, path or query), and a count-only
+  metric of the hourly sign-in limit (`RoadSignMath/SignInTotalLimited`). The stack has no
+  alarms since 2026-11-03: the account keeps a few, only where someone acts on them, and the
+  four this stack had (server errors, the endpoint's two ceilings, the sign-in limit) were
+  removed. The `roadsignmath-xyz-alarms` topic, which feeds the `projects-ops-alerts` queue,
+  stays for any alarm added later.
 
 Two small stacks beside it, applied by hand and never from a workflow:
 
@@ -169,7 +172,7 @@ Safari, where `/signin` says to use the link on the iPhone or type the code.
 
 ## Checking a release by hand
 
-Reads only: the `deploy` run's log, the stack's events, the alarms, and `GET /api/v1` through
+Reads only: the `deploy` run's log, the stack's events, and `GET /api/v1` through
 the site. Never post, sign in or report as a real player to check a release.
 
 First-release things worth a look, from the Release Notes platform notes: the endpoint is

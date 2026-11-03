@@ -539,6 +539,8 @@ Resources:
         - cs(User-Agent)
 
   # --- alarms -----------------------------------------------------------------
+  # The stack has no alarms since 2026-11-03 (the account keeps a few, where someone acts on
+  # them). The topic and its queue subscription stay, free, for any alarm added later.
 
   AlarmTopic:
     Type: AWS::SNS::Topic
@@ -572,7 +574,8 @@ Resources:
 
   # Every sign-in email in the hour used up (the `total` limit in src/auth/auth.ts): someone is
   # sending sign-ins in bulk, or the game got busy. Counts only (src/api/input.ts logs the
-  # limit's kind and nothing else).
+  # limit's kind and nothing else). A metric to read, with no alarm on it: the account keeps
+  # alarms only where someone acts on them (2026-11-03).
   SignInTotalMetric:
     Type: AWS::Logs::MetricFilter
     Properties:
@@ -582,79 +585,6 @@ Resources:
         - MetricNamespace: RoadSignMath
           MetricName: SignInTotalLimited
           MetricValue: "1"
-
-  SignInTotalAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub "${AWS::StackName}-sign-in-limit"
-      AlarmDescription: Every sign-in email allowed in the hour was used; counts only.
-      Namespace: RoadSignMath
-      MetricName: SignInTotalLimited
-      Statistic: Sum
-      Period: 300
-      EvaluationPeriods: 1
-      Threshold: 1
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      TreatMissingData: notBreaching
-      AlarmActions: [!Ref AlarmTopic]
-
-  # A server error, including the 503 a post gets while the moderator has no key or Claude
-  # cannot answer.
-  WebErrorsAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub "${AWS::StackName}-web-errors"
-      AlarmDescription: The web function returned a server error; counts only.
-      Namespace: AWS/Lambda/Web
-      MetricName: HTTPResponseStatusClass5XX
-      Dimensions:
-        - { Name: FunctionName, Value: !Sub "${AWS::StackName}-web" }
-        - { Name: EndpointName, Value: live }
-      Statistic: Sum
-      Period: 300
-      EvaluationPeriods: 1
-      Threshold: 1
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      TreatMissingData: notBreaching
-      AlarmActions: [!Ref AlarmTopic]
-
-  WebCapacityAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub "${AWS::StackName}-web-capacity"
-      AlarmDescription: The web endpoint refused a request at its environment ceiling; counts only.
-      Namespace: AWS/Lambda/Web/Usage
-      MetricName: EndpointActiveEnvironmentThrottles
-      Dimensions:
-        - { Name: FunctionName, Value: !Sub "${AWS::StackName}-web" }
-        - { Name: EndpointName, Value: live }
-        - { Name: ExecutionRegion, Value: !Ref AWS::Region }
-      Statistic: Sum
-      Period: 300
-      EvaluationPeriods: 1
-      Threshold: 1
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      TreatMissingData: notBreaching
-      AlarmActions: [!Ref AlarmTopic]
-
-  WebRateAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub "${AWS::StackName}-web-rate"
-      AlarmDescription: The web endpoint refused a request at its rate ceiling; counts only.
-      Namespace: AWS/Lambda/Web/Usage
-      MetricName: EndpointRequestThrottles
-      Dimensions:
-        - { Name: FunctionName, Value: !Sub "${AWS::StackName}-web" }
-        - { Name: EndpointName, Value: live }
-        - { Name: ExecutionRegion, Value: !Ref AWS::Region }
-      Statistic: Sum
-      Period: 300
-      EvaluationPeriods: 1
-      Threshold: 1
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      TreatMissingData: notBreaching
-      AlarmActions: [!Ref AlarmTopic]
 
 Outputs:
   DistributionId:
