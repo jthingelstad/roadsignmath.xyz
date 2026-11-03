@@ -223,10 +223,45 @@ test('the Atom feed is well formed and carries the shown signs with their photos
   assert.ok(entries[0].includes('19 − 12 = 7'));
   assert.ok(entries[0].includes('Seen on the way &amp;lt;home&amp;gt; &amp;amp; back'));
   for (const entry of entries) {
-    for (const tag of ['title', 'id', 'updated', 'published', 'content', 'summary']) {
+    for (const tag of ['title', 'id', 'updated', 'published', 'content']) {
       assert.match(entry, new RegExp(`<${tag}[ >]`), `entry has ${tag}`);
     }
+    // A short post, as micro.blog writes them: Atom's required title is empty, and there's no summary.
+    assert.ok(entry.includes('<title type="text"></title>'));
+    assert.ok(!entry.includes('<summary'));
   }
+});
+
+test('a feed item is a short post micro.blog cross-posts whole: name and math, caption, finder, link, then photos', async () => {
+  const { app } = await setup();
+  const feed = JSON.parse(await (await app.request('/feed.json')).text());
+  const [newer] = feed.items;
+  assert.equal(newer.title, undefined);
+  assert.equal(newer.summary, undefined);
+  const url = `${SITE}/signs/newer-sign`;
+  assert.equal(
+    newer.content_text,
+    [
+      'Newer Sign: 19 − 12 = 7',
+      'Seen on the way <home> & back',
+      'Found by Ada on January 10, 2026. Testville, Minnesota.',
+      url
+    ].join('\n\n')
+  );
+  const html: string = newer.content_html;
+  assert.ok(html.startsWith('<p>Newer Sign: <strong>19 − 12 = 7</strong></p>'));
+  assert.ok(html.indexOf(`<a href="${url}">${url}</a>`) < html.indexOf('<img '), 'the photos come after the text');
+  assert.ok(html.includes('alt="'));
+  // Atom carries the same post.
+  const atom = await (await app.request('/feed.xml')).text();
+  const entry = [...atom.matchAll(/<entry>([\s\S]*?)<\/entry>/g)][0][1];
+  const content = entry.match(/<content type="html">([\s\S]*?)<\/content>/)![1];
+  const unescaped = content
+    .replace(/&quot;/g, '"')
+    .replace(/&gt;/g, '>')
+    .replace(/&lt;/g, '<')
+    .replace(/&amp;/g, '&');
+  assert.equal(unescaped, html);
 });
 
 test('the JSON Feed is JSON Feed 1.1 with the same items', async () => {
@@ -251,7 +286,6 @@ test('the JSON Feed is JSON Feed 1.1 with the same items', async () => {
   const [newer] = feed.items;
   assert.equal(newer.id, `${SITE}/signs/newer-sign`);
   assert.equal(newer.image, `${SITE}/p/ph-01JS0000000000000000000002/large.jpg`);
-  assert.equal(newer.summary, '19 − 12 = 7. Found by Ada on January 10, 2026. Testville, Minnesota.');
   assert.deepEqual(newer.tags, ['Minnesota', '2026']);
   assert.ok(newer.content_html.includes('Seen on the way &lt;home&gt; &amp; back'));
 });
