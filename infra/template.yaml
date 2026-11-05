@@ -359,9 +359,10 @@ Resources:
         SigningBehavior: always
         SigningProtocol: sigv4
 
-  # The server decides what is cached: an API read says `public, max-age=60`, a website page
-  # adds `s-maxage=86400` (Popular 21600) and the server clears the distribution when a page
-  # changes (src/edge-cache.ts), and anything personal or failed says `no-store`. MinTTL and
+  # The server decides what is cached: an API read says `public, max-age=60`, a website page or
+  # a missing page's 404 adds `s-maxage=86400` (Popular 21600) and the server clears the
+  # distribution when a page changes (src/edge-cache.ts), and anything personal or failed says
+  # `no-store`. MinTTL and
   # DefaultTTL 0 make CloudFront follow that, and MaxTTL a day caps it. Authorization is in the
   # key, which is also how CloudFront forwards it, so a signed-in answer is never shared; the
   # query is in the key, so /signs/near?lat=...&lng=... is cached per point.
@@ -499,7 +500,8 @@ Resources:
                 FunctionARN: !GetAtt WwwRedirectFunction.FunctionMetadata.FunctionARN
 
   # The distribution's access log, kept 24 months like the other sites'. The fields leave out
-  # the client IP, the path and the query string, which can carry a sign-in link's token.
+  # the client IP and the query string, which can carry a sign-in link's token (the token is
+  # never in the path: /signin?l=...&t=..., src/web/apple.ts).
   WebAccessLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -528,6 +530,7 @@ Resources:
       RecordFields:
         - timestamp(ms)
         - cs-method
+        - cs-uri-stem
         - sc-status
         - sc-bytes
         - time-taken

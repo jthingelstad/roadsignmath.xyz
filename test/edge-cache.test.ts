@@ -58,7 +58,34 @@ test('pages are kept a day at the edge, Popular six hours, and the API a minute'
     assert.equal((await app.request(path)).headers.get('cache-control'), POPULAR_CACHE, path);
   }
   assert.equal((await app.request('/api/v1/signs')).headers.get('cache-control'), 'public, max-age=60');
-  assert.equal((await app.request('/no-such-page')).headers.get('cache-control'), 'no-store');
+});
+
+test('a missing page is kept at the edge like any page; a missing API route is not', async () => {
+  const { app } = await setup();
+  for (const path of ['/no-such-page', '/.env', '/signs/nothing-here', '/players/nobody', '/players/nobody/feed.xml']) {
+    const res = await app.request(path);
+    assert.equal(res.status, 404, path);
+    assert.equal(res.headers.get('cache-control'), PAGE_CACHE, path);
+  }
+  const api = await app.request('/api/no-such-route');
+  assert.equal(api.status, 404);
+  assert.equal(api.headers.get('cache-control'), 'no-store');
+});
+
+test('a missing page made without the newest signs is not kept', async () => {
+  const { app, store } = await setup();
+  const logged = console.error;
+  console.error = () => {};
+  store.allSigns = async () => {
+    throw new Error('table down');
+  };
+  try {
+    const res = await app.request('/no-such-page');
+    assert.equal(res.status, 404);
+    assert.equal(res.headers.get('cache-control'), 'no-store');
+  } finally {
+    console.error = logged;
+  }
 });
 
 test('reading clears nothing; a request that changes a page clears the edge once', async () => {
