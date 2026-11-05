@@ -5,6 +5,7 @@
 
 import type { Context } from 'hono';
 import { byNewest, isPublic, signSummary, type People, type Urls } from '../api/views.ts';
+import { PAGE_CACHE } from '../edge-cache.ts';
 import type { Store } from '../store/store.ts';
 import { Facts, finderNames, type Summary } from './cards.tsx';
 import { Page, Plate, shortDay } from './layout.tsx';
@@ -46,8 +47,8 @@ const LOST_STYLE = `
 /** The longest address the page repeats back; past that it ends in an ellipsis. */
 const SHOW_PATH = 120;
 
-/** The three newest shown signs, or none when the store can't be read: the page still answers. */
-async function newest(store: Store, urls: Urls): Promise<Summary[]> {
+/** The three newest shown signs, or null when the store can't be read: the page still answers. */
+async function newest(store: Store, urls: Urls): Promise<Summary[] | null> {
   try {
     const [signs, players] = await Promise.all([store.allSigns(), store.allPlayers()]);
     const everyone: People = new Map(players.map((p) => [p.id, p]));
@@ -58,7 +59,7 @@ async function newest(store: Store, urls: Urls): Promise<Summary[]> {
       .map((s) => signSummary(urls, everyone, s));
   } catch (err) {
     console.error(err);
-    return [];
+    return null;
   }
 }
 
@@ -79,9 +80,13 @@ export function notFoundPage({ store, urls }: { store: Store; urls: Urls }) {
       c.header('Cache-Control', 'public, max-age=3600');
       return c.redirect(trimmed + url.search, 301);
     }
-    const signs = await newest(store, urls);
+    const newestSigns = await newest(store, urls);
+    const signs = newestSigns ?? [];
     const path = c.req.path.length > SHOW_PATH ? `${c.req.path.slice(0, SHOW_PATH)}…` : c.req.path;
-    c.header('Cache-Control', 'no-store');
+    // Kept at the edge like any page, so a scanner's repeats never reach the function. A sign or
+    // player that appears clears the edge (src/edge-cache.ts), so its address doesn't stay lost. A
+    // page made without the newest signs isn't kept: the store may be back on the next request.
+    c.header('Cache-Control', newestSigns ? PAGE_CACHE : 'no-store');
     return c.html(
       <Page
         title="Not found · Road Sign Math"

@@ -32,7 +32,7 @@ us-east-1:
   answers 503, and app views are dropped. Everything else works either way. The function reads
   the Tinylytics key again within an hour of a change (five minutes while it is missing).
 - **Logs and the alarm topic**: the function's log (90 days), the distribution's access log in
-  `/roadsignmath-xyz/web-access` (24 months, no client IP, path or query), and a count-only
+  `/roadsignmath-xyz/web-access` (24 months, no client IP or query), and a count-only
   metric of the hourly sign-in limit (`RoadSignMath/SignInTotalLimited`). The stack has no
   alarms since 2026-11-03: the account keeps a few, only where someone acts on them, and the
   four this stack had (server errors, the endpoint's two ceilings, the sign-in limit) were

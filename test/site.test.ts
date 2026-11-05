@@ -129,7 +129,6 @@ test('a sign has its own page; a held or unknown one is not found', async () => 
   assert.equal((await app.request(`/signs/${slug('Held Sign')}`)).status, 404);
   const missing = await app.request('/signs/nothing-here');
   assert.equal(missing.status, 404);
-  assert.equal(missing.headers.get('cache-control'), 'no-store');
 });
 
 test('a sign’s math is drawn as SVG on its plate and on every card, with the text for screen readers', async () => {

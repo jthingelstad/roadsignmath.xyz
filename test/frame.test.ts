@@ -11,6 +11,7 @@ import { BIMI_SVG, BRAND_FILES, BRAND_VERSION, HIGHWAY_SVG, LOCKUP_SIZE } from '
 import { ICO_SIZES, MANIFEST } from '../src/web/icons.ts';
 import { ada, ben, sign } from './support/fixtures.ts';
 import { ScriptedModerator } from './support/moderator.ts';
+import { PAGE_CACHE } from '../src/edge-cache.ts';
 
 const id = (n: number) => `01JS${String(n).padStart(22, '0')}`;
 
@@ -47,7 +48,7 @@ test('an address with no page answers 404 with the way back and the three newest
     const { res, html } = await page(path);
     assert.equal(res.status, 404, path);
     assert.match(res.headers.get('content-type') ?? '', /^text\/html/);
-    assert.equal(res.headers.get('cache-control'), 'no-store');
+    assert.equal(res.headers.get('cache-control'), PAGE_CACHE);
     assert.match(html, /<h1>This road doesn’t go anywhere\.<\/h1>/);
     assert.ok(html.includes(`There’s no page at <code class="mono">${path}</code>.`), path);
     assert.match(html, /<div class="plate"><span role="img" aria-label="404 = 4 × 101"><svg /);
