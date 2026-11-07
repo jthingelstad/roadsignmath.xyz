@@ -861,3 +861,48 @@ test('a profile photo waits for an account delete that is under way', async () =
   assert.equal((await t.call('DELETE', '/me/avatar', { as: 'cy' })).res.status, 409);
   assert.equal(t.photos.files.size, 0);
 });
+
+test('a duplicate report is kept for later and changes nothing', async () => {
+  const t = await setup();
+  const { body: first } = await t.post();
+  const { body: second } = await t.post();
+  const send = (body: Record<string, unknown>, as = 'ben') =>
+    t.call('POST', `/signs/${second.id}/duplicate`, { as, body });
+  const sent = await send({ same_as: first.slug, note: 'Same exit, a year later' });
+  assert.equal(sent.res.status, 200);
+  assert.deepEqual(sent.body, { same_as: first.slug, note: 'Same exit, a year later' });
+  const kept = await t.store.getDuplicate(second.id, ben.id);
+  assert.equal(kept?.sameAs, first.id);
+  assert.equal(kept?.note, 'Same exit, a year later');
+  assert.equal(t.moderator.reports.length, 0, 'the moderator never sees it');
+  assert.equal((await t.call('GET', '/signs')).body.signs.length, 2, 'both signs stay shown');
+
+  // Another replaces it, and a note is optional; the poster can report their own sign.
+  assert.deepEqual((await send({ same_as: first.id })).body, { same_as: first.slug, note: null });
+  assert.equal((await t.store.getDuplicate(second.id, ben.id))?.note, undefined);
+  assert.equal((await send({ same_as: first.slug }, 'ada')).res.status, 200);
+});
+
+test('a duplicate report needs another sign this player can see', async () => {
+  const t = await setup();
+  const { body: posted } = await t.post();
+  const send = (body: Record<string, unknown>) => t.call('POST', `/signs/${posted.id}/duplicate`, { as: 'ben', body });
+  assert.equal((await send({ same_as: posted.slug })).res.status, 400, 'not itself');
+  assert.equal((await send({ same_as: 'no-such-sign' })).res.status, 404);
+  assert.equal((await send({})).res.status, 400);
+  assert.equal((await send({ same_as: posted.slug, extra: 1 })).res.status, 400);
+  assert.equal(
+    (await t.call('POST', `/signs/${posted.id}/duplicate`, { body: { same_as: posted.slug } })).res.status,
+    401,
+    'signed in only'
+  );
+});
+
+test('a duplicate report goes with its sign', async () => {
+  const t = await setup();
+  const { body: first } = await t.post();
+  const { body: second } = await t.post();
+  await t.call('POST', `/signs/${second.id}/duplicate`, { as: 'ben', body: { same_as: first.slug } });
+  assert.equal((await t.call('DELETE', `/signs/${second.id}`, { as: 'ada' })).res.status, 204);
+  assert.equal(await t.store.getDuplicate(second.id, ben.id), undefined);
+});

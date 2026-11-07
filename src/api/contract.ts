@@ -6,7 +6,7 @@
  * Bump on every change to the surface. tools/export-api-contract.ts refuses a changed surface
  * under a version already in contracts/api-versions.json.
  */
-export const API_VERSION = '1.11.0';
+export const API_VERSION = '1.12.0';
 
 export const LIMITS = {
   /** Signs per page of the feed. */
@@ -600,6 +600,23 @@ export const ROUTES: Route[] = [
     errors: ['rate_limited', 'unavailable', 'conflict'],
     status: 200,
     response: 'ReportOutcome'
+  },
+  {
+    operationId: 'reportDuplicate',
+    method: 'post',
+    path: '/signs/{id}/duplicate',
+    summary: 'Report a duplicate',
+    description:
+      'Says this sign is the same road sign as another one, posted separately: `same_as` is the other sign’s id ' +
+      'or slug, and a note is optional. It is kept for later and changes nothing now; the moderator never sees ' +
+      'it. Any sign can be reported, your own too. Sending another replaces your earlier one. It counts against ' +
+      `the ${LIMITS.reportsADay} reports a day.`,
+    params: [signId],
+    auth: 'signed_in',
+    body: 'DuplicatePost',
+    errors: ['rate_limited'],
+    status: 200,
+    response: 'DuplicateReceived'
   },
   {
     operationId: 'countAppViews',

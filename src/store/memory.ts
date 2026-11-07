@@ -1,4 +1,15 @@
-import type { Block, Heart, Login, Player, Report, Session, Sign, Upload, Way } from '../domain/types.ts';
+import type {
+  Block,
+  DuplicateReport,
+  Heart,
+  Login,
+  Player,
+  Report,
+  Session,
+  Sign,
+  Upload,
+  Way
+} from '../domain/types.ts';
 import {
   addPlayer,
   addSign,
@@ -23,6 +34,7 @@ export class MemoryStore implements Store {
   private counters = new Map<string, number>();
   private uploads = new Map<string, Upload>();
   private reports = new Map<string, Report>();
+  private duplicates = new Map<string, DuplicateReport>();
   private blocks = new Map<string, Block>();
   private hearts = new Map<string, Heart>();
   private claims = new Map<string, { signId: string; expiresAt: number }>();
@@ -68,6 +80,7 @@ export class MemoryStore implements Store {
     this.ways.delete(id);
     for (const key of this.wayTexts.keys()) if (key.startsWith(`${id}/`)) this.wayTexts.delete(key);
     for (const [key, report] of this.reports) if (report.signId === id) this.reports.delete(key);
+    for (const [key, report] of this.duplicates) if (report.signId === id) this.duplicates.delete(key);
   }
 
   async listWays(signId: string): Promise<Way[]> {
@@ -252,6 +265,19 @@ export class MemoryStore implements Store {
 
   async deleteReport(signId: string, playerId: string): Promise<void> {
     this.reports.delete(`${signId}/${playerId}`);
+  }
+
+  async putDuplicate(report: DuplicateReport): Promise<void> {
+    this.duplicates.set(`${report.signId}/${report.playerId}`, copy(report));
+  }
+
+  async getDuplicate(signId: string, playerId: string): Promise<DuplicateReport | undefined> {
+    const report = this.duplicates.get(`${signId}/${playerId}`);
+    return report && copy(report);
+  }
+
+  async deleteDuplicate(signId: string, playerId: string): Promise<void> {
+    this.duplicates.delete(`${signId}/${playerId}`);
   }
 
   async putBlock(block: Block): Promise<void> {

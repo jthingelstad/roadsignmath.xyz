@@ -32,6 +32,7 @@ import {
   blockPlayer,
   deleteSign,
   postSign,
+  reportDuplicate,
   reportSign,
   unblockPlayer,
   uploadPhoto
@@ -541,6 +542,17 @@ export function createApi(options: ApiOptions): Hono {
       const sign = findSign((await data()).signs, pathParam(c, 'id'));
       const report = await reportSign(deps, viewer!.player, sign, await jsonBody(c));
       return c.json({ outcome: report.outcome, note: report.note });
+    },
+
+    async reportDuplicate(c, { data, viewer }) {
+      const { signs } = await data();
+      const sign = findSign(signs, pathParam(c, 'id'));
+      const body = await jsonBody(c);
+      const sameAs = body.same_as;
+      if (typeof sameAs !== 'string' || !sameAs) return fail('bad_request', 'same_as must be a sign’s id or slug');
+      const other = findSign(signs, sameAs);
+      const report = await reportDuplicate(store, viewer!.player, sign, other, body);
+      return c.json({ same_as: other.slug, note: report.note ?? null });
     },
 
     async blockPlayer(c, { viewer }) {
