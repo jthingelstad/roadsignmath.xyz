@@ -28,6 +28,19 @@ test('old LaTeX becomes the text a player types', () => {
   assert.equal(latexToWay('1,000 + 1 = 1001'), '1000 + 1 = 1001');
 });
 
+test('a fraction keeps its arguments until the math inside them has converted', () => {
+  const cases: [string, string][] = [
+    ['\\frac{2^{4}}{2} = 8', '2^4 ÷ 2 = 8'],
+    ['\\frac{\\sqrt{16}}{2} = 2', '√16 ÷ 2 = 2'],
+    ['\\frac{\\frac{8}{2}}{2} = 2', '8 ÷ 2 ÷ 2 = 2'],
+    ['\\frac{6}{\\frac{4}{2}} = 3', '6 ÷ (4 ÷ 2) = 3'],
+    ['\\sqrt{\\frac{32}{2}} = 4', '√(32 ÷ 2) = 4'],
+    ['\\frac{{2} + 4}{3} = 2', '(2 + 4) ÷ 3 = 2'],
+    ['2^{\\frac{4}{2}} = 4', '2^(4 ÷ 2) = 4']
+  ];
+  for (const [tex, want] of cases) assert.equal(tidyWay(latexToWay(tex) ?? 'none'), want, tex);
+});
+
 test('math the checker has no way to read is left out, not guessed at', () => {
   for (const tex of ['\\pi = 3.14', '7 \\mod 3 = 1', '\\sin 0 = 0', '2 \\approx 2', 'y + 1 = 2']) {
     assert.equal(latexToWay(tex), undefined, tex);

@@ -82,7 +82,9 @@ export function latexToWay(tex: string): string | undefined {
       .replace(/\{([^{}]*)\\over([^{}]*)\}/g, '(($1) ÷ ($2))')
       .replace(/\\sqrt\s*\{([^{}]*)\}/g, '√($1)')
       .replace(/\^\s*\{([^{}]*)\}/g, '^($1)')
-      .replace(/\{([^{}]*)\}/g, '($1)');
+      // A bare group, but never a fraction's, root's or power's own argument: those wait
+      // until what is inside them has converted and the rules above can read them.
+      .replace(/(?<!(?:\\[dt]?frac|\\sqrt|\^|\})\s*)\{([^{}]*)\}/g, '($1)');
   }
   s = s
     .replace(/\\times|\\cdot|\\ast/g, '×')
