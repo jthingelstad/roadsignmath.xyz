@@ -22,6 +22,7 @@ import type { Mailer } from '../mail/mailer.ts';
 import type { Moderator } from '../moderation/moderator.ts';
 import type { PhotoStore } from '../photos.ts';
 import { TinylyticsUnavailable, VIEW_PATH, type Hit, type Tinylytics } from '../tinylytics.ts';
+import type { Newsletter } from '../newsletter.ts';
 import { nowSeconds } from '../store/store.ts';
 import { limit } from './input.ts';
 import { appSiteAssociation } from '../web/apple.ts';
@@ -68,6 +69,8 @@ export type ApiOptions = {
   appleTeamId?: string;
   /** Hearts' counts and the app's views; without it hearts are off (counts null) and views dropped. */
   tinylytics?: Tinylytics;
+  /** The players' newsletter: a new player joins it, a deleted one leaves; without it neither happens. */
+  newsletter?: Newsletter;
   /** Every sign's heart count, read once a minute: one cache the API and the site share. */
   heartCounts?: HeartCounts;
   /** Where players' feedback is emailed; without it `POST /feedback` answers 503. */
@@ -397,6 +400,11 @@ export function createApi(options: ApiOptions): Hono {
     async finishSignIn(c) {
       const body = await jsonBody(c);
       const done = await finishSignIn(store, { loginId: body.login_id, code: body.code, token: body.token });
+      // A new player joins the newsletter (Jamie, 2026-11-07). Never in the way of signing in.
+      if (done.isNew && done.player.email && options.newsletter) {
+        const outcome = await options.newsletter.add(done.player.email);
+        console.log({ event: 'newsletter', op: 'add', outcome });
+      }
       // Read as the player just signed in, not the anonymous request: their blocks and held signs.
       const signedIn = await load({ player: done.player });
       return c.json({ token: done.token, new_player: done.isNew, me: await me(done.player, signedIn) });
@@ -417,7 +425,13 @@ export function createApi(options: ApiOptions): Hono {
     },
 
     async deleteMe(c, { viewer }) {
+      const email = viewer!.player.email;
       await deleteAccount(deps, viewer!.player);
+      // They leave the newsletter too. A failure is logged and doesn't undo the delete.
+      if (email && options.newsletter) {
+        const outcome = await options.newsletter.remove(email);
+        console.log({ event: 'newsletter', op: 'remove', outcome });
+      }
       return c.body(null, 204);
     },
 

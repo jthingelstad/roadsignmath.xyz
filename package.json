@@ -19,6 +19,7 @@
     "build:server": "node --import tsx tools/build-server.ts",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test",
     "seed": "node --import tsx tools/seed-microblog.ts",
+    "newsletter": "node --import tsx tools/newsletter-sync.ts",
     "seed:archive": "node --import tsx tools/seed-archive.ts"
   },
   "dependencies": {

@@ -18,7 +18,8 @@ ids or ARNs, local paths, or photos of plates or faces that weren't meant to be 
   MathJax on the server (`src/web/math.ts`); the app draws the same LaTeX with SwiftMath
   and checks its own LaTeX writer against these vectors.
 - **Public reads, signed-in writes.** Only `shown` signs are public; a player also sees their
-  own held and hidden signs. A player's email never leaves the server.
+  own held and hidden signs. A player's email never leaves the server, except to the players'
+  newsletter on Buttondown (`src/newsletter.ts`).
 - **Moderation is Claude's alone** (`src/moderation/`). No person reviews posts. Claude holds a
   post only when it is clearly objectionable, looks again when a player reports one (hiding it
   if it agrees), and writes each photo's alt text in the same call. It also looks at a profile
@@ -42,6 +43,7 @@ ids or ARNs, local paths, or photos of plates or faces that weren't meant to be 
 | `src/mail/` | `Mailer`: SES live, files in `.data/mail/` for `npm run dev` (the text, and the HTML beside it), memory in tests. `signin.ts` is the sign-in email: a plain-text part and a designed HTML part (tables, inline styles, dark mode, no script; its one image is Tinylytics' pixel, the same for every email, so opens count per email, never per person) with the link and code escaped. |
 | `src/posting/` | Uploads, posting a sign, ways, deleting, reports and blocks. |
 | `src/edge-cache.ts` | How long CloudFront keeps the website: every page, open file and missing page's 404 says `s-maxage` a day (`PAGE_CACHE`), Popular (`?sort=popular`) six hours (`POPULAR_CACHE`, Jamie 2026-11-02: "at least 6 hours", since a website heart never reaches the server), browsers a minute. `PageChanges` wraps the store given to `createApp`: a request that runs a write that changes a page (signs, ways, players: `PAGE_WRITES`) clears the whole distribution (`/*`, one path) once, after the request; a failed clear is logged as `edge-cache` and the page is at most a day old. A new page-changing store method goes in `PAGE_WRITES`. Each release clears it too (`scripts/release.sh`), and a write straight to the live table (the seed's `--to live`) needs a clear by hand. The API's public reads stay at a minute. |
+| `src/newsletter.ts` | The players' newsletter on Buttondown. Jamie, 2026-11-07: "include ALL players that we have in the system, add new players when they create account, delete players if they remove themselves". A new player is added at their first sign-in (`finishSignIn` in `app.ts`) and a deleted one removed (`deleteMe`); both are best-effort, never in the way, and logged by outcome only, never by address. An add sends no collision header, so an address Buttondown already has, unsubscribed included, stays as it is: nobody is ever resubscribed. `npm run newsletter -- --to check|live` (`tools/newsletter-sync.ts`, the key through the environment) added the players from before, once, on the owner's go. Open and click tracking stay off: they record each reader. |
 | `src/hearts.ts` | Hearts: hearting and taking back (our row plus a Tinylytics kudo, kept in step), every sign's count from one cached read of the site's kudos, and removing kudos when a sign or account goes. |
 | `src/tinylytics.ts` | The Tinylytics API client (site 1525) with the full-access key from the runtime secret: kudos, and the app's screen views as hits. No key means `off`, never a crash; the key never reaches a log or an answer. |
 | `src/moderation/` | `Moderator`: Claude live (`claude-haiku-5-5`), lets everything through in `npm run dev` without a key. |
@@ -215,8 +217,8 @@ looking at it.
 - `npm run seed:archive -- --to live` loaded the first era on the owner's go (2026-11-07); `--to check`
   reads the live table and says what a load would do. Old addresses are read into memory only: never
   print, log or save them.
-- The runtime secret holds the moderator's key (`ANTHROPIC_API_KEY`) and the Tinylytics key
-  (`TINYLYTICS_API_KEY`). The owner keeps it by hand; never read or write its values. Never test
+- The runtime secret holds the moderator's key (`ANTHROPIC_API_KEY`), the Tinylytics key
+  (`TINYLYTICS_API_KEY`) and the newsletter's Buttondown key (`BUTTONDOWN_API_KEY`). The owner keeps it by hand; never read or write its values. Never test
   hearts or app views against live Tinylytics with writes: tests use `test/support/tinylytics.ts`.
 - No account id, ARN, zone id or other resource id goes in this repo or its Actions logs:
   scripts read them from the stacks and mask them in Actions.
