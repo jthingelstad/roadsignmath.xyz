@@ -18,7 +18,8 @@
     "brand": "node --import tsx tools/brand.ts",
     "build:server": "node --import tsx tools/build-server.ts",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test",
-    "seed": "node --import tsx tools/seed-microblog.ts"
+    "seed": "node --import tsx tools/seed-microblog.ts",
+    "seed:archive": "node --import tsx tools/seed-archive.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.3.0",
@@ -39,12 +40,14 @@
     "@aws-sdk/client-lambda-web": "3.1150.0",
     "@aws-sdk/client-sts": "3.1150.0",
     "@types/d3-geo": "3.1.1",
+    "@types/js-yaml": "4.0.9",
     "@types/node": "^24.19.2",
     "@types/qrcode": "1.5.6",
     "@types/topojson-client": "3.1.5",
     "@types/topojson-specification": "1.0.5",
     "@types/yazl": "3.3.1",
     "esbuild": "0.28.2",
+    "js-yaml": "4.1.0",
     "oxlint": "^1.90.0",
     "prettier": "^3.9.10",
     "qrcode": "1.5.4",
