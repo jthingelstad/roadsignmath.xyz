@@ -27,8 +27,8 @@ function shape(data: OpenData) {
 
 const GAME = [
   'A way is accepted when the math is true and every number in it is one of the numbers on the sign, each used no more often than the sign shows it. Using every number is encouraged, not required. Anyone can find another way on any sign. There are no points, scores or rankings.',
-  'Jamie Thingelstad started the game in 2005 as roadsignmath.com, with signs sent in by other players until 2014. This site and the iPhone app are its new era; the first era’s signs are kept in the archive on Things I’ve built, not here.',
-  'Each sign has a page at `/signs/<slug>` and each player at `/players/<handle>`. Most places are approximate: the pin sits on the town the post or the sign names. `found_on` is the day in the finder’s own time; other times are UTC.'
+  'Jamie Thingelstad started the game in 2005 as roadsignmath.com, with signs sent in by other players until 2014. This site and the iPhone app are its new era. The first era’s signs that have a photo and math today’s checker accepts are here too, with the days they were found and posted; all 251 are kept in the archive on Things I’ve built.',
+  'Each sign has a page at `/signs/<slug>` and each player at `/players/<handle>`. A place marked approximate has its pin on the town the post or the sign names, not the exact spot. `found_on` is the day in the finder’s own time; other times are UTC.'
 ];
 
 export function llmsTxt(data: OpenData): string {
