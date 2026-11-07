@@ -24,9 +24,11 @@ us-east-1:
   go after a day, and replaced or deleted photos 30 days after.
 - **Sign-in mail** from `signin@roadsignmath.xyz` through SES, DKIM-signed, with
   `bounce.roadsignmath.xyz` as the MAIL FROM domain. The function may send only as that address.
-- **The runtime secret**, `roadsignmath-xyz-runtime` in Secrets Manager, with two keys:
-  `ANTHROPIC_API_KEY` (the moderator's) and `TINYLYTICS_API_KEY` (a full-access Tinylytics key,
-  for hearts and the app's screen views). The owner keeps that secret by hand; no stack or deploy
+- **The runtime secret**, `roadsignmath-xyz-runtime` in Secrets Manager, with three keys:
+  `ANTHROPIC_API_KEY` (the moderator's), `TINYLYTICS_API_KEY` (a full-access Tinylytics key,
+  for hearts and the app's screen views) and `BUTTONDOWN_API_KEY` (the players' newsletter, from
+  the 1Password item "Buttondown - Road Sign Math"; without it new players aren't added and
+  deleted ones aren't removed). The owner keeps that secret by hand; no stack or deploy
   writes it, and the function may read it and no other. Without the first, posting and reporting
   answer 503 and change nothing; without the second, every sign's `hearts` is null, hearting
   answers 503, and app views are dropped. Everything else works either way. The function reads
@@ -107,6 +109,7 @@ back as they are.
 3. **The runtime secret** (the owner, in the Secrets Manager console, us-east-1): a secret named
    `roadsignmath-xyz-runtime`, of type "Other", with two key/value pairs: `ANTHROPIC_API_KEY` and
    the moderator's key, and `TINYLYTICS_API_KEY` and a full-access (`tly-fa-`) Tinylytics key.
+   A third, `BUTTONDOWN_API_KEY`, holds the newsletter's Buttondown key (added 2026-11-07).
    No agent reads or writes their values. They can come after the first release; until then
    posting answers 503 and hearts are off.
 4. **The alerts queue** (an account change outside a deploy, so the owner's go): add

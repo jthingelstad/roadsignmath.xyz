@@ -13,6 +13,7 @@ import { KeyedModerator } from './moderation/moderator.ts';
 import { S3PhotoStore } from './photos.ts';
 import { TEAM_ID } from './web/apple.ts';
 import { secretField } from './secrets.ts';
+import { Buttondown } from './newsletter.ts';
 import { KeyedTinylytics } from './tinylytics.ts';
 import { DynamoStore } from './store/dynamo.ts';
 
@@ -63,6 +64,9 @@ export const moderatorKey = (config: LiveConfig) => () => secretField(config.run
 /** The key hearts and app views use: TINYLYTICS_API_KEY in the runtime secret. */
 export const tinylyticsKey = (config: LiveConfig) => () => secretField(config.runtimeSecret, 'TINYLYTICS_API_KEY');
 
+/** The newsletter's key: BUTTONDOWN_API_KEY in the runtime secret. */
+export const buttondownKey = (config: LiveConfig) => () => secretField(config.runtimeSecret, 'BUTTONDOWN_API_KEY');
+
 export function liveOptions(config: LiveConfig): ApiOptions {
   return {
     store: new DynamoStore(config.table),
@@ -74,6 +78,7 @@ export function liveOptions(config: LiveConfig): ApiOptions {
     clientIp: cloudFrontIp,
     appleTeamId: config.appleTeamId,
     tinylytics: new KeyedTinylytics(tinylyticsKey(config)),
+    newsletter: new Buttondown(buttondownKey(config)),
     edgeCache: config.photoDistributionId ? new CloudFrontEdgeCache(config.photoDistributionId) : undefined
   };
 }

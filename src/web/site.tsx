@@ -710,8 +710,8 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
           </p>
           <h2>What stays private</h2>
           <p>
-            Your email address. It is only used to send you sign-in codes, and it is never shown or shared with other
-            players.
+            Your email address. It is used to send you sign-in codes and the occasional Road Sign Math newsletter, which
+            every player gets; each one has a link to unsubscribe. It is never shown or shared with other players.
           </p>
           <h2>Who helps run it</h2>
           <ul>
@@ -723,17 +723,19 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
               Tinylytics counts visits to this website and screens viewed in the app, and keeps the hearts. It uses no
               cookies.
             </li>
+            <li>Buttondown sends the newsletter. The game gives it your email address and nothing else.</li>
           </ul>
           <h2>Leaving</h2>
           <p>
             Delete my account, in the app’s settings, deletes your account and everything you made: your signs and their
-            photos, the ways you added, your hearts, your profile photo and your email address.
+            photos, the ways you added, your hearts, your profile photo and your email address, which leaves the
+            newsletter too.
           </p>
           <h2>Questions</h2>
           <p>
             Email Jamie at <a href="mailto:jamie@thingelstad.com">jamie@thingelstad.com</a>.
           </p>
-          <p class="soft">Updated 31 October 2026.</p>
+          <p class="soft">Updated 7 November 2026.</p>
         </main>
       </Page>
     )
