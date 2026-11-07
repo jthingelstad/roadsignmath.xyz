@@ -4,18 +4,24 @@
 //   npm run seed:archive -- --archive ../rsm-mediawiki --to local    fill .data/ for `npm run dev`
 //   ... --to plan --legacy <folder of the old site's user tables> --wiki <wiki SQL dump .gz>
 //                                                                    also count address matches
+//   ... --to check --legacy <folder> --wiki <dump.sql.gz>           read the live table: what a load would do
+//   ... --to live --legacy <folder> --wiki <dump.sql.gz>            the live table and photo bucket
 //
 // Run `npm run seed -- --to local` first: Jamie's signs join the launch player. The archive and
 // the old user tables stay outside this repo. Addresses are read into memory only and never
-// printed, so `--legacy` only counts, and the local store never holds a real one. There is no
-// live mode yet: a live load is a write to live data, added and run on the owner's go.
+// printed, and the local store never holds a real one. `--to check` only reads. `--to live` is a
+// write to live data, run once on the owner's go: it reads the table, bucket and distribution from
+// the roadsignmath-xyz stack as the cloud-engineer profile, gives players their old address so
+// they can claim them, leaves any sign already there alone, and clears the edge once at the end.
 
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { gunzipSync } from 'node:zlib';
 import yaml from 'js-yaml';
-import { DirPhotoStore } from '../src/photos.ts';
+import { execFileSync } from 'node:child_process';
+import { CloudFrontEdgeCache } from '../src/edge-cache.ts';
+import { DirPhotoStore, S3PhotoStore } from '../src/photos.ts';
 import {
   buildArchivePlan,
   linkEmails,
@@ -25,6 +31,7 @@ import {
   type ArchiveSeed,
   type LegacyUser
 } from '../src/seed/archive.ts';
+import { DynamoStore } from '../src/store/dynamo.ts';
 import { MemoryStore } from '../src/store/memory.ts';
 
 const { values } = parseArgs({
@@ -35,14 +42,17 @@ const { values } = parseArgs({
     to: { type: 'string', default: 'plan' }
   }
 });
+const live = values.to === 'check' || values.to === 'live';
 if (
   !values.archive ||
-  !['plan', 'local'].includes(values.to) ||
-  (values.to !== 'plan' && (values.legacy || values.wiki)) ||
+  !['plan', 'local', 'check', 'live'].includes(values.to) ||
+  (values.to === 'local' && (values.legacy || values.wiki)) ||
+  (live && !values.legacy) ||
   !values.legacy !== !values.wiki
 ) {
   console.error('Usage: npm run seed:archive -- --archive <folder> --to plan|local');
   console.error('       Counting old addresses, with plan only: --legacy <folder> --wiki <dump.sql.gz>');
+  console.error('       The live table: --to check|live --legacy <folder> --wiki <dump.sql.gz>');
   process.exit(2);
 }
 
@@ -140,16 +150,17 @@ const plan = buildArchivePlan(posts, seed);
 for (const sign of plan.signs) {
   console.log(`${sign.foundOn}  ${sign.postedAt.slice(0, 16)}  ${sign.title.padEnd(30)} ${sign.firstWay?.text}`);
 }
-const why = (reason: string): number => plan.left.filter((l) => l.why === reason).length;
+const tally = new Map<string, number>();
+for (const { why } of plan.left) tally.set(why.join(' and '), (tally.get(why.join(' and ')) ?? 0) + 1);
 console.log(
   `${plan.signs.length} signs, ${plan.ways.length} ways, ${plan.photos.length} photos, ${plan.players.length} players`
 );
-console.log(
-  `${plan.left.length} stay in the archive: ${why('no photo')} no photo, ${why('no way the checker accepts')} no way, ${why('both')} both`
-);
+const reasons = [...tally].sort((x, y) => y[1] - x[1]).map(([why, n]) => `${n} ${why}`);
+console.log(`${plan.left.length} stay in the archive: ${reasons.join('; ')}`);
+for (const { title, why } of plan.left) if (why.includes('no coordinates')) console.log(`  No coordinates: ${title}`);
 
-if (values.legacy) {
-  const linked = linkEmails(plan.players, await readLegacyUsers(values.legacy, values.wiki!));
+const linked = values.legacy ? linkEmails(plan.players, await readLegacyUsers(values.legacy, values.wiki!)) : undefined;
+if (linked) {
   console.log(
     `${linked.emails.size} players can claim with an old address, ${linked.extra} more old addresses left unlinked`
   );
@@ -157,6 +168,61 @@ if (values.legacy) {
   console.log(`An address that matches two players: ${linked.shared.join(', ') || 'none'}`);
 }
 if (values.to === 'plan') process.exit(0);
+
+/** One output of the live stack, read with the AWS CLI so no name is written down here. */
+function output(key: string): string {
+  const query = `Stacks[0].Outputs[?OutputKey=='${key}'].OutputValue`;
+  const args = ['cloudformation', 'describe-stacks', '--stack-name', 'roadsignmath-xyz', '--query', query];
+  const value = execFileSync('aws', [...args, '--output', 'text'], { encoding: 'utf8' }).trim();
+  if (!value || value === 'None') throw new Error(`The roadsignmath-xyz stack has no ${key}`);
+  return value;
+}
+
+if (live) {
+  process.env.AWS_PROFILE ??= 'cloud-engineer';
+  process.env.AWS_REGION ??= 'us-east-1';
+  const store = new DynamoStore(output('TableName'));
+  const [signs, players] = await Promise.all([store.allSigns(), store.allPlayers()]);
+  const ids = new Set(signs.map((s) => s.id));
+  const slugs = new Set(signs.map((s) => s.slug));
+  const handles = new Set(players.map((p) => p.handle));
+  const fresh = plan.signs.filter((s) => !ids.has(s.id));
+  const newPlayers = plan.players.filter((p) => !p.existingHandle && !players.some((q) => q.id === p.player.id));
+  let owned = 0;
+  for (const p of newPlayers) {
+    const email = linked!.emails.get(p.player.name);
+    if (email && (await store.playerIdForEmail(email))) owned++;
+  }
+  const taken = fresh.filter((s) => slugs.has(s.slug)).map((s) => s.slug);
+  const heldHandles = newPlayers.filter((p) => handles.has(p.player.handle)).map((p) => p.player.handle);
+  console.log(`Live now: ${signs.length} signs, ${players.length} players`);
+  console.log(`A load adds ${fresh.length} signs (${plan.signs.length - fresh.length} already there)`);
+  console.log(`Slugs already taken, so they get -2: ${taken.join(', ') || 'none'}`);
+  console.log(`Handles already taken, so they get -2: ${heldHandles.join(', ') || 'none'}`);
+  console.log(`Old addresses that already have an account, so their signs go there: ${owned}`);
+  for (const handle of new Set(plan.players.map((p) => p.existingHandle).filter(Boolean))) {
+    if (!handles.has(handle!)) throw new Error(`No player @${handle} on the live table: load the launch signs first`);
+  }
+  if (values.to === 'check') process.exit(0);
+
+  const report = await loadArchive(
+    plan,
+    {
+      store,
+      photos: new S3PhotoStore(output('PhotoBucketName')),
+      read: (source) => readFile(join(values.archive!, 'images', source))
+    },
+    linked!.emails
+  );
+  await new CloudFrontEdgeCache(output('DistributionId')).clear();
+  console.log(
+    `Wrote ${report.added} signs and ${report.playersAdded} players to the live table; ${report.alreadyThere} signs were already there.`
+  );
+  if (report.creditedToExisting.length)
+    console.log(`Credited to an existing account: ${report.creditedToExisting.join(', ')}`);
+  console.log('Cleared the edge.');
+  process.exit(0);
+}
 
 const saved = await readFile('.data/store.json', 'utf8').catch(() => undefined);
 const store = saved ? await MemoryStore.from(JSON.parse(saved)) : new MemoryStore();

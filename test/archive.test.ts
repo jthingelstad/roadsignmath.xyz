@@ -129,7 +129,7 @@ test('a sign found after its post, or with no dates, stops the plan and names th
   assert.throws(() => buildArchivePlan([post('a', 'Evening', 'Ben Example')], evening), /Evening: found/);
 });
 
-test('only a sign with a photo and a way the checker accepts comes over', () => {
+test('only a sign with a photo, coordinates and a way the checker accepts comes over', () => {
   const plan = buildArchivePlan(
     [
       post('a', 'Keeps', 'Ben Example'),
@@ -137,22 +137,27 @@ test('only a sign with a photo and a way the checker accepts comes over', () => 
       post('b', 'Pi', 'Ben Example', { math: ['\\pi = 3.14'] }),
       post('b', 'Off Sign', 'Ben Example', { math: ['2 + 7 = 9'] }),
       post('b', 'False', 'Ben Example', { math: ['2 + 3 = 6'] }),
-      post('b', 'Neither', 'Ben Example', { photos: [], math: [] })
+      post('b', 'Neither', 'Ben Example', { photos: [], math: [] }),
+      post('b', 'No Pin', 'Ben Example', { location: { city: 'Testville', state: 'Minnesota' } }),
+      post('c', 'Town Center', 'Ben Example')
     ],
-    seed
+    { ...seed, fixes: { c: { approximate: true } } }
   );
+  // A pin on the town's center is still coordinates, so it comes over. Oldest post first.
   assert.deepEqual(
     plan.signs.map((s) => s.title),
-    ['Keeps']
+    ['Town Center', 'Keeps']
   );
+  assert.equal(plan.signs[0].place.approximate, true);
   assert.deepEqual(
     new Map(plan.left.map((l) => [l.title, l.why])),
     new Map([
-      ['No Photo', 'no photo'],
-      ['Pi', 'no way the checker accepts'],
-      ['Off Sign', 'no way the checker accepts'],
-      ['False', 'no way the checker accepts'],
-      ['Neither', 'both']
+      ['No Photo', ['no photo']],
+      ['Pi', ['no way the checker accepts']],
+      ['Off Sign', ['no way the checker accepts']],
+      ['False', ['no way the checker accepts']],
+      ['Neither', ['no photo', 'no way the checker accepts']],
+      ['No Pin', ['no coordinates']]
     ])
   );
 });
@@ -187,7 +192,7 @@ test('a fix corrects what the archive recorded', () => {
   const fixed: ArchiveSeed = {
     ...seed,
     fixes: {
-      a: { way: '√144 = 12', numbers: ['12', '144'], coordinates: [1.5, 2.5], approximate: true, caption: null }
+      a: { way: '√144 = 12', numbers: ['12', '144'], coordinates: [1.5, 2.5], caption: null }
     }
   };
   const plan = buildArchivePlan(
@@ -196,7 +201,7 @@ test('a fix corrects what the archive recorded', () => {
   );
   const [sign] = plan.signs;
   assert.equal(sign.firstWay?.text, '√144 = 12');
-  assert.deepEqual(sign.place, { label: 'Testville, Minnesota', state: 'MN', lat: 1.5, lng: 2.5, approximate: true });
+  assert.deepEqual(sign.place, { label: 'Testville, Minnesota', state: 'MN', lat: 1.5, lng: 2.5, approximate: false });
   assert.equal(sign.caption, undefined);
 });
 

@@ -1,6 +1,7 @@
 // Badges on the website, each drawn as a small road sign of its shelf's family: white plates for
 // firsts, green guide signs and interstate shields for places, yellow diamonds for the math, brown
-// signs for the seasons and blue service signs for the secret ones. Plain SVG, no script.
+// signs for the seasons, blue service signs for the secret ones and orange plates for the years.
+// Plain SVG, no script.
 
 import type { FC } from 'hono/jsx';
 import type { earnedBadgeView } from '../api/views.ts';
@@ -94,6 +95,14 @@ const Art: FC<{ badge: BadgeView }> = ({ badge }) => {
       );
     case 'seasons':
       return <Plate fill="#6b3e1e" edge="#fff" mark={badge.mark} ink="#fff" />;
+    case 'years':
+      return (
+        <>
+          <rect x="2" y="14" width="60" height="36" rx="5" fill="#f28c28" />
+          <rect x="5" y="17" width="54" height="30" rx="3" fill="none" stroke={INK} stroke-width="1.5" />
+          <Mark mark={badge.mark} color={INK} y={32.5} size={19} />
+        </>
+      );
     default:
       if (badge.id === 'secret-2') {
         return (
@@ -133,6 +142,21 @@ const Earned: FC<{ badge: BadgeView }> = ({ badge }) => {
   );
 };
 
+/** The years a player found a sign, oldest first, each a plate linking to the first sign found that year. */
+export const YearPlates: FC<{ badges: BadgeView[] }> = ({ badges }) => (
+  <ul class="years">
+    {badges.map((b) => (
+      <li>
+        <a href={`/signs/${b.sign.slug}`} title={`${b.sign.title}, found ${shortDay(b.earned_on)}`}>
+          <svg viewBox="0 0 64 64" width="72" height="72" role="img" aria-label={b.name}>
+            <Art badge={b} />
+          </svg>
+        </a>
+      </li>
+    ))}
+  </ul>
+);
+
 /** A player's earned badges as cards. Nothing about the ones not earned, and no count. */
 export const BadgeCards: FC<{ badges: BadgeView[] }> = ({ badges }) => (
   <ul class="badges">
@@ -153,4 +177,7 @@ export const BADGE_STYLE = `
 .badges strong { font-size: 17px; }
 .badges .what span { font-size: 15px; color: var(--ink2); }
 .badges .what .with { margin-top: 4px; font-size: 13px; color: var(--soft); }
+.years { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 4px 8px; }
+.years a { display: block; border-radius: 8px; }
+.years svg { display: block; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .18)); }
 `;

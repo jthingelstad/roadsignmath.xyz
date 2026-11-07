@@ -261,7 +261,18 @@ test('the badge catalog names every badge but the secret ones', async () => {
   const { get } = await setup();
   const { res, body } = await get('/api/v1/badges');
   assert.equal(res.status, 200);
-  assert.equal(body.badges.length, 28);
+  // The 28 badges, then this year's on the years shelf: a past year's is earned, never listed.
+  const year = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric' }).format(new Date());
+  assert.equal(body.badges.length, 29);
+  assert.deepEqual(body.badges.at(-1), {
+    id: `year-${year}`,
+    shelf: 'years',
+    secret: false,
+    name: year,
+    how: `Find a sign in ${year}.`,
+    mark: year,
+    steps: null
+  });
   const states = body.badges.find((b: Json) => b.id === 'states');
   assert.deepEqual(states, {
     id: 'states',
@@ -284,7 +295,7 @@ test('a player’s badges come with the sign and day that earned each, and no co
   const { body } = await get('/api/v1/players/ada');
   assert.deepEqual(
     body.badges.map((b: Json) => b.id),
-    ['first-sign', 'company', 'every-number']
+    ['first-sign', 'company', 'every-number', 'year-2025', 'year-2026']
   );
   assert.deepEqual(body.badges[0], {
     id: 'first-sign',
@@ -306,6 +317,6 @@ test('a player’s badges come with the sign and day that earned each, and no co
   const ben = await get('/api/v1/players/ben');
   assert.deepEqual(
     ben.body.badges.map((b: Json) => b.id),
-    ['first-sign', 'second-opinion', 'every-number']
+    ['first-sign', 'second-opinion', 'every-number', 'year-2026']
   );
 });
