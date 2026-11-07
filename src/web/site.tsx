@@ -611,8 +611,9 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
                 It started on February 13, 2005, as a blog of my signs, and soon other people were sending in theirs.
                 Forty people sent 251 signs, from across the country and beyond, one from the Serengeti. With that many
                 players it grew rules, a scoring system and scoreboards, and in 2011 it became a wiki so players could
-                keep their own signs. I shut it down in 2016, when I let a number of projects go.{' '}
-                <a href={ARCHIVE_URL}>The first era’s signs are in the archive</a>.
+                keep their own signs. I shut it down in 2016, when I let a number of projects go. The ones with a photo
+                and math today’s game can check are back on the map, dated the day they were found, and all 251 are in{' '}
+                <a href={ARCHIVE_URL}>the archive</a>.
               </p>
             </li>
             <li>
