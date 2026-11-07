@@ -180,6 +180,7 @@ async function deleteEverything(
       continue;
     }
     await store.deleteReport(sign.id, player.id);
+    await store.deleteDuplicate(sign.id, player.id);
     const ways = await store.listWays(sign.id);
     const theirs = ways.filter((w) => w.playerId === player.id);
     const finders = sign.finders.filter((f) => f.playerId !== player.id);

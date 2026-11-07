@@ -327,6 +327,19 @@ const SCHEMAS: Record<string, Schema> = {
     outcome: { type: 'string', enum: ['hidden', 'kept'] },
     note: { type: 'string', description: 'The moderator’s reason.' }
   }),
+  DuplicatePost: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['same_as'],
+    properties: {
+      same_as: { type: 'string', minLength: 1, description: 'The other sign’s id or slug.', examples: ['genesis'] },
+      note: { type: 'string', maxLength: LIMITS.reportMax }
+    }
+  },
+  DuplicateReceived: object({
+    same_as: { type: 'string', description: 'The other sign’s slug.' },
+    note: nullable({ type: 'string' })
+  }),
   HeartState: object({
     hearted: { type: 'boolean' },
     hearts: nullable({ ...int, description: 'The sign’s hearts now; null when they can’t be counted just now.' })

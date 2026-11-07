@@ -74,6 +74,7 @@ and filtered in memory; at this size that is cheaper and simpler than indexes.
 | `SLUG#<slug>` | `SLUG` | the sign id holding a slug |
 | `SIGN#<signId>` | `MATH#<sha256>` | the way id holding that math on the sign |
 | `SIGN#<signId>` | `REPORT#<playerId>` | a player's report of that sign |
+| `SIGN#<signId>` | `DUPLICATE#<playerId>` | a player's word that it is the same as another sign |
 | `PLAYER#<playerId>` | `SESSION#<sha256>` | a signed-in app (expires) |
 | `PLAYER#<playerId>` | `UPLOAD#<photoId>` | a photo uploaded, not yet posted (expires) |
 | `PLAYER#<playerId>` | `BLOCK#<playerId>` | a player they blocked |
@@ -105,9 +106,14 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
 - A request with an `Authorization` header is never cached, and a bad token is a 401 even on
   a public read.
 - `DELETE /me` removes the player, their profile photo, the signs they posted (with their photos and hearts), their
-  ways, reports and hearts on other signs, and their place in other signs' finders. Their
+  ways, reports (duplicate ones too) and hearts on other signs, and their place in other signs' finders. Their
   hearts' kudos go first: if Tinylytics can't take one back, it is a 503 and nothing is deleted.
   It holds the player's heart lease throughout (a 409 while one of their hearts is changing).
+- **Duplicate reports** (`reportDuplicate` in `src/posting/posting.ts`): `POST /signs/{id}/duplicate`,
+  signed in, says a sign is the same road sign as another one posted separately (`same_as`, an
+  optional note). Jamie, 2026-11-07: "A duplicate sign should be submitted as a 'report a
+  duplicate', similar to the other report function… we can figure out later what we do with
+  that." So it is only kept, one per player per sign, and never goes to the moderator.
 - **Hearts** (`src/hearts.ts`): `PUT` and `DELETE /signs/{id}/heart`, signed in, one per player
   per sign, idempotent. A heart is a Tinylytics kudo at `/signs/<slug>`, the same path as the
   website's kudos button, so `hearts` on every sign (summary, detail, pin) counts both; it is

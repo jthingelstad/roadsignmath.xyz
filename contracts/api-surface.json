@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Road Sign Math API",
-    "version": "1.11.0",
+    "version": "1.12.0",
     "summary": "The signs, the map and the players of Road Sign Math.",
     "description": "Every public sign, the ways people found to make it true, the map and who’s playing, read by anyone; sign-in by email, your own account, and posting signs and ways from the app. Answers are JSON in UTF-8 with snake_case keys and carry an `API-Version` header. A request with a token is never cached. An error is `{\"error\": {\"code\", \"message\"}}`.",
     "license": {
@@ -1866,6 +1866,99 @@
         }
       }
     },
+    "/api/v1/signs/{id}/duplicate": {
+      "post": {
+        "operationId": "reportDuplicate",
+        "summary": "Report a duplicate",
+        "description": "Says this sign is the same road sign as another one, posted separately: `same_as` is the other sign’s id or slug, and a note is optional. It is kept for later and changes nothing now; the moderator never sees it. Any sign can be reported, your own too. Sending another replaces your earlier one. It counts against the 20 reports a day.",
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The sign’s id or slug.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DuplicatePost"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Report a duplicate",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateReceived"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter or the body is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such route, sign or player.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many tries for now; the message says when to try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/app/views": {
       "post": {
         "operationId": "countAppViews",
@@ -2185,7 +2278,7 @@
           "api_version": {
             "type": "string",
             "examples": [
-              "1.11.0"
+              "1.12.0"
             ]
           },
           "signs": {
@@ -3625,6 +3718,50 @@
           "note": {
             "type": "string",
             "description": "The moderator’s reason."
+          }
+        }
+      },
+      "DuplicatePost": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "same_as"
+        ],
+        "properties": {
+          "same_as": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The other sign’s id or slug.",
+            "examples": [
+              "genesis"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 300
+          }
+        }
+      },
+      "DuplicateReceived": {
+        "type": "object",
+        "required": [
+          "same_as",
+          "note"
+        ],
+        "properties": {
+          "same_as": {
+            "type": "string",
+            "description": "The other sign’s slug."
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },

@@ -140,6 +140,20 @@ export type Report = {
   createdAt: string;
 };
 
+/**
+ * A player's word that a sign is the same road sign as another one, posted separately. Kept for
+ * later: nothing reads it yet, and it never goes to the moderator. One per player per sign; a
+ * new one replaces it.
+ */
+export type DuplicateReport = {
+  signId: string;
+  playerId: string;
+  /** The other sign's id. */
+  sameAs: string;
+  note?: string;
+  createdAt: string;
+};
+
 /** A player who `playerId` doesn't want to see: their signs and ways drop out of reads. */
 export type Block = { playerId: string; blockedId: string; createdAt: string };
 

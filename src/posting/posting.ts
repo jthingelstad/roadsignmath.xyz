@@ -6,7 +6,18 @@ import { limit, text } from '../api/input.ts';
 import { LIMITS } from '../api/contract.ts';
 import { check, normalizeNumber, numbersNotOnSign } from '../domain/equation.ts';
 import { slugify, ulid } from '../domain/ids.ts';
-import type { Finder, FinderRole, Photo, Place, Player, Report, Sign, SignNumber, Way } from '../domain/types.ts';
+import type {
+  DuplicateReport,
+  Finder,
+  FinderRole,
+  Photo,
+  Place,
+  Player,
+  Report,
+  Sign,
+  SignNumber,
+  Way
+} from '../domain/types.ts';
 import { ModeratorUnavailable, plainAlt, type Moderator, type Post } from '../moderation/moderator.ts';
 import { removeSignKudos, sweepSignKudos } from '../hearts.ts';
 import { renditions, type PhotoStore } from '../photos.ts';
@@ -494,6 +505,35 @@ async function judgeReport(
     for (const photo of sign.photos) await photos.show(photo.id);
   }
   await store.putReport(report);
+  return report;
+}
+
+/**
+ * Keeps a player's word that `sign` is the same road sign as `other`, posted separately. It is
+ * only kept: what to do with it is for later, so it never goes to the moderator or hides
+ * anything. Any sign can be reported, the player's own too. Sending another replaces it, and it
+ * counts against the day's reports.
+ */
+export async function reportDuplicate(
+  store: Store,
+  player: Player,
+  sign: Sign,
+  other: Sign,
+  body: Record<string, unknown>
+): Promise<DuplicateReport> {
+  only(body, 'The duplicate report', ['same_as', 'note']);
+  if (other.id === sign.id) fail('bad_request', 'A sign can’t be a duplicate of itself');
+  const note = body.note === undefined || body.note === null ? '' : text(body.note, 'note', LIMITS.reportMax, 0);
+  const now = nowSeconds();
+  await limit(store, `reports:${player.id}`, LIMITS.reportsADay, DAY, now, `Too many reports today. ${tomorrow}`);
+  const report: DuplicateReport = {
+    signId: sign.id,
+    playerId: player.id,
+    sameAs: other.id,
+    ...(note ? { note } : {}),
+    createdAt: isoNow(now)
+  };
+  await store.putDuplicate(report);
   return report;
 }
 

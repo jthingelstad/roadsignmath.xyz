@@ -10,6 +10,7 @@
 //   SLUG#<slug>         SLUG                        the sign id holding a slug
 //   SIGN#<signId>       MATH#<sha256>               the way id holding that math on the sign
 //   SIGN#<signId>       REPORT#<playerId>           a player's report of that sign
+//   SIGN#<signId>       DUPLICATE#<playerId>        a player's word that it is the same as another sign
 //   PLAYER#<playerId>   SESSION#<sha256>            a signed-in app (expires)
 //   PLAYER#<playerId>   UPLOAD#<photoId>            a photo uploaded, not yet posted (expires)
 //   PLAYER#<playerId>   BLOCK#<playerId>            a player they blocked
@@ -34,7 +35,18 @@ import {
   UpdateCommand,
   type QueryCommandInput
 } from '@aws-sdk/lib-dynamodb';
-import type { Block, Heart, Login, Player, Report, Session, Sign, Upload, Way } from '../domain/types.ts';
+import type {
+  Block,
+  DuplicateReport,
+  Heart,
+  Login,
+  Player,
+  Report,
+  Session,
+  Sign,
+  Upload,
+  Way
+} from '../domain/types.ts';
 import { emailHash, nowSeconds, wayHash, type PlayerChanges, type SignChanges, type Store } from './store.ts';
 
 export const KEY_PREFIXES = [
@@ -52,6 +64,7 @@ export const KEY_PREFIXES = [
   'SLUG',
   'SESSION#',
   'REPORT#',
+  'DUPLICATE#',
   'UPLOAD#',
   'BLOCK#',
   'HEART#',
@@ -508,6 +521,19 @@ export class DynamoStore implements Store {
 
   async deleteReport(signId: string, playerId: string): Promise<void> {
     await this.delete(`SIGN#${signId}`, `REPORT#${playerId}`);
+  }
+
+  async putDuplicate(report: DuplicateReport): Promise<void> {
+    await this.put(`SIGN#${report.signId}`, `DUPLICATE#${report.playerId}`, 'duplicate', report);
+  }
+
+  async getDuplicate(signId: string, playerId: string): Promise<DuplicateReport | undefined> {
+    const item = await this.get(`SIGN#${signId}`, `DUPLICATE#${playerId}`);
+    return item && strip<DuplicateReport>(item);
+  }
+
+  async deleteDuplicate(signId: string, playerId: string): Promise<void> {
+    await this.delete(`SIGN#${signId}`, `DUPLICATE#${playerId}`);
   }
 
   async putBlock(block: Block): Promise<void> {

@@ -1,5 +1,16 @@
 import { createHash } from 'node:crypto';
-import type { Block, Heart, Login, Player, Report, Session, Sign, Upload, Way } from '../domain/types.ts';
+import type {
+  Block,
+  DuplicateReport,
+  Heart,
+  Login,
+  Player,
+  Report,
+  Session,
+  Sign,
+  Upload,
+  Way
+} from '../domain/types.ts';
 
 export type PlayerChanges = { name?: string; handle?: string; bio?: string | null };
 
@@ -31,7 +42,7 @@ export interface Store {
   claimSlug(slug: string, signId: string): Promise<boolean>;
   /** Frees the slug if this sign holds it, for a post that failed before its sign was written. */
   releaseSlug(slug: string, signId: string): Promise<void>;
-  /** Removes the sign, its ways, its reports and its slug. */
+  /** Removes the sign, its ways, its reports (duplicate ones too) and its slug. */
   deleteSign(id: string): Promise<void>;
   /** Oldest first. */
   listWays(signId: string): Promise<Way[]>;
@@ -114,6 +125,10 @@ export interface Store {
   putReport(report: Report): Promise<void>;
   getReport(signId: string, playerId: string): Promise<Report | undefined>;
   deleteReport(signId: string, playerId: string): Promise<void>;
+
+  putDuplicate(report: DuplicateReport): Promise<void>;
+  getDuplicate(signId: string, playerId: string): Promise<DuplicateReport | undefined>;
+  deleteDuplicate(signId: string, playerId: string): Promise<void>;
 
   putBlock(block: Block): Promise<void>;
   deleteBlock(playerId: string, blockedId: string): Promise<void>;
