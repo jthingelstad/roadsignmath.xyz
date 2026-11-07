@@ -1,0 +1,1564 @@
+{
+  "existing": {
+    "Jamie Thingelstad": "jamie"
+  },
+  "photo_swaps": {
+    "20050305-Chaos-in-3.jpg": "cleaned/20050305-Chaos-in-3.jpg",
+    "20050403-EvenAddition.jpg": "cleaned/20050403-EvenAddition.jpg",
+    "20050403-TripletsOfLincoln3.jpg": "cleaned/20050403-TripletsOfLincoln3.jpg",
+    "20050410-Exit20Haifa.jpg": "cleaned/20050410-Exit20Haifa.jpg",
+    "20050509-WilliamEnglish.jpg": "cleaned/20050509-WilliamEnglish.jpg",
+    "20050709-Orange.jpg": "cleaned/20050709-Orange.jpg",
+    "20050805-ChinaRoot.jpg": "cleaned/20050805-ChinaRoot.jpg",
+    "20050819-FlashingRoot.jpg": "cleaned/20050819-FlashingRoot.jpg",
+    "20051110-NewHampshire123.jpg": "cleaned/20051110-NewHampshire123.jpg",
+    "20051112-PleasantMathII.jpg": "cleaned/20051112-PleasantMathII.jpg",
+    "20051120-BeginBlvd.jpg": "cleaned/20051120-BeginBlvd.jpg",
+    "20051120-NoStandingDownUnderII.jpg": "cleaned/20051120-NoStandingDownUnderII.jpg",
+    "20051202-CambridgeMath.jpg": "cleaned/20051202-CambridgeMath.jpg",
+    "20051202-DirtyDC.jpg": "cleaned/20051202-DirtyDC.jpg",
+    "2005122-FloridaTwofer.jpg": "cleaned/2005122-FloridaTwofer.jpg",
+    "20060101-Somerville.jpg": "cleaned/20060101-Somerville.jpg",
+    "20060115-Rhododendron.jpg": "cleaned/20060115-Rhododendron.jpg",
+    "20060116-BirdsOfPrey.jpg": "cleaned/20060116-BirdsOfPrey.jpg",
+    "20060116-DaytonaBeach.jpg": "cleaned/20060116-DaytonaBeach.jpg"
+  },
+  "fixes": {
+    "2005-04-23-exit-20-to-haifa": {
+      "approximate": true
+    },
+    "2005-08-05-china-root": {
+      "approximate": true
+    },
+    "2005-09-23-dinosaur-math": {
+      "way": "62 − 7 + 20 = 65 + 50 + 10 − (5 × 10)"
+    },
+    "2005-12-11-westminster": {
+      "way": "√(√(√(140 + 140 − 21 + 5 − (2 × 2 × 2)))) = 2"
+    },
+    "2006-04-08-green-bay": {
+      "way": "19 + 50 = 69"
+    },
+    "2011-05-15-top-gear-math": {
+      "coordinates": [29.421058, -82.258072]
+    },
+    "2011-08-15-village-creek": {
+      "caption": null
+    },
+    "2014-01-07-cloutierville": {
+      "way": "119 ÷ 119 = 1"
+    },
+    "2014-02-19-geoffhazel": {
+      "numbers": ["12", "144"],
+      "way": "√144 = 12"
+    }
+  },
+  "dates": {
+    "2005-02-21-three-types": {
+      "posted_at": "2005-02-21T12:48:00.000Z",
+      "found_on": "2005-02-20",
+      "found_from": "camera filename",
+      "posted_from": "wordpress time"
+    },
+    "2005-02-22-simple-root": {
+      "posted_at": "2005-02-21T12:49:00.000Z",
+      "found_on": "2005-02-20",
+      "found_from": "camera filename",
+      "posted_from": "wordpress time"
+    },
+    "2005-02-28-nine-is-a-magic-number": {
+      "posted_at": "2005-03-01T02:08:00.000Z",
+      "found_on": "2005-02-28",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-03-05-chaos-in-three-miles": {
+      "posted_at": "2005-03-05T14:37:00.000Z",
+      "found_on": "2005-03-05",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-03-06-genesis": {
+      "posted_at": "2005-03-08T12:40:00.000Z",
+      "found_on": "2005-03-07",
+      "found_from": "photo EXIF",
+      "posted_from": "wordpress time"
+    },
+    "2005-03-07-complex-modulo": {
+      "posted_at": "2005-03-08T03:59:00.000Z",
+      "found_on": "2005-03-07",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-03-19-see-pennsylvania": {
+      "posted_at": "2005-03-21T02:29:00.000Z",
+      "found_on": "2005-03-20",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-03-20-give-me-liberty": {
+      "posted_at": "2005-03-21T02:32:00.000Z",
+      "found_on": "2005-03-20",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-04-10-square-pueblo": {
+      "posted_at": "2005-04-10T14:19:00.000Z",
+      "found_on": "2005-03-30",
+      "found_from": "dated filename",
+      "posted_from": "wordpress time"
+    },
+    "2005-04-10-welcome-to-omaha": {
+      "posted_at": "2005-04-10T14:13:00.000Z",
+      "found_on": "2005-03-26",
+      "found_from": "dated filename",
+      "posted_from": "wordpress time"
+    },
+    "2005-04-11-tom-osborne-is-square": {
+      "posted_at": "2005-04-10T16:41:00.000Z",
+      "found_on": "2005-04-03",
+      "found_from": "dated filename",
+      "posted_from": "wordpress time"
+    },
+    "2005-04-12-math-in-the-mountains": {
+      "posted_at": "2005-04-13T00:45:00.000Z",
+      "found_on": "2005-04-03",
+      "found_from": "dated filename",
+      "posted_from": "wordpress time"
+    },
+    "2005-04-13-triplets-of-lincoln": {
+      "posted_at": "2005-04-14T00:50:00.000Z",
+      "found_on": "2005-04-03",
+      "found_from": "dated filename",
+      "posted_from": "wordpress time"
+    },
+    "2005-04-14-even-addition": {
+      "posted_at": "2005-04-15T00:47:00.000Z",
+      "found_on": "2005-04-03",
+      "found_from": "dated filename",
+      "posted_from": "wordpress time"
+    },
+    "2005-04-14-welcome-to-albuquerque": {
+      "posted_at": "2005-04-15T00:51:00.000Z",
+      "found_on": "2005-03-31",
+      "found_from": "dated filename",
+      "posted_from": "wordpress time"
+    },
+    "2005-04-15-davinci-sign": {
+      "posted_at": "2005-04-16T02:04:00.000Z",
+      "found_on": "2005-03-29",
+      "found_from": "dated filename",
+      "posted_from": "wordpress time"
+    },
+    "2005-04-16-blackjack": {
+      "posted_at": "2005-04-16T12:08:00.000Z",
+      "found_on": "2005-03-28",
+      "found_from": "dated filename",
+      "posted_from": "wordpress time"
+    },
+    "2005-04-16-math-bandito": {
+      "posted_at": "2005-04-16T12:20:00.000Z",
+      "found_on": "2005-03-28",
+      "found_from": "dated filename",
+      "posted_from": "wordpress time"
+    },
+    "2005-04-23-exit-20-to-haifa": {
+      "posted_at": "2005-04-23T13:31:00.000Z",
+      "found_on": "2005-04-10",
+      "found_from": "dated filename",
+      "posted_from": "wordpress time"
+    },
+    "2005-05-14-salad-days": {
+      "posted_at": "2005-05-14T16:42:00.000Z",
+      "found_on": "2005-05-09",
+      "found_from": "dated filename",
+      "posted_from": "wordpress time"
+    },
+    "2005-05-14-william-english": {
+      "posted_at": "2005-05-14T16:22:00.000Z",
+      "found_on": "2005-05-09",
+      "found_from": "dated filename",
+      "posted_from": "wordpress time"
+    },
+    "2005-06-04-jack-trice": {
+      "posted_at": "2005-06-04T11:46:00.000Z",
+      "found_on": "2005-06-04",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-06-05-black-dog": {
+      "posted_at": "2005-06-05T13:47:00.000Z",
+      "found_on": "2005-06-04",
+      "found_from": "dated filename, 1 day",
+      "posted_from": "wordpress time"
+    },
+    "2005-06-09-guthrie": {
+      "posted_at": "2005-06-10T01:09:00.000Z",
+      "found_on": "2005-06-09",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-06-11-seeing-double": {
+      "posted_at": "2005-06-12T02:48:00.000Z",
+      "found_on": "2005-06-11",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-06-12-amherst-mods": {
+      "posted_at": "2005-06-13T00:43:00.000Z",
+      "found_on": "2005-06-12",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-06-12-double-square": {
+      "posted_at": "2005-06-12T12:33:00.000Z",
+      "found_on": "2005-06-12",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-06-26-shiloh": {
+      "posted_at": "2005-06-26T21:23:00.000Z",
+      "found_on": "2005-06-26",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-07-03-even-in-ny": {
+      "posted_at": "2005-07-04T01:27:00.000Z",
+      "found_on": "2005-07-03",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-07-03-mod-gomery": {
+      "posted_at": "2005-07-04T01:49:00.000Z",
+      "found_on": "2005-07-03",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-07-04-hootenany": {
+      "posted_at": "2005-07-05T00:20:00.000Z",
+      "found_on": "2005-07-04",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-07-04-math-on-the-serengeti": {
+      "posted_at": "2005-07-05T00:44:00.000Z",
+      "found_on": "2005-07-04",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-07-06-petersham-poly": {
+      "posted_at": "2005-07-07T02:21:00.000Z",
+      "found_on": "2005-07-06",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-07-07-euler-anybody": {
+      "posted_at": "2005-07-08T00:34:00.000Z",
+      "found_on": "2005-07-07",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-07-08-when-in-rome": {
+      "posted_at": "2005-07-09T02:18:00.000Z",
+      "found_on": "2005-07-08",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-07-09-orange": {
+      "posted_at": "2005-07-09T22:08:00.000Z",
+      "found_on": "2005-07-09",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-07-10-westfield-exponential": {
+      "posted_at": "2005-07-10T16:22:00.000Z",
+      "found_on": "2005-07-10",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-07-12-trigonometry-in-alaska": {
+      "posted_at": "2005-07-13T01:14:00.000Z",
+      "found_on": "2005-07-12",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-07-13-twenty-to-hawley": {
+      "posted_at": "2005-07-13T11:59:00.000Z",
+      "found_on": "2005-07-13",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-07-14-slice-of-π": {
+      "posted_at": "2005-07-14T11:02:00.000Z",
+      "found_on": "2005-07-14",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-07-17-wellsboro": {
+      "posted_at": "2005-07-17T22:45:00.000Z",
+      "found_on": "2005-07-17",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-07-18-little-white-sign": {
+      "posted_at": "2005-07-19T02:59:00.000Z",
+      "found_on": "2005-07-18",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-07-19-ansonia-pi": {
+      "posted_at": "2005-07-20T00:45:00.000Z",
+      "found_on": "2005-07-19",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-07-20-mass-pike-root": {
+      "posted_at": "2005-07-21T01:59:00.000Z",
+      "found_on": "2005-07-20",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-08-05-china-root": {
+      "posted_at": "2005-08-05T14:23:00.000Z",
+      "found_on": "2005-08-05",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-08-06-unlonelyone": {
+      "posted_at": "2005-08-07T00:01:00.000Z",
+      "found_on": "2005-08-06",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-08-11-simplest-addition": {
+      "posted_at": "2005-08-12T01:23:00.000Z",
+      "found_on": "2005-08-11",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-08-12-coventry": {
+      "posted_at": "2005-08-13T01:56:00.000Z",
+      "found_on": "2005-08-12",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-08-13-west-warwick": {
+      "posted_at": "2005-08-13T02:12:00.000Z",
+      "found_on": "2005-08-12",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-08-14-trout-pi": {
+      "posted_at": "2005-08-14T11:18:00.000Z",
+      "found_on": "2005-08-14",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-08-19-flashing-root": {
+      "posted_at": "2005-08-19T11:33:00.000Z",
+      "found_on": "2005-08-19",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-08-20-presidential-addition": {
+      "posted_at": "2005-08-20T09:28:00.000Z",
+      "found_on": "2005-08-20",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-08-22-wapiti-powell": {
+      "posted_at": "2005-08-23T01:59:00.000Z",
+      "found_on": "2005-08-22",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-08-27-west-yellowstone": {
+      "posted_at": "2005-08-27T12:05:00.000Z",
+      "found_on": "2005-08-27",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-09-08-wisconsin-border": {
+      "posted_at": "2005-09-08T23:53:00.000Z",
+      "found_on": "2005-09-08",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-09-09-no-sleep-till-fargo": {
+      "posted_at": "2005-09-09T12:12:00.000Z",
+      "found_on": "2005-09-04",
+      "found_from": "photo EXIF",
+      "posted_from": "wordpress time"
+    },
+    "2005-09-10-switch-root": {
+      "posted_at": "2005-09-10T12:01:00.000Z",
+      "found_on": "2005-09-10",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-09-12-kettle-creek": {
+      "posted_at": "2005-09-13T02:20:00.000Z",
+      "found_on": "2005-09-12",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-09-13-north-dakota-root": {
+      "posted_at": "2005-09-14T01:59:00.000Z",
+      "found_on": "2005-09-13",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-09-14-odd-little-sign": {
+      "posted_at": "2005-09-15T02:08:00.000Z",
+      "found_on": "2005-09-14",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-09-16-madrid-math": {
+      "posted_at": "2005-09-16T11:53:00.000Z",
+      "found_on": "2005-09-16",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-09-18-mayville": {
+      "posted_at": "2005-09-19T02:51:00.000Z",
+      "found_on": "2005-09-18",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-09-23-dinosaur-math": {
+      "posted_at": "2005-09-24T03:59:00.000Z",
+      "found_on": "2005-09-23",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-10-01-just-the-numbers": {
+      "posted_at": "2005-10-01T21:51:00.000Z",
+      "found_on": "2005-10-01",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-10-07-little-white-sign-ii": {
+      "posted_at": "2005-10-08T03:28:00.000Z",
+      "found_on": "2005-10-07",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-10-08-east-south-west": {
+      "posted_at": "2005-10-08T11:25:00.000Z",
+      "found_on": "2005-10-08",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-10-09-oronoco": {
+      "posted_at": "2005-10-10T03:13:00.000Z",
+      "found_on": "2005-10-09",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-10-10-cresco": {
+      "posted_at": "2005-10-10T10:19:00.000Z",
+      "found_on": "2005-10-10",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-10-11-brandon": {
+      "posted_at": "2005-10-11T12:09:00.000Z",
+      "found_on": "2005-10-11",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-10-12-northwest-incongruity": {
+      "posted_at": "2005-10-12T03:03:00.000Z",
+      "found_on": "2005-10-11",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-10-21-quincy": {
+      "posted_at": "2005-10-22T04:22:00.000Z",
+      "found_on": "2005-10-21",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-10-22-provincetown": {
+      "posted_at": "2005-10-22T19:36:00.000Z",
+      "found_on": "2005-10-22",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-10-23-pleasant-math": {
+      "posted_at": "2005-10-23T17:40:00.000Z",
+      "found_on": "2005-10-23",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-10-28-triggly-wiggly": {
+      "posted_at": "2005-10-29T02:52:00.000Z",
+      "found_on": "2005-10-28",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-02-rolling-rock": {
+      "posted_at": "2005-11-03T04:52:00.000Z",
+      "found_on": "2005-11-02",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-08-bullhead": {
+      "posted_at": "2005-11-08T12:38:00.000Z",
+      "found_on": "2005-11-08",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-08-little-white-sign-iii": {
+      "posted_at": "2005-11-08T12:44:00.000Z",
+      "found_on": "2005-11-08",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-09-sharon": {
+      "posted_at": "2005-11-09T12:54:00.000Z",
+      "found_on": "2005-11-09",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-10-new-hampshire-1-2-3": {
+      "posted_at": "2005-11-10T12:12:00.000Z",
+      "found_on": "2005-11-10",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-10-point-mugu": {
+      "posted_at": "2005-11-11T01:05:00.000Z",
+      "found_on": "2005-11-10",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-11-steep-down": {
+      "posted_at": "2005-11-12T00:48:00.000Z",
+      "found_on": "2005-11-11",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-12-bedford": {
+      "posted_at": "2005-11-12T12:07:00.000Z",
+      "found_on": "2005-11-12",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-12-big-math": {
+      "posted_at": "2005-11-12T12:05:00.000Z",
+      "found_on": "2005-11-12",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-12-no-parking-math-ok-ii": {
+      "posted_at": "2005-11-12T12:44:00.000Z",
+      "found_on": "2005-11-12",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-12-no-parking-math-ok": {
+      "posted_at": "2005-11-12T12:11:00.000Z",
+      "found_on": "2005-11-12",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-12-pleasant-math-ii": {
+      "posted_at": "2005-11-12T12:09:00.000Z",
+      "found_on": "2005-11-12",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-13-outlet-center": {
+      "posted_at": "2005-11-13T13:10:00.000Z",
+      "found_on": "2005-11-13",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-19-canaan": {
+      "posted_at": "2005-11-19T17:13:00.000Z",
+      "found_on": "2005-11-19",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-19-charlottes-web": {
+      "posted_at": "2005-11-20T15:29:00.000Z",
+      "found_on": "2005-11-20",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-19-mass-weight-limit": {
+      "posted_at": "2005-11-20T01:27:00.000Z",
+      "found_on": "2005-11-19",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-19-university-math": {
+      "posted_at": "2005-11-19T16:49:00.000Z",
+      "found_on": "2005-11-19",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-19-woodstock": {
+      "posted_at": "2005-11-19T17:02:00.000Z",
+      "found_on": "2005-11-19",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-20-arlington-bell-tower": {
+      "posted_at": "2005-11-20T15:18:00.000Z",
+      "found_on": "2005-11-20",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-20-begin-blvd": {
+      "posted_at": "2005-11-21T01:37:00.000Z",
+      "found_on": "2005-11-20",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-20-burlington": {
+      "posted_at": "2005-11-20T12:13:00.000Z",
+      "found_on": "2005-11-20",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-20-no-standing-down-under": {
+      "posted_at": "2005-11-20T12:54:00.000Z",
+      "found_on": "2005-11-20",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-20-stacked-math": {
+      "posted_at": "2005-11-20T15:41:00.000Z",
+      "found_on": "2005-11-20",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-20-taiwan-identity": {
+      "posted_at": "2005-11-20T12:34:00.000Z",
+      "found_on": "2005-11-20",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-21-no-standing-down-under-ii": {
+      "posted_at": "2005-11-21T03:35:00.000Z",
+      "found_on": "2005-11-20",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-11-22-florida-twofer": {
+      "posted_at": "2005-11-23T03:25:00.000Z",
+      "found_on": "2005-11-22",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-12-02-cambridge-math": {
+      "posted_at": "2005-12-02T12:36:00.000Z",
+      "found_on": "2005-12-02",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-12-02-castle-pi": {
+      "posted_at": "2005-12-02T13:05:00.000Z",
+      "found_on": "2005-12-02",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-12-02-dirty-dc": {
+      "posted_at": "2005-12-02T12:51:00.000Z",
+      "found_on": "2005-12-02",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-12-03-burlington-pi": {
+      "posted_at": "2005-12-03T12:31:00.000Z",
+      "found_on": "2005-12-03",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-12-03-florida-walking-sign-ii": {
+      "posted_at": "2005-12-03T12:35:00.000Z",
+      "found_on": "2005-12-03",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-12-03-florida-walking-sign": {
+      "posted_at": "2005-12-03T12:21:00.000Z",
+      "found_on": "2005-12-03",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-12-11-cambridge-math-backside": {
+      "posted_at": "2005-12-11T18:17:00.000Z",
+      "found_on": "2005-12-11",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-12-11-little-white-sign-iv": {
+      "posted_at": "2005-12-11T17:58:00.000Z",
+      "found_on": "2005-12-11",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-12-11-sebring": {
+      "posted_at": "2005-12-12T04:04:00.000Z",
+      "found_on": "2005-12-11",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-12-11-westminster": {
+      "posted_at": "2005-12-11T17:41:00.000Z",
+      "found_on": "2005-12-11",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-12-17-clam-box": {
+      "posted_at": "2005-12-17T14:06:00.000Z",
+      "found_on": "2005-12-17",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-12-17-garden-state": {
+      "posted_at": "2005-12-17T14:14:00.000Z",
+      "found_on": "2005-12-17",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-12-18-brunswick-math": {
+      "posted_at": "2005-12-17T14:19:00.000Z",
+      "found_on": "2005-12-17",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-12-18-kelso": {
+      "posted_at": "2005-12-20T01:56:00.000Z",
+      "found_on": "2005-12-18",
+      "found_from": "dated filename, 1 day",
+      "posted_from": "wordpress time"
+    },
+    "2005-12-18-phoenix": {
+      "posted_at": "2005-12-20T01:50:00.000Z",
+      "found_on": "2005-12-18",
+      "found_from": "dated filename, 1 day",
+      "posted_from": "wordpress time"
+    },
+    "2005-12-31-framingham-pi": {
+      "posted_at": "2006-01-01T04:01:00.000Z",
+      "found_on": "2005-12-31",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2005-12-31-welcome-to-new-hampshire": {
+      "posted_at": "2005-12-31T17:56:00.000Z",
+      "found_on": "2005-12-31",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-01-01-gerrys-landing": {
+      "posted_at": "2006-01-01T12:36:00.000Z",
+      "found_on": "2006-01-01",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-01-01-rodeo": {
+      "posted_at": "2006-01-01T15:17:00.000Z",
+      "found_on": "2006-01-01",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-01-01-somerville": {
+      "posted_at": "2006-01-01T15:10:00.000Z",
+      "found_on": "2006-01-01",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-01-15-farewell-2005": {
+      "posted_at": "2006-01-16T03:04:00.000Z",
+      "found_on": "2006-01-15",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-01-15-montague-flipside": {
+      "posted_at": "2006-01-16T02:54:00.000Z",
+      "found_on": "2006-01-15",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-01-15-montague-pi": {
+      "posted_at": "2006-01-16T02:46:00.000Z",
+      "found_on": "2006-01-15",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-01-15-oahu-cancelation": {
+      "posted_at": "2006-01-16T03:15:00.000Z",
+      "found_on": "2006-01-15",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-01-15-rhododendron": {
+      "posted_at": "2006-01-16T02:36:00.000Z",
+      "found_on": "2006-01-15",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-01-16-birds-of-prey": {
+      "posted_at": "2006-01-17T02:16:00.000Z",
+      "found_on": "2006-01-16",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-01-16-carpools-only": {
+      "posted_at": "2006-01-17T02:24:00.000Z",
+      "found_on": "2006-01-16",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-01-16-daytona-beach": {
+      "posted_at": "2006-01-17T02:11:00.000Z",
+      "found_on": "2006-01-16",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-01-16-dos-horas": {
+      "posted_at": "2006-01-17T02:35:00.000Z",
+      "found_on": "2006-01-16",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-01-16-mineta-airport": {
+      "posted_at": "2006-01-17T02:30:00.000Z",
+      "found_on": "2006-01-16",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-01-17-hixton": {
+      "posted_at": "2006-01-18T02:33:00.000Z",
+      "found_on": "2006-01-17",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-01-17-jasper": {
+      "posted_at": "2006-01-18T02:41:00.000Z",
+      "found_on": "2006-01-17",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-01-17-minneapolis-no-parking": {
+      "posted_at": "2006-01-18T02:18:00.000Z",
+      "found_on": "2006-01-17",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-01-17-westin": {
+      "posted_at": "2006-01-18T02:24:00.000Z",
+      "found_on": "2006-01-17",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-01-18-lake-oswego": {
+      "posted_at": "2006-01-20T02:43:00.000Z",
+      "found_on": "2006-01-19",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-01-18-ravenna": {
+      "posted_at": "2006-01-19T02:13:00.000Z",
+      "found_on": "2006-01-18",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-01-19-clackamas-estacada": {
+      "posted_at": "2006-01-20T02:58:00.000Z",
+      "found_on": "2006-01-19",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-01-19-going-street": {
+      "posted_at": "2006-01-20T02:53:00.000Z",
+      "found_on": "2006-01-19",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-01-19-swan-island": {
+      "posted_at": "2006-01-20T02:48:00.000Z",
+      "found_on": "2006-01-19",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-02-05-dade-city": {
+      "posted_at": "2006-02-05T16:25:00.000Z",
+      "found_on": "2006-02-05",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-02-05-emeryville": {
+      "posted_at": "2006-02-05T12:38:00.000Z",
+      "found_on": "2006-02-05",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-02-05-san-fran-pi": {
+      "posted_at": "2006-02-05T16:12:00.000Z",
+      "found_on": "2006-02-05",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-02-05-willow-root": {
+      "posted_at": "2006-02-05T12:27:00.000Z",
+      "found_on": "2006-02-05",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-03-31-downtown-mansfield": {
+      "posted_at": "2006-04-01T03:44:00.000Z",
+      "found_on": "2006-03-31",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-03-31-lazy-gecko": {
+      "posted_at": "2006-04-01T03:52:00.000Z",
+      "found_on": "2006-03-31",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-03-31-tempe-math": {
+      "posted_at": "2006-04-01T04:04:00.000Z",
+      "found_on": "2006-03-31",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-03-31-westboro-pike": {
+      "posted_at": "2006-04-01T03:59:00.000Z",
+      "found_on": "2006-03-31",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-02-carpool-math-2": {
+      "posted_at": "2006-04-03T01:38:00.000Z",
+      "found_on": "2006-04-02",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-02-carpool-math": {
+      "posted_at": "2006-04-03T01:30:00.000Z",
+      "found_on": "2006-04-02",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-02-excelsior": {
+      "posted_at": "2006-04-03T01:48:00.000Z",
+      "found_on": "2006-04-02",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-02-golden-providence": {
+      "posted_at": "2006-04-02T20:47:00.000Z",
+      "found_on": "2006-04-02",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-02-milbury": {
+      "posted_at": "2006-04-03T01:19:00.000Z",
+      "found_on": "2006-04-02",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-02-oxford-ratio": {
+      "posted_at": "2006-04-02T21:16:00.000Z",
+      "found_on": "2006-04-02",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-02-stop-math": {
+      "posted_at": "2006-04-03T01:08:00.000Z",
+      "found_on": "2006-04-02",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-05-buckeye": {
+      "posted_at": "2006-04-06T01:33:00.000Z",
+      "found_on": "2006-04-05",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-05-euler-returns-2": {
+      "posted_at": "2006-04-06T01:59:00.000Z",
+      "found_on": "2006-04-05",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-05-euler-returns": {
+      "posted_at": "2006-04-06T01:51:00.000Z",
+      "found_on": "2006-04-05",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-05-mary-had-a-little-lamb": {
+      "posted_at": "2006-04-06T01:41:00.000Z",
+      "found_on": "2006-04-05",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-07-avon-algebra": {
+      "posted_at": "2006-04-08T00:57:00.000Z",
+      "found_on": "2006-04-07",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-07-avon-trig": {
+      "posted_at": "2006-04-08T00:52:00.000Z",
+      "found_on": "2006-04-07",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-07-henrietta": {
+      "posted_at": "2006-04-08T01:03:00.000Z",
+      "found_on": "2006-04-07",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-07-silver-springs": {
+      "posted_at": "2006-04-08T01:08:00.000Z",
+      "found_on": "2006-04-07",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-08-green-bay": {
+      "posted_at": "2006-04-08T15:32:00.000Z",
+      "found_on": "2006-04-08",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-08-lombardi": {
+      "posted_at": "2006-04-08T15:28:00.000Z",
+      "found_on": "2006-04-08",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-08-winter-park": {
+      "posted_at": "2006-04-08T15:40:00.000Z",
+      "found_on": "2006-04-08",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-09-avogadro": {
+      "posted_at": "2006-04-09T18:01:00.000Z",
+      "found_on": "2006-04-09",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-09-flagler": {
+      "posted_at": "2006-04-09T18:16:00.000Z",
+      "found_on": "2006-04-09",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-09-plane-geometry": {
+      "posted_at": "2006-04-09T18:27:00.000Z",
+      "found_on": "2006-04-09",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-09-salt-river-canyon": {
+      "posted_at": "2006-04-09T18:35:00.000Z",
+      "found_on": "2006-04-09",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-09-v-math": {
+      "posted_at": "2006-04-09T18:32:00.000Z",
+      "found_on": "2006-04-09",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-14-absolute-pi-2": {
+      "posted_at": "2006-04-15T02:33:00.000Z",
+      "found_on": "2006-04-14",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-14-absolute-pi": {
+      "posted_at": "2006-04-15T02:29:00.000Z",
+      "found_on": "2006-04-14",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-14-fontana-factorials": {
+      "posted_at": "2006-04-15T02:12:00.000Z",
+      "found_on": "2006-04-14",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-14-inaugural-series": {
+      "posted_at": "2006-04-15T02:20:00.000Z",
+      "found_on": "2006-04-14",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-14-sutton-lake": {
+      "posted_at": "2006-04-15T02:38:00.000Z",
+      "found_on": "2006-04-14",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-15-illinois-golden-ratio": {
+      "posted_at": "2006-04-16T03:46:00.000Z",
+      "found_on": "2006-04-15",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-15-paris-usa": {
+      "posted_at": "2006-04-16T03:34:00.000Z",
+      "found_on": "2006-04-15",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-15-port-jarvis": {
+      "posted_at": "2006-04-16T03:27:00.000Z",
+      "found_on": "2006-04-15",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-15-silver-creek": {
+      "posted_at": "2006-04-16T03:30:00.000Z",
+      "found_on": "2006-04-15",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-15-smell-of-math-in-the-morning": {
+      "posted_at": "2006-04-16T03:24:00.000Z",
+      "found_on": "2006-04-15",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-16-big-house": {
+      "posted_at": "2006-04-16T11:34:00.000Z",
+      "found_on": "2006-04-16",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-16-rsm-addiction": {
+      "posted_at": "2006-04-16T12:04:00.000Z",
+      "found_on": "2006-04-16",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-16-tempe-pi": {
+      "posted_at": "2006-04-16T11:49:00.000Z",
+      "found_on": "2006-04-16",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-16-watch-your-head-2": {
+      "posted_at": "2006-04-16T11:44:00.000Z",
+      "found_on": "2006-04-16",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-16-watch-your-head": {
+      "posted_at": "2006-04-16T11:38:00.000Z",
+      "found_on": "2006-04-16",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-22-grayson": {
+      "posted_at": "2006-04-22T15:22:00.000Z",
+      "found_on": "2006-04-22",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-22-hinton-to-alderson": {
+      "posted_at": "2006-04-22T15:12:00.000Z",
+      "found_on": "2006-04-22",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-04-22-martinsburg": {
+      "posted_at": "2006-04-22T15:15:00.000Z",
+      "found_on": "2006-04-22",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-07-30-carlisle": {
+      "posted_at": "2006-07-31T02:41:00.000Z",
+      "found_on": "2006-07-30",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-07-30-lanesboro": {
+      "posted_at": "2006-07-31T02:53:00.000Z",
+      "found_on": "2006-07-30",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-07-30-ohio-pi": {
+      "posted_at": "2006-07-31T02:49:00.000Z",
+      "found_on": "2006-07-30",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-07-30-tompkinsvile-2": {
+      "posted_at": "2006-07-31T02:37:00.000Z",
+      "found_on": "2006-07-30",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-07-30-tompkinsville-1": {
+      "posted_at": "2006-07-31T02:34:00.000Z",
+      "found_on": "2006-07-30",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-07-30-tompkinsville-3": {
+      "posted_at": "2006-07-31T02:38:00.000Z",
+      "found_on": "2006-07-30",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-07-30-woodbridge": {
+      "posted_at": "2006-07-31T02:57:00.000Z",
+      "found_on": "2006-07-30",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-07-31-decatur": {
+      "posted_at": "2006-08-01T01:18:00.000Z",
+      "found_on": "2006-07-31",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-07-31-drive-by-shooting": {
+      "posted_at": "2006-08-01T01:39:00.000Z",
+      "found_on": "2006-07-31",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-07-31-extreme-roots": {
+      "posted_at": "2006-08-01T01:32:00.000Z",
+      "found_on": "2006-07-31",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-07-31-rim-country": {
+      "posted_at": "2006-08-01T01:24:00.000Z",
+      "found_on": "2006-07-31",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-08-03-bancrofts-tower": {
+      "posted_at": "2006-08-04T02:52:00.000Z",
+      "found_on": "2006-08-03",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-08-03-breakdown-lane": {
+      "posted_at": "2006-08-04T03:02:00.000Z",
+      "found_on": "2006-08-03",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-08-03-knights-of-columbus": {
+      "posted_at": "2006-08-04T02:58:00.000Z",
+      "found_on": "2006-08-03",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-08-04-bush-highway": {
+      "posted_at": "2006-08-05T02:59:00.000Z",
+      "found_on": "2006-08-04",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-08-04-clarksburg": {
+      "posted_at": "2006-08-05T02:51:00.000Z",
+      "found_on": "2006-08-04",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-08-04-higganum": {
+      "posted_at": "2006-08-05T02:55:00.000Z",
+      "found_on": "2006-08-04",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-08-05-illinois-cancellation": {
+      "posted_at": "2006-08-05T17:05:00.000Z",
+      "found_on": "2006-08-05",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-08-05-klamath-falls": {
+      "posted_at": "2006-08-05T17:14:00.000Z",
+      "found_on": "2006-08-05",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-08-05-rocky-hill": {
+      "posted_at": "2006-08-05T17:09:00.000Z",
+      "found_on": "2006-08-05",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-08-06-berlin-turnpike": {
+      "posted_at": "2006-08-06T18:30:00.000Z",
+      "found_on": "2006-08-06",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-08-06-gate-city": {
+      "posted_at": "2006-08-06T18:25:00.000Z",
+      "found_on": "2006-08-06",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-08-06-no-trucks": {
+      "posted_at": "2006-08-06T18:22:00.000Z",
+      "found_on": "2006-08-06",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-08-13-candlepin-bowling": {
+      "posted_at": "2006-08-14T01:32:00.000Z",
+      "found_on": "2006-08-13",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-08-13-entering-minnesota": {
+      "posted_at": "2006-08-14T01:35:00.000Z",
+      "found_on": "2006-08-13",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-08-13-sylvan-beach": {
+      "posted_at": "2006-08-14T01:26:00.000Z",
+      "found_on": "2006-08-13",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-08-16-martinsville": {
+      "posted_at": "2006-08-17T01:09:00.000Z",
+      "found_on": "2006-08-16",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-08-16-middlesex": {
+      "posted_at": "2006-08-17T01:27:00.000Z",
+      "found_on": "2006-08-16",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-08-16-two-factorials": {
+      "posted_at": "2006-08-17T01:21:00.000Z",
+      "found_on": "2006-08-16",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-08-16-weedsport": {
+      "posted_at": "2006-08-17T01:15:00.000Z",
+      "found_on": "2006-08-16",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-11-25-bellevue-thirteens": {
+      "posted_at": "2006-11-25T18:00:00.000Z",
+      "found_on": "2006-11-25",
+      "found_from": "post day",
+      "posted_from": "wiki day, noon"
+    },
+    "2006-11-25-dc-math": {
+      "posted_at": "2006-11-26T02:37:00.000Z",
+      "found_on": "2006-11-25",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-11-25-pontotoc": {
+      "posted_at": "2006-11-26T02:59:00.000Z",
+      "found_on": "2006-11-25",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-11-26-kellog-interchange": {
+      "posted_at": "2006-11-27T02:00:00.000Z",
+      "found_on": "2006-11-26",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-11-26-pineville": {
+      "posted_at": "2006-11-26T18:06:00.000Z",
+      "found_on": "2006-11-26",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-11-26-rivera": {
+      "posted_at": "2006-11-26T18:27:00.000Z",
+      "found_on": "2006-11-26",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-11-26-simple-math": {
+      "posted_at": "2006-11-27T01:48:00.000Z",
+      "found_on": "2006-11-26",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-11-26-sweet-sixteen": {
+      "posted_at": "2006-11-27T01:54:00.000Z",
+      "found_on": "2006-11-26",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2006-11-26-waitsfield": {
+      "posted_at": "2006-11-26T18:11:00.000Z",
+      "found_on": "2006-11-26",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2007-10-06-gantry-math-in-bellevue": {
+      "posted_at": "2007-10-07T03:15:06.000Z",
+      "found_on": "2007-10-06",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2007-10-09-buses-only": {
+      "posted_at": "2007-10-10T00:41:47.000Z",
+      "found_on": "2007-10-09",
+      "found_from": "post day",
+      "posted_from": "wordpress time"
+    },
+    "2011-02-19-simple-canada-1": {
+      "posted_at": "2011-02-19T18:00:00.000Z",
+      "found_on": "2006-07-05",
+      "found_from": "camera filename",
+      "posted_from": "wiki day, noon"
+    },
+    "2011-05-15-top-gear-math": {
+      "posted_at": "2011-05-15T17:00:00.000Z",
+      "found_on": "2011-05-15",
+      "found_from": "post day",
+      "posted_from": "wiki day, noon"
+    },
+    "2011-05-16-multiplication-table-math": {
+      "posted_at": "2011-05-16T17:00:00.000Z",
+      "found_on": "2011-05-07",
+      "found_from": "photo EXIF",
+      "posted_from": "wiki day, noon"
+    },
+    "2011-08-15-village-creek": {
+      "posted_at": "2011-08-15T17:00:00.000Z",
+      "found_on": "2011-08-15",
+      "found_from": "post day",
+      "posted_from": "wiki day, noon"
+    },
+    "2011-10-10-grand-rapids-addition": {
+      "posted_at": "2011-10-10T17:00:00.000Z",
+      "found_on": "2008-06-15",
+      "found_from": "photo EXIF",
+      "posted_from": "wiki day, noon"
+    },
+    "2011-10-21-east-lansing-simple-addition": {
+      "posted_at": "2011-10-21T17:00:00.000Z",
+      "found_on": "2011-10-21",
+      "found_from": "post day",
+      "posted_from": "wiki day, noon"
+    },
+    "2011-10-21-holt-and-meridian": {
+      "posted_at": "2011-10-21T17:00:00.000Z",
+      "found_on": "2011-10-21",
+      "found_from": "photo EXIF",
+      "posted_from": "wiki day, noon"
+    },
+    "2012-10-19-bifröst": {
+      "posted_at": "2012-10-19T17:00:00.000Z",
+      "found_on": "2012-10-19",
+      "found_from": "post day",
+      "posted_from": "wiki day, noon"
+    },
+    "2012-10-19-clear-math": {
+      "posted_at": "2012-10-19T17:00:00.000Z",
+      "found_on": "2012-10-19",
+      "found_from": "post day",
+      "posted_from": "wiki day, noon"
+    },
+    "2012-12-01-gloucester-bound": {
+      "posted_at": "2012-12-01T18:00:00.000Z",
+      "found_on": "2012-12-01",
+      "found_from": "post day",
+      "posted_from": "wiki day, noon"
+    },
+    "2013-01-23-black-mountain": {
+      "posted_at": "2013-01-23T18:00:00.000Z",
+      "found_on": "2006-09-22",
+      "found_from": "camera filename",
+      "posted_from": "wiki day, noon"
+    },
+    "2013-01-23-blythewood": {
+      "posted_at": "2013-01-23T18:00:00.000Z",
+      "found_on": "2006-09-24",
+      "found_from": "camera filename",
+      "posted_from": "wiki day, noon"
+    },
+    "2013-01-23-centreville": {
+      "posted_at": "2013-01-23T18:00:00.000Z",
+      "found_on": "2006-09-16",
+      "found_from": "camera filename",
+      "posted_from": "wiki day, noon"
+    },
+    "2013-01-23-simple-canada-2": {
+      "posted_at": "2013-01-23T18:00:00.000Z",
+      "found_on": "2006-07-05",
+      "found_from": "camera filename",
+      "posted_from": "wiki day, noon"
+    },
+    "2013-03-24-surry-64": {
+      "posted_at": "2013-03-24T17:00:00.000Z",
+      "found_on": "2013-03-24",
+      "found_from": "post day",
+      "posted_from": "wiki day, noon"
+    },
+    "2013-09-16-pennsville": {
+      "posted_at": "2013-09-16T17:00:00.000Z",
+      "found_on": "2006-09-16",
+      "found_from": "camera filename",
+      "posted_from": "wiki day, noon"
+    },
+    "2014-01-07-cloutierville": {
+      "posted_at": "2014-01-07T18:00:00.000Z",
+      "found_on": "2014-01-07",
+      "found_from": "post day",
+      "posted_from": "wiki day, noon"
+    },
+    "2014-01-08-arkansas-multiplication": {
+      "posted_at": "2014-01-08T18:00:00.000Z",
+      "found_on": "2014-01-08",
+      "found_from": "photo EXIF",
+      "posted_from": "wiki day, noon"
+    },
+    "2014-01-08-balch-springs": {
+      "posted_at": "2014-01-08T18:00:00.000Z",
+      "found_on": "2014-01-08",
+      "found_from": "photo EXIF",
+      "posted_from": "wiki day, noon"
+    },
+    "2014-02-19-geoffhazel": {
+      "posted_at": "2014-02-19T18:00:00.000Z",
+      "found_on": "2014-02-19",
+      "found_from": "post day",
+      "posted_from": "wiki day, noon"
+    },
+    "2014-05-20-ny-thruway-split": {
+      "posted_at": "2014-05-20T17:00:00.000Z",
+      "found_on": "2006-08-13",
+      "found_from": "photo EXIF",
+      "posted_from": "wiki day, noon"
+    },
+    "2014-05-21-post-falls-id": {
+      "posted_at": "2014-05-21T17:00:00.000Z",
+      "found_on": "2014-05-21",
+      "found_from": "post day",
+      "posted_from": "wiki day, noon"
+    }
+  }
+}

@@ -46,13 +46,14 @@ ids or ARNs, local paths, or photos of plates or faces that weren't meant to be 
 | `src/tinylytics.ts` | The Tinylytics API client (site 1525) with the full-access key from the runtime secret: kudos, and the app's screen views as hits. No key means `off`, never a crash; the key never reaches a log or an answer. |
 | `src/moderation/` | `Moderator`: Claude live (`claude-haiku-5-5`), lets everything through in `npm run dev` without a key. |
 | `src/photos.ts` | The two served sizes of a photo (1600 and 480 px JPEGs, no metadata; a profile photo 512 and 160 px square) and `PhotoStore`: S3 live, `.data/` for `npm run dev`, memory in tests. Only a shown sign's photos are under `p/`, which the site serves; a held or hidden sign's are under `held/`, which only its poster reads, through `GET /me/photos/{id}/{size}`. |
-| `src/seed/` | Builds the launch set from the micro.blog export and `seed/microblog.json`. |
+| `src/seed/` | Builds the launch set from the micro.blog export and `seed/microblog.json`, and the first-era signs from the archive and `seed/archive.json` (`archive.ts`). |
 | `src/dev.ts` | The local server on port 8787, reading `.data/` (ignored by git). |
 | `src/server.ts` | The live server: `src/live.ts` wires the table, photo bucket, SES and the moderator from the stack's environment, and `src/listen.ts` serves on the address the platform gives. The moderator's and Tinylytics' keys are read from the runtime secret (`src/secrets.ts`). |
 | `infra/` | The stacks: `template.yaml` (the app: web function, table, photos, mail, CloudFront, the alarm topic), `deploy.yaml` (deploy roles and code bucket) and `backup.yaml` (monthly backups). Only the app stack deploys on merge. |
 | `scripts/`, `deploy.sh` | The release: `build-release.sh` builds with no credentials, `release.sh` deploys and probes; `deploy.sh` runs both from the Mac. |
 | `seed/microblog.json` | The 16 micro.blog signs: titles, finders, numbers, places, alt text. |
-| `tools/` | `export-api-contract.ts` (`npm run contract`), `us-map.ts` (`npm run us-map`), `app-assets.ts` (`npm run app-assets`), `brand.ts` (`npm run brand`), `seed-microblog.ts` (`npm run seed`), and the release tools: `build-server.ts` (`npm run build:server`), `package-native.ts`, `native-artifacts.ts`, `web-platform.ts`, `release-probe.ts`, all run through `release-cli.ts`. |
+| `seed/archive.json` | What the first-era archive doesn't say: every sign's post time and found day with where each came from, corrections, and which photos to swap for a cleaner copy. |
+| `tools/` | `export-api-contract.ts` (`npm run contract`), `us-map.ts` (`npm run us-map`), `app-assets.ts` (`npm run app-assets`), `brand.ts` (`npm run brand`), `seed-archive.ts` (`npm run seed:archive`), `seed-microblog.ts` (`npm run seed`), and the release tools: `build-server.ts` (`npm run build:server`), `package-native.ts`, `native-artifacts.ts`, `web-platform.ts`, `release-probe.ts`, all run through `release-cli.ts`. |
 | `docs/DEPLOY.md` | How it is hosted, how a release works, and the first deploy step by step. |
 | `contracts/` | `api-surface.json` (OpenAPI 3.1), `api-versions.json` (each version's digest), `equation-vectors.json`. |
 | `design/brand/v1/` | The Road Sign Math identity package 1.0 as the designer supplied it (`START-HERE.txt` first): the five icons, the logos and wordmarks as outlined SVG and PNG, the layers, previews, and Overpass with its SIL Open Font License. The site uses the horizontal lockups and Highway through `src/web/brand.ts`. Keep the package as supplied; a new version goes in its own folder. |
@@ -205,6 +206,8 @@ looking at it.
   role. Roll back by reverting the merge. `./deploy.sh` does the same from the Mac.
 - The first deploy, the deploy and backup stacks (IAM), the alerts-queue policy, mail and site
   DNS records, the domain move and seeding live data each need the owner's go.
+- `npm run seed:archive` has no live mode, and no first-era sign is on the site. Adding one and running
+  it is the owner's go. Old addresses are read into memory only: never print, log or save them.
 - The runtime secret holds the moderator's key (`ANTHROPIC_API_KEY`) and the Tinylytics key
   (`TINYLYTICS_API_KEY`). The owner keeps it by hand; never read or write its values. Never test
   hearts or app views against live Tinylytics with writes: tests use `test/support/tinylytics.ts`.
