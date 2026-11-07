@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { BADGES, earnedBadges, newlyEarned, type Earned } from '../src/domain/badges.ts';
+import { badge, BADGES, catalog, earnedBadges, newlyEarned, type Earned } from '../src/domain/badges.ts';
 import { check } from '../src/domain/equation.ts';
 import type { Sign, Way } from '../src/domain/types.ts';
 import { ada, ben, sign, way } from './support/fixtures.ts';
@@ -175,6 +175,41 @@ test('Road Trip: two signs found within three days; four days apart is not one',
   assert.ok(!has(ada.id, 'road-trip', onDays('2026-06-01', '2026-06-05')));
 });
 
+test('Years: one for each year a sign was found, earned by its first sign that year, oldest first', () => {
+  const signs = onDays('2014-05-21', '2005-03-07', '2005-02-20', '2026-11-07');
+  const years = earnedBadges(ada.id, signs, new Map()).filter((e) => e.id.startsWith('year-'));
+  assert.deepEqual(
+    years.map((e) => [e.id, e.on]),
+    [
+      ['year-2005', '2005-02-20'],
+      ['year-2014', '2014-05-21'],
+      ['year-2026', '2026-11-07']
+    ]
+  );
+  assert.deepEqual(badge('year-2005'), {
+    id: 'year-2005',
+    shelf: 'years',
+    name: '2005',
+    how: 'Find a sign in 2005.',
+    mark: '2005'
+  });
+});
+
+test('Years come with finding: a finder named on the sign earns it, a way on it doesn’t', () => {
+  const spotted = s({ postedBy: ben.id, finders: [{ playerId: ada.id, name: ada.name, role: 'spotted' }] });
+  assert.ok(has(ada.id, 'year-2026', [spotted]));
+  const bens = s({ postedBy: ben.id, finders: [{ playerId: ben.id, name: ben.name, role: 'found' }] });
+  assert.ok(!has(ada.id, 'year-2026', [bens], [w(bens, '7 × 12 = 84')]));
+  assert.ok(!has(ada.id, 'year-2026', [s({ visibility: 'held' })]));
+});
+
+test('the catalog lists this year’s badge, in US Central, and no past year', () => {
+  assert.equal(catalog(new Date('2026-06-01T12:00:00Z')).at(-1)?.id, 'year-2026');
+  assert.equal(catalog(new Date('2027-01-01T03:00:00Z')).at(-1)?.id, 'year-2026', 'still New Year’s Eve in Central');
+  assert.equal(catalog(new Date('2027-01-01T06:00:00Z')).at(-1)?.id, 'year-2027');
+  assert.equal(catalog().filter((b) => b.shelf === 'years').length, 1);
+});
+
 test('Four Seasons: winter, spring, summer and fall in any years, December counting as winter', () => {
   assert.ok(has(ada.id, 'four-seasons', onDays('2025-12-20', '2026-03-01', '2024-06-01', '2026-09-01')));
   assert.ok(!has(ada.id, 'four-seasons', onDays('2026-01-01', '2026-04-01', '2026-07-01', '2026-08-01')));
@@ -287,7 +322,7 @@ test('held and hidden signs, and the ways on them, earn nothing', () => {
   }
 });
 
-test('earned badges come in catalog order, each with the first sign and day that earned it', () => {
+test('earned badges come in catalog order, then the years, each with the first sign and day that earned it', () => {
   const first = s({ foundOn: '2026-01-01' });
   const second = s({ foundOn: '2026-02-01' });
   const got = earnedBadges(
@@ -300,7 +335,7 @@ test('earned badges come in catalog order, each with the first sign and day that
   );
   assert.deepEqual(
     got.map((e) => e.id),
-    BADGES.map((b) => b.id).filter((id) => got.some((e) => e.id === id))
+    [...BADGES.map((b) => b.id).filter((id) => got.some((e) => e.id === id)), 'year-2026']
   );
   const first_sign = got.find((e) => e.id === 'first-sign')!;
   assert.deepEqual([first_sign.sign.id, first_sign.on], [first.id, '2026-01-01']);

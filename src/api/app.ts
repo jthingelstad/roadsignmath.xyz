@@ -4,7 +4,7 @@
 // and not the players they blocked.
 
 import { Hono, type Context } from 'hono';
-import { BADGES, earnedBadges, newlyEarned, type Earned } from '../domain/badges.ts';
+import { catalog, earnedBadges, newlyEarned, type Earned } from '../domain/badges.ts';
 import { normalizeNumber } from '../domain/equation.ts';
 import { signComplexity } from '../domain/complexity.ts';
 import { miles } from '../domain/geo.ts';
@@ -382,7 +382,7 @@ export function createApi(options: ApiOptions): Hono {
     },
 
     async getBadges(c) {
-      return c.json({ badges: BADGES.map(catalogBadgeView) });
+      return c.json({ badges: catalog().map(catalogBadgeView) });
     },
 
     async startSignIn(c) {

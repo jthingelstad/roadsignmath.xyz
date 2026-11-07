@@ -206,8 +206,9 @@ looking at it.
   role. Roll back by reverting the merge. `./deploy.sh` does the same from the Mac.
 - The first deploy, the deploy and backup stacks (IAM), the alerts-queue policy, mail and site
   DNS records, the domain move and seeding live data each need the owner's go.
-- `npm run seed:archive` has no live mode, and no first-era sign is on the site. Adding one and running
-  it is the owner's go. Old addresses are read into memory only: never print, log or save them.
+- `npm run seed:archive -- --to live` loaded the first era on the owner's go (2026-11-07); `--to check`
+  reads the live table and says what a load would do. Old addresses are read into memory only: never
+  print, log or save them.
 - The runtime secret holds the moderator's key (`ANTHROPIC_API_KEY`) and the Tinylytics key
   (`TINYLYTICS_API_KEY`). The owner keeps it by hand; never read or write its values. Never test
   hearts or app views against live Tinylytics with writes: tests use `test/support/tinylytics.ts`.

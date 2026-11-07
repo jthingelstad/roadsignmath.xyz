@@ -2,7 +2,7 @@
 // is added up, ranked or compared. They are worked out from the signs on the map and the ways
 // on them each time they are read, so a badge follows its sign; nothing about them is stored.
 //
-// A sign's badges (places, seasons, the numbers on it) go to whoever posted it and to every
+// A sign's badges (places, seasons, years, the numbers on it) go to whoever posted it and to every
 // finder who plays. A way's badges (the math) go to whoever wrote it. Only shown signs count,
 // and only the ways on them.
 
@@ -10,8 +10,8 @@ import { check, isFraction, numbersNotOnSign, type Node } from './equation.ts';
 import { miles } from './geo.ts';
 import type { Sign, Way } from './types.ts';
 
-/** Each shelf is drawn as a family of road signs. */
-export const SHELVES = ['firsts', 'places', 'math', 'seasons', 'secret'] as const;
+/** Each shelf is drawn as a family of road signs. Years is its own: a badge for every year a player found a sign. */
+export const SHELVES = ['firsts', 'places', 'math', 'seasons', 'secret', 'years'] as const;
 export type Shelf = (typeof SHELVES)[number];
 
 export type Badge = {
@@ -166,8 +166,29 @@ export const BADGES: Badge[] = [
   { id: 'secret-5', shelf: 'secret', name: 'Mile Zero', how: 'Find a sign with a 0 on it.', mark: '0', secret: true }
 ];
 
+// Years: one badge for each year a player found a sign, because a sign is hard to find (Jamie,
+// 2026-11-07). They aren't in BADGES: there is one for every year, from 2005 on.
+const YEAR_ID = /^year-(\d{4})$/;
+
+/** The badge for finding a sign in this year. */
+export const yearBadge = (year: string): Badge => ({
+  id: `year-${year}`,
+  shelf: 'years',
+  name: year,
+  how: `Find a sign in ${year}.`,
+  mark: year
+});
+
 const BY_ID = new Map(BADGES.map((b) => [b.id, b]));
-export const badge = (id: string): Badge => BY_ID.get(id)!;
+export const badge = (id: string): Badge => BY_ID.get(id) ?? yearBadge(YEAR_ID.exec(id)![1]);
+
+const CENTRAL_YEAR = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric' });
+
+/**
+ * Every badge a player can still earn: the catalog, and this year's on the years shelf. A past
+ * year's badge is earned with a sign found then, so it shows only on the players who have it.
+ */
+export const catalog = (now: Date = new Date()): Badge[] => [...BADGES, yearBadge(CENTRAL_YEAR.format(now))];
 
 /** An earned badge: the sign and day that earned it first, and for a stepped badge the step reached. */
 export type Earned = {
@@ -243,7 +264,7 @@ const wayDay = (way: Way, sign: Sign): string =>
 const byWritten = (a: Way, b: Way): number => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
 
 /**
- * The badges a player has earned from these signs and their ways, in catalog order. `signs` are
+ * The badges a player has earned from these signs and their ways, in catalog order, then the years. `signs` are
  * what the reader may see; held and hidden signs are dropped here. `ways` are every way on them:
  * the ways of the players in `leftOut` (those the reader blocked) earn no one anything, but still
  * say whether a sign was solved, and by whom first.
@@ -298,6 +319,7 @@ export function earnedBadges(
 
   // Places and seasons, walking their signs in the order they were found.
   const states = new Set<string>();
+  const years = new Set<string>();
   const perState = new Map<string, number>();
   const seasons = new Set<number>();
   const firstPinned = theirs.find(
@@ -329,6 +351,12 @@ export function earnedBadges(
     const before = theirs[i - 1];
     if (before && dayNumber(sign.foundOn) - dayNumber(before.foundOn) <= TRIP_DAYS) {
       earn('road-trip', sign, sign.foundOn);
+    }
+
+    const year = sign.foundOn.slice(0, 4);
+    if (!years.has(year)) {
+      years.add(year);
+      earn(`year-${year}`, sign, sign.foundOn);
     }
 
     seasons.add(season(sign.foundOn));
@@ -365,7 +393,11 @@ export function earnedBadges(
     if (isPalindrome(way.text)) earn('secret-4', sign, on);
   }
 
-  return BADGES.filter((b) => earned.has(b.id)).map((b) => earned.get(b.id)!);
+  // The catalog's badges in its order, then their years, oldest first.
+  return [
+    ...BADGES.filter((b) => earned.has(b.id)).map((b) => earned.get(b.id)!),
+    ...[...years].sort().map((year) => earned.get(`year-${year}`)!)
+  ];
 }
 
 /** What `after` has that `before` didn't: a new badge, or a higher step of one. */

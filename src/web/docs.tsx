@@ -98,7 +98,11 @@ export const PLAYER_FIELDS: Field[] = [
     'string',
     'A badge they earned. There are no points; badges are little road signs for what happened on the road.'
   ],
-  ['badges[].shelf', 'string', 'firsts, places, math, seasons or secret.'],
+  [
+    'badges[].shelf',
+    'string',
+    'firsts, places, math, seasons, secret or years: one for each year they found a sign, like `year-2005`.'
+  ],
   ['badges[].name', 'string', 'Its name.'],
   ['badges[].how', 'string', 'How it is earned.'],
   ['badges[].mark', 'string', 'What its little sign shows; for a stepped badge, the step reached.'],

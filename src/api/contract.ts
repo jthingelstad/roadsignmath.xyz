@@ -6,7 +6,7 @@
  * Bump on every change to the surface. tools/export-api-contract.ts refuses a changed surface
  * under a version already in contracts/api-versions.json.
  */
-export const API_VERSION = '1.10.0';
+export const API_VERSION = '1.11.0';
 
 export const LIMITS = {
   /** Signs per page of the feed. */
@@ -306,7 +306,9 @@ export const ROUTES: Route[] = [
     description:
       'Badges are little road signs a player collects for what happened on the road: a new state, a square ' +
       'root, a sign found a year after the first. Nothing is added up or compared. A secret badge gives only ' +
-      'its id and shelf. A player’s earned badges are in `GET /players/{handle}` and `GET /me`.',
+      'its id and shelf. The years shelf has a badge for each year a player found a sign, `year-2005` on: the ' +
+      'catalog lists this year’s, and a past year’s shows only on the players who earned it. A player’s earned ' +
+      'badges are in `GET /players/{handle}` and `GET /me`.',
     params: [],
     auth: 'public',
     status: 200,

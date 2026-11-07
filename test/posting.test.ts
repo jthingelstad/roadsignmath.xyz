@@ -672,7 +672,7 @@ test('a post and a way answer with the badges they unlocked, and /me has them al
   const first = await t.post();
   assert.deepEqual(
     first.body.unlocked.map((b: Json) => b.id),
-    ['first-sign', 'every-number']
+    ['first-sign', 'every-number', 'year-2026']
   );
   assert.equal(first.body.unlocked[0].sign.slug, 'exit-7');
   const second = await t.post({ title: 'Exit 8', found_on: '2026-06-03' });
@@ -695,7 +695,7 @@ test('a post and a way answer with the badges they unlocked, and /me has them al
   const me = await t.call('GET', '/me', { as: 'ada' });
   assert.deepEqual(
     me.body.badges.map((b: Json) => b.id),
-    ['first-sign', 'company', 'road-trip', 'every-number']
+    ['first-sign', 'company', 'road-trip', 'every-number', 'year-2026']
   );
 });
 
@@ -727,7 +727,7 @@ test('a post and a way unlock their badges even when a read straight after misse
   const posted = await t.post();
   assert.deepEqual(
     posted.body.unlocked.map((b: Json) => b.id),
-    ['first-sign', 'every-number']
+    ['first-sign', 'every-number', 'year-2026']
   );
 });
 

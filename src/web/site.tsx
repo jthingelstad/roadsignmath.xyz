@@ -20,7 +20,7 @@ import {
   type People,
   type Urls
 } from '../api/views.ts';
-import { BADGE_STYLE, BadgeCards } from './badges.tsx';
+import { BADGE_STYLE, BadgeCards, YearPlates } from './badges.tsx';
 import { BIMI_SVG, BRAND_FILES, HIGHWAY_SVG } from './brand.ts';
 import { CHIP_STYLE, Eq, Facts, finderNames, Heart, nearbyScript, Sep, SORT_NOTES, SortChips, Tile } from './cards.tsx';
 import { ARCHIVE_URL, Avatar, brandUrl, FOLLOW, Page, Phone, Plate, shortDay, TESTFLIGHT_URL } from './layout.tsx';
@@ -642,8 +642,8 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
           <h2>No points</h2>
           <p>
             The first Road Sign Math had rules, scores and scoreboards. This one doesn’t. There are badges, little road
-            signs for your first sign, new states, every season and a few secrets, but no scores and nothing to rank.
-            The fun is in the finding, and anyone can find another way to make a sign work.
+            signs for your first sign, new states, every season, each year you find a sign and a few secrets, but no
+            scores and nothing to rank. The fun is in the finding, and anyone can find another way to make a sign work.
           </p>
 
           <h2>Follow along</h2>
@@ -1296,6 +1296,9 @@ const PlayerPage: FC<{
   summary: (s: Sign) => Summary;
 }> = ({ urls, player, stats, badges, since, view, summary }) => {
   const { clusters, unpinned } = cluster(stats.signs);
+  // The years are their own row, above the rest (Jamie, 2026-11-07).
+  const years = badges.filter((b) => b.shelf === 'years');
+  const others = badges.filter((b) => b.shelf !== 'years');
   const base = `/players/${player.handle}`;
   const photo = player.avatar ? photoUrl(urls, player.avatar, 'large') : null;
   const found = stats.first_year ? ` since ${stats.first_year}` : '';
@@ -1352,13 +1355,22 @@ const PlayerPage: FC<{
               </>
             )}
           </div>
-          {badges.length > 0 && (
+          {years.length > 0 && (
+            <section aria-labelledby="years-h">
+              <div class="lede">
+                <h2 id="years-h">Years</h2>
+                <p>A badge for every year {player.name} found a sign. They are not easy to find.</p>
+              </div>
+              <YearPlates badges={years} />
+            </section>
+          )}
+          {others.length > 0 && (
             <section aria-labelledby="badges-h">
               <div class="lede">
                 <h2 id="badges-h">Badges</h2>
                 <p>Earned on the road. Some badges are secret until someone finds them.</p>
               </div>
-              <BadgeCards badges={badges} />
+              <BadgeCards badges={others} />
             </section>
           )}
           {stats.sign_count > 0 && (

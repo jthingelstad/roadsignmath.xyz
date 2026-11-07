@@ -49,6 +49,9 @@ export type ArchiveSeed = {
   photo_swaps: Record<string, string>;
 };
 
+/** Why a sign stays in the archive. A sign comes over only with none of these (Jamie, 2026-11-07). */
+export type LeftOut = 'no photo' | 'no way the checker accepts' | 'no coordinates';
+
 /** A player the plan needs. `existingHandle` means use that player, not a new one. */
 export type PlannedPlayer = { player: Player; keys: string[]; existingHandle?: string };
 
@@ -57,8 +60,8 @@ export type ArchivePlan = {
   signs: Sign[];
   ways: Way[];
   photos: { id: string; signId: string; source: string }[];
-  /** Signs that stay in the archive, and why. */
-  left: { title: string; why: 'no photo' | 'no way the checker accepts' | 'both' }[];
+  /** Signs that stay in the archive, and every reason why. */
+  left: { title: string; why: LeftOut[] }[];
 };
 
 /** Formulas today's checker has no way to read, so they are left out rather than guessed at. */
@@ -256,8 +259,15 @@ export function buildArchivePlan(posts: ArchivePost[], seed: ArchiveSeed): Archi
       }
     }
     const images = (meta.photos ?? []).filter((p) => p.image);
-    if (!images.length || !accepted.size) {
-      const why = !images.length && !accepted.size ? 'both' : images.length ? 'no way the checker accepts' : 'no photo';
+    // A real photo, coordinates and math today's game reads. Coordinates on a town's center count:
+    // "If you have a coordinates, that's what we need" (Jamie, 2026-11-07).
+    const place = placeOf(post, fix);
+    const why: LeftOut[] = [
+      ...(images.length ? [] : ['no photo' as const]),
+      ...(accepted.size ? [] : ['no way the checker accepts' as const]),
+      ...(place.lat !== undefined ? [] : ['no coordinates' as const])
+    ];
+    if (why.length) {
       left.push({ title: meta.title, why });
       continue;
     }
@@ -299,8 +309,6 @@ export function buildArchivePlan(posts: ArchivePost[], seed: ArchiveSeed): Archi
     const slug = uniqueSlug(slugify(meta.title), (s) => slugs.has(s));
     slugs.add(slug);
     const caption = fix?.caption === undefined ? captionOf(post.body) : fix.caption;
-    const place = placeOf(post, fix);
-    if (place.lat === undefined) problems.push(`${meta.title}: coordinates aren't numbers`);
     const firstWay = signWays[0];
     signs.push({
       id,
