@@ -541,6 +541,8 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
       [`${urls.site}/app`, undefined],
       [`${urls.site}/about`, undefined],
       [`${urls.site}/privacy`, undefined],
+      [`${urls.site}/rules`, undefined],
+      [`${urls.site}/support`, undefined],
       [`${urls.site}/data`, undefined],
       ...shown.map((s): [string, string] => [`${urls.site}/signs/${s.slug}`, changed(s)]),
       // The same test as the player's page: a name, and a sign or a badge on the map.
@@ -733,17 +735,98 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
             </li>
             <li>Buttondown sends the newsletter. The game gives it your email address and nothing else.</li>
           </ul>
+          <h2>Reports</h2>
+          <p>
+            When you report a sign, Claude looks at it again, and Jamie gets an email about it: the sign, your reason,
+            what Claude decided and your player name. Your email address is never in it.
+          </p>
           <h2>Leaving</h2>
           <p>
             Delete my account, in the app’s settings, deletes your account and everything you made: your signs and their
             photos, the ways you added, your hearts, your profile photo and your email address, which leaves the
             newsletter too.
           </p>
+          <p>
+            Road Sign Math keeps backup copies so a mistake can be undone. Anything deleted is gone from them within a
+            year.
+          </p>
           <h2>Questions</h2>
           <p>
-            Email Jamie at <a href="mailto:jamie@thingelstad.com">jamie@thingelstad.com</a>.
+            Email Jamie at <a href="mailto:jamie@thingelstad.com">jamie@thingelstad.com</a>. The{' '}
+            <a href="/rules">house rules</a> say what can be posted.
           </p>
-          <p class="soft">Updated 7 November 2026.</p>
+          <p class="soft">Updated 10 November 2026.</p>
+        </main>
+      </Page>
+    )
+  );
+
+  // House rules: what can be posted, in Jamie's words (approved 2026-11-10). Sign-in in the app
+  // says that signing in agrees to them.
+  site.get('/rules', (c) =>
+    c.html(
+      <Page
+        title="House rules · Road Sign Math"
+        description="Road Sign Math is a free game Jamie Thingelstad makes for fun. Play nice."
+        url={`${urls.site}/rules`}
+      >
+        <main id="main" class="wrap" style="padding-top: 32px; padding-bottom: 48px; max-width: 720px">
+          <h1>House rules</h1>
+          <p>Road Sign Math is a free game Jamie Thingelstad makes for fun. Play nice.</p>
+          <ul>
+            <li>Post road signs, with math that’s true.</li>
+            <li>Nothing hateful, sexual, violent or cruel, and no photos that aren’t yours to share.</li>
+            <li>
+              Claude looks at every post. Anything that breaks these rules comes down, and so can the account that
+              posted it.
+            </li>
+            <li>Never play while you drive. The passenger snaps the sign.</li>
+            <li>It’s a hobby: free, as is, and no promise it’ll be here forever.</li>
+          </ul>
+          <p>
+            Questions? Email Jamie at <a href="mailto:jamie@thingelstad.com">jamie@thingelstad.com</a>.
+          </p>
+        </main>
+      </Page>
+    )
+  );
+
+  // Help: who makes the game and how to reach him, for the App Store's support link. The paths
+  // are the app's own (You, then the gear for Settings); Delete my account says what /privacy says.
+  site.get('/support', (c) =>
+    c.html(
+      <Page
+        title="Help · Road Sign Math"
+        description="Road Sign Math is made by one person, Jamie Thingelstad, in spare time. How to reach him and how to delete your account."
+        url={`${urls.site}/support`}
+      >
+        <main id="main" class="wrap" style="padding-top: 32px; padding-bottom: 48px; max-width: 720px">
+          <h1>Help</h1>
+          <p>Road Sign Math is made by one person, Jamie Thingelstad, in spare time.</p>
+          <h2>Reach Jamie</h2>
+          <p>
+            In the app, tap your picture at the top of Home to open You, then the gear for Settings, and choose Send
+            feedback under Help. Or email <a href="mailto:jamie@thingelstad.com">jamie@thingelstad.com</a>.
+          </p>
+          <h2>Delete your account</h2>
+          <p>
+            In the app, open You, then the gear for Settings, and choose Delete my account at the bottom. It deletes
+            your account and everything you made: your signs and their photos, the ways you added, your hearts, your
+            profile photo and your email address, which leaves the newsletter too. It can’t be undone, and anything
+            deleted is gone from the backups within a year.
+          </p>
+          <h2>More</h2>
+          <ul>
+            <li>
+              <a href="/rules">House rules</a>: what can be posted.
+            </li>
+            <li>
+              <a href="/privacy">Privacy</a>: what the game keeps and who sees it.
+            </li>
+            <li>
+              <a href="/about">About</a>: where the game came from.
+            </li>
+          </ul>
         </main>
       </Page>
     )

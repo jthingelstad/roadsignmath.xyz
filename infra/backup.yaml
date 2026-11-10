@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Road Sign Math backups - a monthly AWS Backup recovery point of the roadsignmath-xyz table and photo bucket, kept until removed by hand
+Description: Road Sign Math backups - a monthly AWS Backup recovery point of the roadsignmath-xyz table and photo bucket, each deleted 365 days after it is made
 
 # A separate small stack (roadsignmath-xyz-backup), never the application stack, and never
 # deployed from a workflow: the GitHub deploy role and the CloudFormation service role have no AWS
@@ -11,8 +11,12 @@ Description: Road Sign Math backups - a monthly AWS Backup recovery point of the
 #     --tags Application=RoadSignMath Project=roadsignmath.xyz ManagedBy=cloudformation
 #
 # The table keeps its own 35-day point-in-time recovery and the photo bucket its versions. This
-# adds one copy of each a month, on the 1st, with no lifecycle, so a recovery point never expires
-# on its own. A restore goes to a new table or bucket, never over the live one.
+# adds one copy of each a month, on the 1st, and deletes each copy 365 days after it is made (Jamie,
+# 2026-11-10: backups expire after a year, and /privacy says anything deleted is gone from them
+# within a year). A lifecycle change reaches only recovery points made after it is applied: one
+# made before keeps the lifecycle it was made with until it is changed by hand
+# (aws backup update-recovery-point-lifecycle). A restore goes to a new table or bucket, never over
+# the live one.
 
 Parameters:
   ApplicationStackName:
@@ -52,13 +56,15 @@ Resources:
       BackupPlan:
         BackupPlanName: roadsignmath-xyz-monthly
         BackupPlanRule:
-          # No Lifecycle: a recovery point is kept until someone deletes it.
+          # Each recovery point is deleted 365 days after it is made: a year of monthly copies.
           - RuleName: monthly
             TargetBackupVault: !Ref Vault
             ScheduleExpression: cron(0 4 1 * ? *)
             ScheduleExpressionTimezone: America/Chicago
             StartWindowMinutes: 60
             CompletionWindowMinutes: 720
+            Lifecycle:
+              DeleteAfterDays: 365
             RecoveryPointTags:
               Application: RoadSignMath
               Project: roadsignmath.xyz
