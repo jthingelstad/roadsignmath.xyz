@@ -41,12 +41,29 @@ export async function updateMe(store: Store, player: Player, body: Record<string
   if ('name' in body) changes.name = text(body.name, 'name', NAME_MAX, 1);
   if ('bio' in body) changes.bio = (body.bio === null ? '' : text(body.bio, 'bio', BIO_MAX, 0)) || null;
 
+  // Nothing to change, or nothing that differs from what is kept (read consistently, so a change
+  // made a moment ago counts): no write, so no page is cleared from the edge, and no try is counted.
+  const kept = (await store.getPlayer(player.id, true)) ?? fail('unauthorized', 'That account is gone');
+  const differs =
+    (changes.name !== undefined && changes.name !== kept.name) ||
+    (changes.bio !== undefined && changes.bio !== (kept.bio ?? null));
+  if (!differs) return kept;
+  // Every change clears the website's pages at the edge, so a player gets a day's worth and no more.
+  await limit(
+    store,
+    `profile:${player.id}`,
+    LIMITS.profileEditsADay,
+    86400,
+    nowSeconds(),
+    'Too many changes today. Try again tomorrow.'
+  );
+
   let done = false;
-  if (changes.name && !player.name) {
+  if (changes.name && !kept.name) {
     const handle = await reserveHandle(store, player, changes.name);
     if (handle) {
       done = await store.updatePlayer(player.id, { ...changes, handle }, true);
-      if (done) await store.releaseHandle(player.handle, player.id);
+      if (done) await store.releaseHandle(kept.handle, player.id);
       // Another request of this player's named them first, maybe with this same handle.
       else if ((await store.getPlayer(player.id))?.handle !== handle) await store.releaseHandle(handle, player.id);
     }

@@ -437,8 +437,8 @@ Resources:
         HttpVersion: http2and3
         IPV6Enabled: true
         PriceClass: PriceClass_100
-        # The account's shared web ACL (projects-sysadmin's edge-waf stack). Its rules count
-        # only until they are tuned; none blocks yet.
+        # The account's shared web ACL (projects-sysadmin's edge-waf stack, which owns its rules:
+        # managed rule groups and a per-address rate rule, blocking since they were tuned).
         WebACLId: !ImportValue edge-waf-WebAclArn
         Aliases: [!Ref Domain, !Sub "www.${Domain}"]
         ViewerCertificate:

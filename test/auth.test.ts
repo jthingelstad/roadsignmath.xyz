@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createApp } from '../src/api/app.ts';
+import { LIMITS as CONTRACT_LIMITS } from '../src/api/contract.ts';
 import { LIMITS, MAX_CODE_ATTEMPTS, network } from '../src/auth/auth.ts';
 import { MemoryMailer } from '../src/mail/mailer.ts';
 import { MemoryPhotoStore } from '../src/photos.ts';
@@ -113,6 +114,40 @@ test('five wrong codes end the sign-in, even if the right one comes next', async
   assert.equal((await t.call('POST', '/auth/verify', { login_id: loginId, code })).res.status, 401);
 });
 
+test('guesses sent all at once get no more tries than guesses sent in turn', async () => {
+  const t = setup();
+  await t.call('POST', '/auth/start', { email: 'burst@example.com' });
+  const { loginId, code } = t.lastMail();
+  const wrong = code === '000000' ? '111111' : '000000';
+  // Twenty wrong codes and then the right one, together: every one reads the login before any is counted.
+  const guesses = [...Array.from({ length: 20 }, () => wrong), code];
+  const answers = await Promise.all(
+    guesses.map((guess) => t.call('POST', '/auth/verify', { login_id: loginId, code: guess }))
+  );
+  assert.deepEqual(
+    answers.map((a) => a.res.status),
+    guesses.map(() => 401),
+    'the right code, behind more than five wrong ones, is refused'
+  );
+  assert.equal(
+    answers.filter((a) => /isn't right|Too many wrong codes/.test(a.body.error.message)).length,
+    MAX_CODE_ATTEMPTS
+  );
+  assert.equal(await t.store.getLogin(loginId), undefined);
+  assert.equal(await t.store.playerIdForEmail('burst@example.com'), undefined, 'and no player was made');
+});
+
+test('the right code on the fifth try still signs in', async () => {
+  const t = setup();
+  await t.call('POST', '/auth/start', { email: 'fifth@example.com' });
+  const { loginId, code } = t.lastMail();
+  const wrong = code === '000000' ? '111111' : '000000';
+  for (let i = 1; i < MAX_CODE_ATTEMPTS; i++) {
+    assert.equal((await t.call('POST', '/auth/verify', { login_id: loginId, code: wrong })).res.status, 401);
+  }
+  assert.equal((await t.call('POST', '/auth/verify', { login_id: loginId, code })).res.status, 200);
+});
+
 test('a sign-in ends after 15 minutes', async () => {
   const t = setup();
   await t.call('POST', '/auth/start', { email: 'slow@example.com' });
@@ -192,6 +227,27 @@ test('the first name sets the handle; later names keep it', async () => {
   for (const body of [{ name: '' }, { name: 'x'.repeat(41) }, { email: 'x@example.com' }, { bio: 7 }]) {
     assert.equal((await t.call('PATCH', '/me', body, done.token)).res.status, 400, JSON.stringify(body));
   }
+});
+
+test('a name or bio changes at most thirty times a day; sending the same again never counts', async () => {
+  const t = setup();
+  const done = await signIn(t, 'restless@example.com');
+  assert.equal((await t.call('PATCH', '/me', { name: 'Restless' }, done.token)).res.status, 200);
+  // What is already kept, or nothing at all, answers with the player and uses no try.
+  for (let i = 0; i < CONTRACT_LIMITS.profileEditsADay + 5; i++) {
+    const same = await t.call('PATCH', '/me', i % 2 ? { name: 'Restless' } : {}, done.token);
+    assert.equal(same.res.status, 200);
+    assert.equal(same.body.name, 'Restless');
+  }
+  for (let i = 2; i <= CONTRACT_LIMITS.profileEditsADay; i++) {
+    assert.equal((await t.call('PATCH', '/me', { bio: `Take ${i}` }, done.token)).res.status, 200, `change ${i}`);
+  }
+  const over = await t.call('PATCH', '/me', { bio: 'One more' }, done.token);
+  assert.equal(over.res.status, 429);
+  assert.match(over.body.error.message, /Try again tomorrow/);
+  const me = await t.call('GET', '/me', undefined, done.token);
+  assert.equal(me.body.bio, `Take ${CONTRACT_LIMITS.profileEditsADay}`, 'the refused change was not made');
+  assert.equal((await t.call('PATCH', '/me', { bio: me.body.bio }, done.token)).res.status, 200);
 });
 
 test('deleting the account removes what it made and nothing else', async () => {
