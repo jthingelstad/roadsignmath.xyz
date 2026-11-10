@@ -52,7 +52,7 @@ ids or ARNs, local paths, or photos of plates or faces that weren't meant to be 
 | `src/seed/` | Builds the launch set from the micro.blog export and `seed/microblog.json`, and the first-era signs from the archive and `seed/archive.json` (`archive.ts`). |
 | `src/dev.ts` | The local server on port 8787, reading `.data/` (ignored by git). |
 | `src/server.ts` | The live server: `src/live.ts` wires the table, photo bucket, SES and the moderator from the stack's environment, and `src/listen.ts` serves on the address the platform gives. The moderator's and Tinylytics' keys are read from the runtime secret (`src/secrets.ts`). |
-| `infra/` | The stacks: `template.yaml` (the app: web function, table, photos, mail, CloudFront, the alarm topic), `deploy.yaml` (deploy roles and code bucket) and `backup.yaml` (monthly backups, each deleted after 365 days; applied by hand). Only the app stack deploys on merge. |
+| `infra/` | The stacks: `template.yaml` (the app: web function, table, photos, mail, CloudFront, the alarm topic), `deploy.yaml` (deploy roles and code bucket) and `backup.yaml` (monthly backups, each deleted after 330 days so a deleted photo, kept 30 days as an old version, leaves them within a year; applied by hand). Only the app stack deploys on merge. |
 | `scripts/`, `deploy.sh` | The release: `build-release.sh` builds with no credentials, `release.sh` deploys and probes; `deploy.sh` runs both from the Mac. |
 | `seed/microblog.json` | The 16 micro.blog signs: titles, finders, numbers, places, alt text. |
 | `seed/archive.json` | What the first-era archive doesn't say: every sign's post time and found day with where each came from, corrections, and which photos to swap for a cleaner copy. |

@@ -50,8 +50,9 @@ Two small stacks beside it, applied by hand and never from a workflow:
   `edge-waf` stack, since 2026-11-02; its rules count and none blocks yet): CloudFront reads it
   as the caller on every update of the distribution.
 - `roadsignmath-xyz-backup` ([`infra/backup.yaml`](../infra/backup.yaml)): a monthly AWS Backup
-  copy of the table and the photo bucket, each deleted 365 days after it is made (Jamie,
-  2026-11-10; `/privacy` says anything deleted is gone from the backups within a year). Applied
+  copy of the table and the photo bucket, each deleted 330 days after it is made, so anything
+  deleted is gone from the backups within a year, as `/privacy` says (Jamie, 2026-11-10): a
+  photo copy keeps the bucket's old versions, which stay 30 days after a delete. Applied
   by hand, never on merge. A lifecycle change reaches only copies made after it; an older copy
   keeps its own until `aws backup update-recovery-point-lifecycle` changes it.
 
