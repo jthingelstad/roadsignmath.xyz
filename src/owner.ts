@@ -12,6 +12,7 @@
 // `check` only reads and says what would change. `live` writes, then clears the edge once, as a
 // request that changed a page does. Never prints an email address.
 
+import { randomUUID } from 'node:crypto';
 import { removePlayer } from './auth/account.ts';
 import type { Player, Sign } from './domain/types.ts';
 import type { EdgeCache } from './edge-cache.ts';
@@ -61,13 +62,26 @@ async function describeSign(store: Store, sign: Sign): Promise<string> {
 /** Holds the sign's report lease, so the owner and a player's report never change it at once. */
 async function underReportLease<T>(store: Store, sign: Sign, run: () => Promise<T>): Promise<T> {
   const lease = `report:${sign.id}`;
-  const holder = 'owner';
+  // A holder of its own, so two owner commands on one sign can't both hold it.
+  const holder = `owner-${randomUUID()}`;
   if (!(await store.lease(lease, holder, 120)))
     refuse('A report of this sign is being looked at. Try again in a minute.');
   try {
     return await run();
   } finally {
     await store.endLease(lease, holder).catch(() => undefined);
+  }
+}
+
+/**
+ * Runs a live write, then clears the edge once, even when the write fails partway: like
+ * `PageChanges`, a write that failed may still have changed a page.
+ */
+async function thenClear(deps: OwnerDeps, out: string[], write: () => Promise<void>): Promise<void> {
+  try {
+    await write();
+  } finally {
+    await clearEdge(deps, out);
   }
 }
 
@@ -110,10 +124,11 @@ export async function runOwner(
     if (!live) return out;
     await underReportLease(store, sign, async () => {
       const fresh = (await store.getSign(sign.id, true)) ?? refuse('The sign is gone');
-      await hideSign(deps, fresh, note, (deps.now?.() ?? new Date()).toISOString());
+      await thenClear(deps, out, async () => {
+        await hideSign(deps, fresh, note, (deps.now?.() ?? new Date()).toISOString());
+        out.push('Hidden.');
+      });
     });
-    out.push('Hidden.');
-    await clearEdge(deps, out);
     return out;
   }
 
@@ -127,10 +142,11 @@ export async function runOwner(
     if (!live) return out;
     await underReportLease(store, sign, async () => {
       const fresh = (await store.getSign(sign.id, true)) ?? refuse('The sign is gone');
-      await unhideSign(deps, fresh);
+      await thenClear(deps, out, async () => {
+        await unhideSign(deps, fresh);
+        out.push('Shown.');
+      });
     });
-    out.push('Shown.');
-    await clearEdge(deps, out);
     return out;
   }
 
@@ -159,8 +175,9 @@ export async function runOwner(
   if (!deps.tinylytics) refuse('No Tinylytics key: their hearts’ kudos can’t be taken back, so nothing was removed.');
   if (player.email && !deps.newsletter)
     refuse('No newsletter key: their address can’t leave it, so nothing was removed.');
-  const outcome = await removePlayer(deps, player);
-  out.push(`Removed @${player.handle}.${outcome ? ` Newsletter: ${outcome}.` : ''}`);
-  await clearEdge(deps, out);
+  await thenClear(deps, out, async () => {
+    const outcome = await removePlayer(deps, player);
+    out.push(`Removed @${player.handle}.${outcome ? ` Newsletter: ${outcome}.` : ''}`);
+  });
   return out;
 }
