@@ -271,6 +271,23 @@ test('home puts every shown sign on the map: pins, clusters, the year filter and
   assert.equal((await app.request('/?year=1999&at=nope')).status, 200);
 });
 
+test('home reads in a phone’s order: the pitch, the map, then who’s playing', async () => {
+  const { app } = await setup();
+  const html = await (await app.request('/')).text();
+  const at = (mark: string) => {
+    const i = html.indexOf(mark);
+    assert.ok(i >= 0, `${mark} is on the page`);
+    return i;
+  };
+  // However many players there are, the map is never under the list of them.
+  assert.ok(at('class="intro"') < at('id="map-panel"'));
+  assert.ok(at('id="map-panel"') < at('class="who"'));
+  assert.ok(at('class="who"') < at('id="signs"'));
+  // The picture of the map itself comes before the first player.
+  assert.ok(at('src="/us-map.svg"') < at('id="who-h"'));
+  assert.match(html, /grid-template-areas: "intro" "map" "who"/);
+});
+
 test('robots.txt points to the sitemap, which lists every page that answers and none that do not', async () => {
   const { app, slug } = await setup();
   const robots = await (await app.request('/robots.txt')).text();

@@ -119,8 +119,15 @@ const HOME_SIGNS = 12;
 
 const HOME_STYLE = `
 .hero { background: var(--ground); border-bottom: 1px solid var(--line); scroll-margin-top: 0; }
-.hero > .wrap { display: flex; flex-wrap: wrap; gap: 28px 32px; align-items: flex-start; padding-top: 28px; padding-bottom: 36px; }
-.intro { flex: 1 1 300px; max-width: 360px; display: flex; flex-direction: column; gap: 18px; }
+/* One column on a phone, in the order it reads: the pitch, the map, then who's playing. Side by side, the
+   players sit under the pitch and the map runs down the right. */
+.hero > .wrap { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "intro" "map" "who";
+  gap: 28px 32px; align-items: start; padding-top: 28px; padding-bottom: 36px; }
+@media (min-width: 940px) {
+  .hero > .wrap { grid-template-columns: minmax(300px, 360px) minmax(0, 1fr); grid-template-rows: auto 1fr;
+    grid-template-areas: "intro map" "who map"; row-gap: 18px; }
+}
+.intro { grid-area: intro; max-width: 360px; display: flex; flex-direction: column; gap: 18px; }
 .kicker { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--soft); }
 .intro h1 { margin: 0; font-size: clamp(36px, 7vw, 46px); line-height: 1.02; letter-spacing: -0.02em; }
 .intro > p { margin: 0; font-size: 18px; color: var(--ink2); }
@@ -128,12 +135,13 @@ const HOME_STYLE = `
 .stats div { display: flex; flex-direction: column; }
 .stats dd { margin: 0; order: 1; font-size: 30px; font-weight: 700; }
 .stats dt { order: 2; font-size: 14px; color: var(--soft); }
+.who { grid-area: who; max-width: 360px; }
 .who h2 { margin: 0 0 4px; font-size: 14px; font-weight: 800; letter-spacing: 0; }
 .who ul { margin: 0; padding: 0; list-style: none; }
 .who a { display: flex; align-items: center; gap: 12px; min-height: 48px; text-decoration: none; color: var(--ink); }
 .who a b { flex: 1; text-decoration: underline; text-decoration-color: var(--line2); text-underline-offset: 3px; }
 .who a span.soft { font-size: 14px; }
-#map-panel { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+#map-panel { grid-area: map; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
 .years { display: flex; flex-wrap: wrap; gap: 8px; }
 .years a { display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border-radius: 999px;
   border: 1.5px solid var(--line2); background: var(--card); color: var(--ink); font-weight: 700; font-size: 14px; text-decoration: none; }
@@ -837,22 +845,6 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
                     <dd class="mono p-state-count">{states.size}</dd>
                   </div>
                 </dl>
-                {players.length > 0 && (
-                  <section class="who" aria-labelledby="who-h">
-                    <h2 id="who-h">Who’s playing</h2>
-                    <ul>
-                      {players.map(({ player, count }) => (
-                        <li>
-                          <a href={`/players/${player.handle}`}>
-                            <Avatar name={player.name} color={player.avatarColor} photo={player.avatar} />
-                            <b>{player.name}</b>
-                            <span class="soft">{countSigns(count)}</span>
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                )}
               </div>
               <div id="map-panel">
                 {years.length > 1 && (
@@ -900,6 +892,23 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
                 </section>
                 <NoPin signs={unpinned} />
               </div>
+              {/* After the map in the page so a phone, and a screen reader, reach the map first. */}
+              {players.length > 0 && (
+                <section class="who" aria-labelledby="who-h">
+                  <h2 id="who-h">Who’s playing</h2>
+                  <ul>
+                    {players.map(({ player, count }) => (
+                      <li>
+                        <a href={`/players/${player.handle}`}>
+                          <Avatar name={player.name} color={player.avatarColor} photo={player.avatar} />
+                          <b>{player.name}</b>
+                          <span class="soft">{countSigns(count)}</span>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
             </div>
           </section>
 
