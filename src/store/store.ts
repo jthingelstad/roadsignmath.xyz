@@ -94,8 +94,11 @@ export interface Store {
   /** Missing once it has expired, even before the table's time-to-live removes it. */
   getLogin(id: string): Promise<Login | undefined>;
   deleteLogin(id: string): Promise<void>;
-  /** Counts a wrong code and returns the count, or undefined when the login is gone or expired. */
-  addLoginAttempt(id: string): Promise<number | undefined>;
+  /**
+   * Counts a try at the code and returns the count, or undefined when the login is gone, expired
+   * or has had `max` tries already. One conditional write, so tries arriving at once can't pass `max`.
+   */
+  addLoginAttempt(id: string, max: number): Promise<number | undefined>;
   /** Deletes the login if it is still there and live; true when this call did, so it's used once. */
   consumeLogin(id: string): Promise<boolean>;
 

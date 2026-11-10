@@ -417,15 +417,15 @@ export class DynamoStore implements Store {
     await this.delete(`LOGIN#${id}`, 'LOGIN');
   }
 
-  async addLoginAttempt(id: string): Promise<number | undefined> {
+  async addLoginAttempt(id: string, max: number): Promise<number | undefined> {
     try {
       const out = await this.client.send(
         new UpdateCommand({
           TableName: this.table,
           Key: { pk: `LOGIN#${id}`, sk: 'LOGIN' },
           UpdateExpression: 'ADD attempts :one',
-          ConditionExpression: 'attribute_exists(pk) AND expiresAt > :now',
-          ExpressionAttributeValues: { ':one': 1, ':now': nowSeconds() },
+          ConditionExpression: 'attribute_exists(pk) AND expiresAt > :now AND attempts < :max',
+          ExpressionAttributeValues: { ':one': 1, ':now': nowSeconds(), ':max': max },
           ReturnValues: 'UPDATED_NEW'
         })
       );

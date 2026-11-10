@@ -104,7 +104,10 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
 - **Sign-in** (`src/auth/`): `POST /auth/start` emails a link and a 6-digit code to anyone;
   `POST /auth/verify` takes either and returns a bearer token `rsm_<playerId>_<secret>`.
   Only hashes are stored. The first sign-in makes a player with no name; the first name
-  sets the handle, which never changes after. Limits are in `src/auth/auth.ts`.
+  sets the handle, which never changes after. Limits are in `src/auth/auth.ts`. A try at the
+  code is counted before the code is compared, in one conditional write, so five is the most a
+  login ever gets however the guesses arrive. `PATCH /me` writes only what differs from what is
+  kept (a write clears the edge) and takes `LIMITS.profileEditsADay` changes a day.
 - A request with an `Authorization` header is never cached, and a bad token is a 401 even on
   a public read.
 - `DELETE /me` removes the player, their profile photo, the signs they posted (with their photos and hearts), their

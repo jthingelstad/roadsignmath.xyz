@@ -119,14 +119,18 @@ export async function finishSignIn(
   const now = nowSeconds();
   if (hasToken) {
     if (!same(sha256(input.token as string), login.tokenHash)) fail('unauthorized', expired);
-  } else if (!same(sha256(input.code as string), login.codeHash)) {
-    const wrongToday = await store.bump(`wrong:${emailHash(login.email)}`, DAY, now);
-    const attempts = (await store.addLoginAttempt(login.id)) ?? fail('unauthorized', expired);
-    if (attempts >= MAX_CODE_ATTEMPTS || wrongToday > LIMITS.wrongCodesADay) {
-      await store.deleteLogin(login.id);
-      fail('unauthorized', 'Too many wrong codes. Ask for a new one.');
+  } else {
+    // A try is counted before the code is looked at, and only while the login has tries left:
+    // however many guesses arrive at once, no more than MAX_CODE_ATTEMPTS are ever compared.
+    const attempts = (await store.addLoginAttempt(login.id, MAX_CODE_ATTEMPTS)) ?? fail('unauthorized', expired);
+    if (!same(sha256(input.code as string), login.codeHash)) {
+      const wrongToday = await store.bump(`wrong:${emailHash(login.email)}`, DAY, now);
+      if (attempts >= MAX_CODE_ATTEMPTS || wrongToday > LIMITS.wrongCodesADay) {
+        await store.deleteLogin(login.id);
+        fail('unauthorized', 'Too many wrong codes. Ask for a new one.');
+      }
+      fail('unauthorized', "That code isn't right.");
     }
-    fail('unauthorized', "That code isn't right.");
   }
   // Only one request gets to use a login, however many arrive at once.
   if (!(await store.consumeLogin(login.id))) fail('unauthorized', expired);

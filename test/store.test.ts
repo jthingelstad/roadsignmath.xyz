@@ -124,15 +124,22 @@ for (const [name, make] of kinds) {
         expiresAt: now + 60
       };
       await store.putLogin(login);
-      assert.equal(await store.addLoginAttempt('L1'), 1);
-      assert.equal(await store.addLoginAttempt('L1'), 2);
+      assert.equal(await store.addLoginAttempt('L1', 3), 1);
+      assert.equal(await store.addLoginAttempt('L1', 3), 2);
+      // Tries arriving together never pass the cap: one gets the last, the rest get none.
+      const last = await Promise.all([1, 2, 3, 4].map(() => store.addLoginAttempt('L1', 3)));
+      assert.deepEqual(
+        last.filter((n) => n !== undefined),
+        [3]
+      );
+      assert.equal((await store.getLogin('L1'))?.attempts, 3);
       const both = await Promise.all([store.consumeLogin('L1'), store.consumeLogin('L1')]);
       assert.deepEqual(both.sort(), [false, true]);
-      assert.equal(await store.addLoginAttempt('L1'), undefined, 'a wrong code never brings a used login back');
+      assert.equal(await store.addLoginAttempt('L1', 9), undefined, 'a wrong code never brings a used login back');
       assert.equal(await store.getLogin('L1'), undefined);
       await store.putLogin({ ...login, id: 'L2', expiresAt: now - 1 });
       assert.equal(await store.consumeLogin('L2'), false);
-      assert.equal(await store.addLoginAttempt('L2'), undefined);
+      assert.equal(await store.addLoginAttempt('L2', 9), undefined);
     });
 
     test('updateSign changes only the fields given, and null removes one', async () => {

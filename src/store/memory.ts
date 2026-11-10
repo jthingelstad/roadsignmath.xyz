@@ -195,9 +195,9 @@ export class MemoryStore implements Store {
     this.logins.delete(id);
   }
 
-  async addLoginAttempt(id: string): Promise<number | undefined> {
+  async addLoginAttempt(id: string, max: number): Promise<number | undefined> {
     const login = this.logins.get(id);
-    if (!login || login.expiresAt <= nowSeconds()) return undefined;
+    if (!login || login.expiresAt <= nowSeconds() || login.attempts >= max) return undefined;
     login.attempts += 1;
     return login.attempts;
   }

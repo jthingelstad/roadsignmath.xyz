@@ -99,6 +99,11 @@ test('reading clears nothing; a request that changes a page clears the edge once
   const renamed = await call('PATCH', '/api/v1/me', { bio: 'Counts signs.' });
   assert.equal(renamed.status, 200);
   assert.equal(cache.clears, 1);
+  // Sending nothing, or what is already kept, writes nothing: no page changed, so none is cleared.
+  for (const same of [{}, { bio: 'Counts signs.' }, { bio: '  Counts   signs. ' }]) {
+    assert.equal((await call('PATCH', '/api/v1/me', same)).status, 200, JSON.stringify(same));
+  }
+  assert.equal(cache.clears, 1);
 
   // A post writes the sign several times over; it still clears once, after the last write.
   const photo = await sharp({ create: { width: 64, height: 48, channels: 3, background: '#f2b300' } })

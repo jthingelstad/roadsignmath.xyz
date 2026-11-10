@@ -6,7 +6,7 @@
  * Bump on every change to the surface. tools/export-api-contract.ts refuses a changed surface
  * under a version already in contracts/api-versions.json.
  */
-export const API_VERSION = '1.12.0';
+export const API_VERSION = '1.12.1';
 
 export const LIMITS = {
   /** Signs per page of the feed. */
@@ -37,6 +37,8 @@ export const LIMITS = {
   /** Tries a day per player. */
   uploadsADay: 60,
   avatarsADay: 20,
+  /** Changes to a name or bio that change something. */
+  profileEditsADay: 30,
   postsADay: 20,
   waysADay: 100,
   reportsADay: 20,
@@ -374,12 +376,14 @@ export const ROUTES: Route[] = [
     summary: 'Change your name or bio',
     description:
       'The first name you give also sets your handle, the address of your page; it stays after that. ' +
-      'A null or empty bio removes it.',
+      `A null or empty bio removes it. At most ${LIMITS.profileEditsADay} changes a day; sending what you already ` +
+      'have changes nothing and counts for nothing.',
     params: [],
     auth: 'signed_in',
     body: 'MeUpdate',
     status: 200,
-    response: 'Me'
+    response: 'Me',
+    errors: ['rate_limited']
   },
   {
     operationId: 'deleteMe',
