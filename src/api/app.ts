@@ -13,10 +13,11 @@ import type { Store } from '../store/store.ts';
 import { API_VERSION, LIMITS, ROUTES } from './contract.ts';
 import { PageChanges, type EdgeCache } from '../edge-cache.ts';
 import { ApiError, fail, STATUS } from './errors.ts';
-import { deleteAccount, removeAvatar, setAvatar, updateMe } from '../auth/account.ts';
+import { removeAvatar, removePlayer, setAvatar, updateMe } from '../auth/account.ts';
 import { finishSignIn, network, signOut, startSignIn, viewerFor, type Viewer } from '../auth/auth.ts';
 import { myActivity } from '../activity.ts';
 import { sendFeedback } from '../feedback.ts';
+import { mailDuplicate, mailReport } from '../reports.ts';
 import { HeartCounts, heartView, setHeart } from '../hearts.ts';
 import type { Mailer } from '../mail/mailer.ts';
 import type { Moderator } from '../moderation/moderator.ts';
@@ -182,6 +183,8 @@ export function createApi(options: ApiOptions): Hono {
   const { tinylytics } = options;
   const deps = { store, photos: options.photos, moderator: options.moderator, tinylytics };
   const heartDeps = { store, tinylytics, counts: options.heartCounts ?? new HeartCounts(tinylytics) };
+  // Reports go where feedback goes.
+  const reportMail = { store, mailer, urls, to: options.feedbackTo };
   const api = new Hono();
 
   /** The signs this reader sees, newest first, and every player by id. Read whole: there are few. */
@@ -425,13 +428,8 @@ export function createApi(options: ApiOptions): Hono {
     },
 
     async deleteMe(c, { viewer }) {
-      const email = viewer!.player.email;
-      await deleteAccount(deps, viewer!.player);
       // They leave the newsletter too. A failure is logged and doesn't undo the delete.
-      if (email && options.newsletter) {
-        const outcome = await options.newsletter.remove(email);
-        console.log({ event: 'newsletter', op: 'remove', outcome });
-      }
+      await removePlayer({ ...deps, newsletter: options.newsletter }, viewer!.player);
       return c.body(null, 204);
     },
 
@@ -554,7 +552,11 @@ export function createApi(options: ApiOptions): Hono {
 
     async reportSign(c, { data, viewer }) {
       const sign = findSign((await data()).signs, pathParam(c, 'id'));
-      const report = await reportSign(deps, viewer!.player, sign, await jsonBody(c));
+      const reporter = viewer!.player;
+      // Jamie gets an email of each new report (src/reports.ts), best-effort.
+      const report = await reportSign(deps, reporter, sign, await jsonBody(c), (saved, fresh) =>
+        mailReport(reportMail, reporter, fresh, saved)
+      );
       return c.json({ outcome: report.outcome, note: report.note });
     },
 
@@ -566,6 +568,7 @@ export function createApi(options: ApiOptions): Hono {
       if (typeof sameAs !== 'string' || !sameAs) return fail('bad_request', 'same_as must be a sign’s id or slug');
       const other = findSign(signs, sameAs);
       const report = await reportDuplicate(store, viewer!.player, sign, other, body);
+      await mailDuplicate(reportMail, viewer!.player, sign, other, report);
       return c.json({ same_as: other.slug, note: report.note ?? null });
     },
 

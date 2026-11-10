@@ -13,6 +13,7 @@ import { avatarRenditions, type PhotoStore } from '../photos.ts';
 import { moderate, readPhoto } from '../posting/posting.ts';
 import type { Tinylytics } from '../tinylytics.ts';
 import { nowSeconds, type PlayerChanges, type Store } from '../store/store.ts';
+import type { Newsletter, RemoveOutcome } from '../newsletter.ts';
 
 export const NAME_MAX = 40;
 export const BIO_MAX = 160;
@@ -178,6 +179,23 @@ export async function deleteAccount(
   } finally {
     await store.endLease(lease, holder).catch(() => undefined);
   }
+}
+
+/**
+ * `DELETE /me`, and the owner's `remove-player` (tools/owner.ts) with the same code: the account
+ * and everything it made go (`deleteAccount`), then the address leaves the newsletter. That last
+ * step is best-effort: a failure is logged by outcome and doesn't undo the delete.
+ */
+export async function removePlayer(
+  deps: { store: Store; photos: PhotoStore; tinylytics?: Tinylytics; newsletter?: Newsletter },
+  player: Player
+): Promise<RemoveOutcome | undefined> {
+  const email = player.email;
+  await deleteAccount(deps, player);
+  if (!email || !deps.newsletter) return undefined;
+  const outcome = await deps.newsletter.remove(email);
+  console.log({ event: 'newsletter', op: 'remove', outcome });
+  return outcome;
 }
 
 async function deleteEverything(
