@@ -56,7 +56,7 @@ ids or ARNs, local paths, or photos of plates or faces that weren't meant to be 
 | `scripts/`, `deploy.sh` | The release: `build-release.sh` builds with no credentials, `release.sh` deploys and probes; `deploy.sh` runs both from the Mac. |
 | `seed/microblog.json` | The 16 micro.blog signs: titles, finders, numbers, places, alt text. |
 | `seed/archive.json` | What the first-era archive doesn't say: every sign's post time and found day with where each came from, corrections, and which photos to swap for a cleaner copy. |
-| `tools/` | `export-api-contract.ts` (`npm run contract`), `us-map.ts` (`npm run us-map`), `app-assets.ts` (`npm run app-assets`), `brand.ts` (`npm run brand`), `seed-archive.ts` (`npm run seed:archive`), `seed-microblog.ts` (`npm run seed`), and the release tools: `build-server.ts` (`npm run build:server`), `package-native.ts`, `native-artifacts.ts`, `web-platform.ts`, `release-probe.ts`, all run through `release-cli.ts`. |
+| `tools/` | `export-api-contract.ts` (`npm run contract`), `us-map.ts` (`npm run us-map`), `app-assets.ts` (`npm run app-assets`), `brand.ts` (`npm run brand`), `seed-archive.ts` (`npm run seed:archive`), `seed-microblog.ts` (`npm run seed`), `newsletter-sync.ts` (`npm run newsletter`), `owner.ts` (`npm run owner`: hide or show a sign, remove a player), and the release tools: `build-server.ts` (`npm run build:server`), `package-native.ts`, `native-artifacts.ts`, `web-platform.ts`, `release-probe.ts`, all run through `release-cli.ts`. |
 | `docs/DEPLOY.md` | How it is hosted, how a release works, and the first deploy step by step. |
 | `contracts/` | `api-surface.json` (OpenAPI 3.1), `api-versions.json` (each version's digest), `equation-vectors.json`. |
 | `design/brand/v1/` | The Road Sign Math identity package 1.0 as the designer supplied it (`START-HERE.txt` first): the five icons, the logos and wordmarks as outlined SVG and PNG, the layers, previews, and Overpass with its SIL Open Font License. The site uses the horizontal lockups and Highway through `src/web/brand.ts`. Keep the package as supplied; a new version goes in its own folder. |
@@ -120,6 +120,20 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
   optional note). Jamie, 2026-11-07: "A duplicate sign should be submitted as a 'report a
   duplicate', similar to the other report function… we can figure out later what we do with
   that." So it is only kept, one per player per sign, and never goes to the moderator.
+- **Reports reach Jamie** (`src/reports.ts`; Jamie, 2026-11-10): each new report of a sign, once
+  Claude has looked at it, and each duplicate report is emailed to `FEEDBACK_TO`, with the sign's
+  title and link, the reason or note, Claude's verdict (hidden or kept) and the reporter's name and
+  handle, never an email address. Best-effort: the report is decided and saved first, a mail that
+  fails changes nothing, and it is logged as `report-mail` by outcome only. A repeat of a player's
+  report sends nothing. `/privacy` says a report emails Jamie.
+- **The owner's commands** (`src/owner.ts`, `npm run owner`, `tools/owner.ts`; Jamie, 2026-11-10:
+  "a Mac-side script to hide a sign or remove a player. No admin website."): `hide-sign <slug>`
+  (the state an upheld report leaves, `hideSign` in `posting.ts`), `unhide-sign <slug>` and
+  `remove-player <handle>` (`removePlayer` in `account.ts`, the same code as `DELETE /me`,
+  newsletter included), each `--to check|live`. `check` only reads; `live` writes the live table
+  on the owner's word alone and clears the edge once. Never run `--to live` to test anything:
+  `test/owner.test.ts` runs it against the memory store. [`docs/DEPLOY.md`](docs/DEPLOY.md) has the
+  usage.
 - **Hearts** (`src/hearts.ts`): `PUT` and `DELETE /signs/{id}/heart`, signed in, one per player
   per sign, idempotent. A heart is a Tinylytics kudo at `/signs/<slug>`, the same path as the
   website's kudos button, so `hearts` on every sign (summary, detail, pin) counts both; it is

@@ -185,3 +185,32 @@ First-release things worth a look, from the Release Notes platform notes: the en
 `IamAuth` and only CloudFront's signed requests reach it; CloudFront's `always-amz-auth` signing
 leaves a player's `Authorization` header as sent (shown there for GET, HEAD and POST; this API's
 PATCH and DELETE routes are the first to use the other methods through it).
+
+## When a report comes in
+
+Each report of a sign, and each "Report a duplicate", is emailed to `FEEDBACK_TO`, where Send
+feedback goes (`src/reports.ts`): the sign's title and link, the reason or note, Claude's verdict
+(hidden or kept) and the reporter's name and handle, never an email address. The email names the
+owner commands below for that sign. There is no admin website; Jamie acts from the Mac with
+`npm run owner` ([`tools/owner.ts`](../tools/owner.ts), the logic in `src/owner.ts`):
+
+```sh
+npm run owner -- hide-sign <slug> --to check            # read only: what would change
+npm run owner -- hide-sign <slug> --to live [--note "…"]
+npm run owner -- unhide-sign <slug> --to check|live
+npm run owner -- remove-player <handle> --to check
+TINYLYTICS_API_KEY=… BUTTONDOWN_API_KEY=… npm run owner -- remove-player <handle> --to live
+```
+
+- `hide-sign` leaves the sign as an upheld report does (`hideSign`): its photos leave `p/` and
+  CloudFront, the sign is `hidden`, gone from the site, feeds, open data and API for everyone but
+  its poster, who sees the note (by default "Jamie took this sign down under the house rules.").
+  `unhide-sign` shows a hidden or held sign again. Both hold the sign's report lease, so they
+  never cross a player's report.
+- `remove-player` is `DELETE /me` for that player (`removePlayer`, the same code): the account
+  and everything it made, their hearts' kudos first, then their address leaves the newsletter.
+  `--to live` needs the Tinylytics and Buttondown keys through the environment (`op run`), never
+  on the command line, and refuses without them.
+- `--to check` only reads the live table. `--to live` is a write to live data, the owner's alone,
+  and clears the edge once at the end. It reads the table, photo bucket and distribution from the
+  `roadsignmath-xyz` stack as `cloud-engineer`. It never prints an email address.

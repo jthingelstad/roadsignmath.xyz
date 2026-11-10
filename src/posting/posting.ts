@@ -441,7 +441,9 @@ export async function reportSign(
   { store, photos, moderator }: PostingDeps,
   player: Player,
   sign: Sign,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  /** Told of each new report once it is saved (src/reports.ts emails it); never in the way. */
+  told?: (report: Report, sign: Sign) => Promise<unknown>
 ): Promise<Report> {
   if (sign.postedBy === player.id) fail('bad_request', 'You can’t report your own sign');
   only(body, 'The report', ['reason']);
@@ -455,11 +457,15 @@ export async function reportSign(
   if (!(await store.lease(lease, player.id, 120))) {
     fail('conflict', 'Someone else’s report of this sign is being looked at. Try again in a minute.');
   }
+  const fresh = (await store.getSign(sign.id)) ?? sign;
+  let report: Report;
   try {
-    return await judgeReport({ store, photos, moderator }, player, (await store.getSign(sign.id)) ?? sign, reason, now);
+    report = await judgeReport({ store, photos, moderator }, player, fresh, reason, now);
   } finally {
     await store.endLease(lease, player.id).catch(() => undefined);
   }
+  if (told) await told(report, fresh).catch(() => undefined);
+  return report;
 }
 
 /** The moderator's look at a reported sign, read fresh under the sign's report lease. */
@@ -498,14 +504,37 @@ async function judgeReport(
   // Photos first, then the sign, then the report: a report that fails partway is not saved, so
   // the player's next try runs it again, and hiding a photo twice is harmless.
   if (report.outcome === 'hidden') {
-    for (const photo of sign.photos) await photos.hide(photo.id);
-    await store.updateSign(sign.id, { visibility: 'hidden', moderation: { note: report.note, at } });
+    await hideSign({ store, photos }, sign, report.note, at);
   } else if (sign.visibility === 'shown') {
     // Kept: every file a failed hide left under held/ goes back (show moves only what is there).
     for (const photo of sign.photos) await photos.show(photo.id);
   }
   await store.putReport(report);
   return report;
+}
+
+/**
+ * Hides a sign, as an upheld report does: its photos leave `p/` (and CloudFront's copies), then
+ * the sign is `hidden` with the note its poster sees. Photos first, so a hide that fails partway
+ * can run again. The owner's `hide-sign` (tools/owner.ts) uses it too.
+ */
+export async function hideSign(
+  { store, photos }: Pick<PostingDeps, 'store' | 'photos'>,
+  sign: Sign,
+  note: string,
+  at: string
+): Promise<void> {
+  for (const photo of sign.photos) await photos.hide(photo.id);
+  await store.updateSign(sign.id, { visibility: 'hidden', moderation: { note, at } });
+}
+
+/**
+ * Shows a hidden or held sign again, the owner's `unhide-sign`: its photos go back under `p/`,
+ * then the sign is `shown` with no moderation note.
+ */
+export async function unhideSign({ store, photos }: Pick<PostingDeps, 'store' | 'photos'>, sign: Sign): Promise<void> {
+  for (const photo of sign.photos) await photos.show(photo.id);
+  await store.updateSign(sign.id, { visibility: 'shown', moderation: null });
 }
 
 /**
