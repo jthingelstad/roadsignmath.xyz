@@ -213,5 +213,5 @@ TINYLYTICS_API_KEY=… BUTTONDOWN_API_KEY=… npm run owner -- remove-player <ha
   `--to live` needs the Tinylytics and Buttondown keys through the environment (`op run`), never
   on the command line, and refuses without them.
 - `--to check` only reads the live table. `--to live` is a write to live data, the owner's alone,
-  and clears the edge once at the end. It reads the table, photo bucket and distribution from the
+  and clears the edge once at the end, even when it fails partway. It reads the table, photo bucket and distribution from the
   `roadsignmath-xyz` stack as `cloud-engineer`. It never prints an email address.

@@ -197,3 +197,37 @@ test('remove-player --to live refuses without the Tinylytics or newsletter key, 
   await assert.rejects(runOwner({ ...deps, newsletter: undefined }, 'remove-player', 'cara', 'live'), /newsletter/);
   assert.ok(await store.getPlayer(cara.id));
 });
+
+test('a removal that fails partway still clears the edge, and the error goes up', async () => {
+  const { store, edgeCache, deps } = await setup();
+  const failing = new Proxy(store, {
+    get(target, key, receiver) {
+      if (key === 'deletePlayer') return async () => Promise.reject(new Error('the table is down'));
+      const value = Reflect.get(target, key, receiver);
+      return typeof value === 'function' ? value.bind(target) : value;
+    }
+  });
+  await assert.rejects(runOwner({ ...deps, store: failing }, 'remove-player', 'cara', 'live'), /the table is down/);
+  // Her sign went before the failure, so the pages that showed it are cleared.
+  assert.equal(await store.getSign(S3), undefined);
+  assert.equal(edgeCache.clears, 1);
+});
+
+test('two owner commands on one sign never hold its lease at once', async () => {
+  const { store, photos, deps } = await setup();
+  let release!: () => void;
+  const gate = new Promise<void>((done) => (release = done));
+  const slow = new Proxy(photos, {
+    get(target, key, receiver) {
+      if (key === 'hide') return async (id: string) => (await gate, target.hide(id));
+      const value = Reflect.get(target, key, receiver);
+      return typeof value === 'function' ? value.bind(target) : value;
+    }
+  });
+  const first = runOwner({ ...deps, photos: slow }, 'hide-sign', 'exit-seven', 'live');
+  await new Promise((done) => setImmediate(done));
+  await assert.rejects(runOwner(deps, 'hide-sign', 'exit-seven', 'live'), OwnerRefused);
+  release();
+  assert.ok((await first).includes('Hidden.'));
+  assert.equal((await store.getSign(S1))!.visibility, 'hidden');
+});
