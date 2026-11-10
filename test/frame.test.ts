@@ -271,6 +271,8 @@ test('every page starts with a skip link to its one main, and the footer names t
     '/app',
     '/about',
     '/privacy',
+    '/rules',
+    '/support',
     '/data',
     '/signin',
     '/nowhere'

@@ -50,7 +50,10 @@ Two small stacks beside it, applied by hand and never from a workflow:
   `edge-waf` stack, since 2026-11-02; its rules count and none blocks yet): CloudFront reads it
   as the caller on every update of the distribution.
 - `roadsignmath-xyz-backup` ([`infra/backup.yaml`](../infra/backup.yaml)): a monthly AWS Backup
-  copy of the table and the photo bucket, kept until removed by hand.
+  copy of the table and the photo bucket, each deleted 365 days after it is made (Jamie,
+  2026-11-10; `/privacy` says anything deleted is gone from the backups within a year). Applied
+  by hand, never on merge. A lifecycle change reaches only copies made after it; an older copy
+  keeps its own until `aws backup update-recovery-point-lifecycle` changes it.
 
 The `roadsignmath.xyz` zone itself is projects-sysadmin's `dns-roadsignmath-xyz` stack. This
 stack writes only its certificate's validation records there; the apex, `www`, DKIM and MAIL FROM

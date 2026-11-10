@@ -310,6 +310,8 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
           <nav aria-label="About">
             <a href="/about">About</a>
             <a href="/privacy">Privacy</a>
+            <a href="/rules">House rules</a>
+            <a href="/support">Help</a>
             <a href="/data">Feeds and data</a>
           </nav>
           <nav aria-label="Follow">

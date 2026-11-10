@@ -75,6 +75,48 @@ test('the privacy page says what is public and what is not, and every page links
   assert.match(await (await app.request('/')).text(), /<a href="\/privacy">Privacy<\/a>/);
 });
 
+test('the privacy page says deleted things leave the backups within a year, and that a report emails Jamie', async () => {
+  const { app } = await setup();
+  const html = await (await app.request('/privacy')).text();
+  assert.ok(html.includes('keeps backup copies so a mistake can be undone'));
+  assert.ok(html.includes('gone from them within a year'));
+  assert.ok(html.includes('When you report a sign'));
+  assert.ok(html.includes('Jamie gets an email about it'));
+  assert.ok(html.includes('Updated 10 November 2026.'));
+});
+
+test('the house rules and help pages answer, are cached like the others, and every page links them', async () => {
+  const { app } = await setup();
+  const rules = await app.request('/rules');
+  assert.equal(rules.status, 200);
+  assert.equal(rules.headers.get('cache-control'), (await app.request('/privacy')).headers.get('cache-control'));
+  const r = await rules.text();
+  assert.ok(r.includes('<h1>House rules</h1>'));
+  assert.ok(r.includes('Road Sign Math is a free game Jamie Thingelstad makes for fun. Play nice.'));
+  assert.ok(r.includes('Never play while you drive. The passenger snaps the sign.'));
+  assert.ok(r.includes('<link rel="canonical" href="https://example.test/rules"'));
+  const support = await app.request('/support');
+  assert.equal(support.status, 200);
+  const h = await support.text();
+  assert.ok(h.includes('<h1>Help</h1>'));
+  assert.ok(h.includes('Send feedback'));
+  assert.ok(h.includes('Delete my account'));
+  assert.ok(h.includes('<a href="/rules">House rules</a>'));
+  assert.ok(h.includes('<a href="/privacy">Privacy</a>'));
+  for (const path of ['/', '/signs', '/about', '/nowhere']) {
+    const html = await (await app.request(path)).text();
+    assert.match(
+      html,
+      /<a href="\/privacy">Privacy<\/a><a href="\/rules">House rules<\/a><a href="\/support">Help<\/a>/,
+      path
+    );
+  }
+  const xml = await (await app.request('/sitemap.xml')).text();
+  for (const path of ['/rules', '/support']) assert.ok(xml.includes(`<loc>https://example.test${path}</loc>`), path);
+  // A slash on the end goes to the page, as everywhere else.
+  assert.equal((await app.request('/rules/')).status, 301);
+});
+
 test('the about page tells the story, links the archive and the beta, and every page links it', async () => {
   const { app } = await setup();
   const res = await app.request('/about');
@@ -94,7 +136,7 @@ test('every page names the Mastodon and Bluesky accounts new signs go to, rel=me
   const { app } = await setup();
   const mastodon = 'https://mastodon.social/@roadsignmath';
   const bluesky = 'https://bsky.app/profile/roadsignmath.xyz';
-  for (const path of ['/', '/signs', '/players', '/about', '/privacy', '/data']) {
+  for (const path of ['/', '/signs', '/players', '/about', '/privacy', '/rules', '/support', '/data']) {
     const html = await (await app.request(path)).text();
     for (const url of [mastodon, bluesky]) {
       assert.ok(html.includes(`<link rel="me" href="${url}"/>`), `${path} head: ${url}`);

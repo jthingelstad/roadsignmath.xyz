@@ -64,6 +64,8 @@ export function llmsTxt(data: OpenData): string {
     `- [About](${site}/about): the game’s story, from 2005 to the app, in Jamie’s words`,
     `- [Feeds and data](${site}/data): the feeds, the open files and the API for anyone building with the signs`,
     `- [Privacy](${site}/privacy): what the game keeps and who sees it`,
+    `- [House rules](${site}/rules): what can be posted, and that it’s a free hobby`,
+    `- [Help](${site}/support): how to reach Jamie and how to delete an account`,
     `- [iPhone app beta](${TESTFLIGHT_URL}): the app, where the game is played, through Apple’s TestFlight`,
     '',
     '## Follow',
