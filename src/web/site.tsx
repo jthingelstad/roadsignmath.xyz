@@ -23,7 +23,18 @@ import {
 import { BADGE_STYLE, BadgeCards, YearPlates } from './badges.tsx';
 import { BIMI_SVG, BRAND_FILES, HIGHWAY_SVG } from './brand.ts';
 import { CHIP_STYLE, Eq, Facts, finderNames, Heart, nearbyScript, Sep, SORT_NOTES, SortChips, Tile } from './cards.tsx';
-import { ARCHIVE_URL, Avatar, brandUrl, FOLLOW, Page, Phone, Plate, shortDay, TESTFLIGHT_URL } from './layout.tsx';
+import {
+  APP_STORE_URL,
+  AppStoreBadge,
+  ARCHIVE_URL,
+  Avatar,
+  BetaLink,
+  brandUrl,
+  FOLLOW,
+  Page,
+  Plate,
+  shortDay
+} from './layout.tsx';
 import { cluster, clusterName, countSigns, project, type Cluster } from './map.ts';
 import { mathSvg } from './math.ts';
 import { feedAlternates } from './feeds.ts';
@@ -182,6 +193,7 @@ ${CHIP_STYLE}
 #app li::before { content: ''; flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: #F2B300; transform: translateY(-2px); }
 #app .join { flex: 0 1 340px; display: flex; flex-direction: column; gap: 12px; }
 #app .join p { font-size: 15px; }
+#app .join p a { color: #fff; font-weight: 800; }
 `;
 
 /** On Home, the year chips and the pins swap the map's panel in place instead of loading the page again. */
@@ -681,8 +693,8 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
               Road Sign Math: The Dream Realized!
             </a>{' '}
             for the story of this one, and{' '}
-            <a href={TESTFLIGHT_URL} data-tinylytics-event="beta.join" data-tinylytics-event-value="about">
-              join the iPhone beta
+            <a href={APP_STORE_URL} data-tinylytics-event="app.store" data-tinylytics-event-value="about">
+              get the iPhone app
             </a>{' '}
             to play along. Questions are welcome at <a href="mailto:jamie@thingelstad.com">jamie@thingelstad.com</a>.
           </p>
@@ -839,7 +851,12 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
     c.header('Cache-Control', 'no-store');
     c.header('Referrer-Policy', 'no-referrer');
     return c.html(
-      <Page title="Sign in · Road Sign Math" description="Sign in to Road Sign Math in the iPhone app." count={false}>
+      <Page
+        title="Sign in · Road Sign Math"
+        description="Sign in to Road Sign Math in the iPhone app."
+        count={false}
+        banner={false}
+      >
         <main id="main" class="wrap" style="padding-top: 32px; padding-bottom: 48px; max-width: 720px">
           <h1>Sign in on your iPhone</h1>
           <p>
@@ -1078,21 +1095,10 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
                 </ul>
               </div>
               <div class="join">
-                <a
-                  class="testflight"
-                  href={TESTFLIGHT_URL}
-                  data-tinylytics-event="beta.join"
-                  data-tinylytics-event-value="home"
-                >
-                  <Phone size={22} />
-                  <span>
-                    Join the iPhone beta
-                    <small>Free, through Apple’s TestFlight</small>
-                  </span>
-                </a>
+                <AppStoreBadge from="home" />
                 <p>
-                  Open the link on your iPhone, install TestFlight if it asks, then tap Accept. It’s a beta: new
-                  versions arrive on their own, and you can send feedback right from TestFlight.
+                  Free for iPhone. Want new versions before everyone else? <BetaLink from="home" /> through Apple’s
+                  TestFlight.
                 </p>
                 <a href="/app" style="color: #fff; font-weight: 800">
                   More about the app

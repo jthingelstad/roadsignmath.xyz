@@ -6,7 +6,9 @@
 // Events (on in the site's Tinylytics settings, with the beacon so a click that leaves the page
 // still lands) count clicks on links tagged `data-tinylytics-event`, per click and never per
 // person: `app.get` for the links to the app section (value: `header`, or `sign` for a sign's
-// "Find another way in the app"), and `beta.join` for the TestFlight invite (value: `home`).
+// "Find another way in the app"), `app.store` for the App Store badge and links (value: where it
+// is, `home`, `app` or `about`), and `beta.join` for the TestFlight invite (value: `home`, `app`
+// or `faq`).
 
 export const TINYLYTICS_SITE = 'ryhTaXDDgZtyCktoVzzj';
 

@@ -10,7 +10,7 @@ import { STATES } from '../domain/geo.ts';
 import { playerStats } from '../api/views.ts';
 import { LICENSE, signRecord, type OpenData } from './data.ts';
 import { FEED_SIZE } from './feeds.ts';
-import { ARCHIVE_URL, FOLLOW, longDay, TESTFLIGHT_URL } from './layout.tsx';
+import { APP_STORE_URL, ARCHIVE_URL, FOLLOW, longDay, TESTFLIGHT_URL } from './layout.tsx';
 
 export const SOURCE_URL = 'https://github.com/jthingelstad/roadsignmath.xyz';
 
@@ -66,7 +66,8 @@ export function llmsTxt(data: OpenData): string {
     `- [Privacy](${site}/privacy): what the game keeps and who sees it`,
     `- [House rules](${site}/rules): what can be posted, and that it’s a free hobby`,
     `- [Help](${site}/support): how to reach Jamie and how to delete an account`,
-    `- [iPhone app beta](${TESTFLIGHT_URL}): the app, where the game is played, through Apple’s TestFlight`,
+    `- [iPhone app](${APP_STORE_URL}): the app, where the game is played, free on the App Store`,
+    `- [iPhone app beta](${TESTFLIGHT_URL}): early builds of the app, through Apple’s TestFlight`,
     '',
     '## Follow',
     '',
