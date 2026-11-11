@@ -1,11 +1,13 @@
 // /app: the iPhone app, as the design's App board draws it. Where "Get the app" goes: what the
-// app does (three of its screens), how to join the TestFlight beta (the link, and a QR code for
-// a reader on a computer), the questions people ask first, and how to play.
+// app does (three of its screens), Apple's App Store badge (and a QR code for a reader on a
+// computer), the TestFlight beta as a second way for early builds, the questions people ask
+// first, and how to play.
 
 import type { Hono } from 'hono';
 import type { Urls } from '../api/views.ts';
-import { APP_SHOTS, BETA_QR_SVG } from './app-assets.ts';
-import { Page, Phone, TESTFLIGHT_URL } from './layout.tsx';
+import { APP_QR_SVG, APP_SHOTS } from './app-assets.ts';
+import { APP_STORE_BADGE_SVG } from './app-store-badge.ts';
+import { AppStoreBadge, BetaLink, Page } from './layout.tsx';
 
 const DAY = 'public, max-age=86400';
 
@@ -17,12 +19,11 @@ const APP_STYLE = `
 .hero .wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 32px; }
 .hero .pitch { flex: 1 1 520px; display: flex; flex-direction: column; gap: 16px; }
 .kicker { margin: 0; display: flex; align-items: center; gap: 10px; font-size: 14px; letter-spacing: 0.18em; text-transform: uppercase; }
-.beta { padding: 2px 9px 0; border-radius: 999px; background: var(--yellow); color: #18201C; font-weight: 900; font-size: 12px;
-  letter-spacing: 0.06em; }
 .hero h1 { margin: 0; font-size: clamp(38px, 6.5vw, 56px); line-height: 1.02; }
 .hero .lead { margin: 0; font-size: 19px; max-width: 600px; color: #E3EFE9; }
 .hero .join { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
 .hero .join p { margin: 0; font-size: 15px; color: #E3EFE9; }
+.hero .join p a { color: #fff; font-weight: 800; }
 .qr { margin: 0; flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 10px; width: 196px; padding: 18px;
   background: #fff; border-radius: 16px; color: #18201C; font-size: 13px; line-height: 1.35; text-align: center; }
 .qr span, .qr svg { display: block; width: 156px; height: 156px; }
@@ -55,6 +56,7 @@ const APP_STYLE = `
 .faq div { padding: 16px 18px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
 .faq dt { font-weight: 800; }
 .faq dd { margin: 4px 0 0; color: var(--ink2); }
+.faq dd a { color: var(--green-ink); font-weight: 700; }
 .how { background: var(--ground); border-top: 1px solid var(--line); }
 .how .wrap { display: flex; flex-direction: column; gap: 24px; }
 .how ol { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 16px; }
@@ -86,7 +88,7 @@ const SHOTS = [
 ] as const;
 
 const FAQ = [
-  ['Does it cost anything?', 'No. The beta is free.'],
+  ['Does it cost anything?', 'No. The app is free.'],
   [
     'Do I need an account to look around?',
     'No. In the app you sign in only to post a sign, add a way or heart one. This site never asks you to.'
@@ -95,7 +97,14 @@ const FAQ = [
     'What will other people see?',
     'Your player name and photo, the signs you post with their photos, your math and your badges. Never your email.'
   ],
-  ['Android?', 'Not yet. This site shows every sign on any phone.']
+  ['Android?', 'Not yet. This site shows every sign on any phone.'],
+  [
+    'Can I get new versions early?',
+    <>
+      Yes. <BetaLink from="faq" /> through Apple’s TestFlight, and new builds reach you before the App Store. You can
+      send feedback right from TestFlight.
+    </>
+  ]
 ] as const;
 
 export function mountAppPage(site: Hono, { urls }: { urls: Urls }): void {
@@ -108,11 +117,15 @@ export function mountAppPage(site: Hono, { urls }: { urls: Urls }): void {
     );
   }
 
+  site.get('/app/app-store-badge.svg', (c) =>
+    c.body(APP_STORE_BADGE_SVG, 200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': DAY })
+  );
+
   site.get('/app', (c) =>
     c.html(
       <Page
         title="The iPhone app · Road Sign Math"
-        description="Road Sign Math lives in the iPhone app: point the camera at a sign, make its numbers true, and post it to the map. Join the free beta through TestFlight."
+        description="Road Sign Math lives in the iPhone app: point the camera at a sign, make its numbers true, and post it to the map. Free on the App Store."
         url={`${urls.site}/app`}
         here="app"
         style={APP_STYLE}
@@ -123,7 +136,6 @@ export function mountAppPage(site: Hono, { urls }: { urls: Urls }): void {
               <div class="pitch">
                 <p class="kicker">
                   <span class="mono">For iPhone</span>
-                  <span class="beta">Beta</span>
                 </p>
                 <h1>The game lives in the app.</h1>
                 <p class="lead">
@@ -131,28 +143,20 @@ export function mountAppPage(site: Hono, { urls }: { urls: Urls }): void {
                   here and in everyone’s app.
                 </p>
                 <div class="join">
-                  <a
-                    class="testflight"
-                    href={TESTFLIGHT_URL}
-                    data-tinylytics-event="beta.join"
-                    data-tinylytics-event-value="app"
-                  >
-                    <Phone size={22} />
-                    <span>
-                      Join the iPhone beta
-                      <small>Free, through Apple’s TestFlight</small>
-                    </span>
-                  </a>
-                  <p>Open this page on your iPhone, or scan the code.</p>
+                  <AppStoreBadge from="app" />
+                  <p>
+                    Free. Open this page on your iPhone, or scan the code. Want new versions early?{' '}
+                    <BetaLink from="app" />.
+                  </p>
                 </div>
               </div>
               <figure class="qr">
                 <span
                   role="img"
-                  aria-label="QR code for the iPhone beta"
-                  dangerouslySetInnerHTML={{ __html: BETA_QR_SVG }}
+                  aria-label="QR code for Road Sign Math on the App Store"
+                  dangerouslySetInnerHTML={{ __html: APP_QR_SVG }}
                 />
-                <figcaption>Scan with your iPhone camera to join the beta</figcaption>
+                <figcaption>Scan with your iPhone camera to get the app</figcaption>
               </figure>
             </div>
           </section>
@@ -183,27 +187,27 @@ export function mountAppPage(site: Hono, { urls }: { urls: Urls }): void {
           <section class="joining" aria-labelledby="join-h">
             <div class="wrap">
               <div>
-                <h2 id="join-h">Joining the beta</h2>
+                <h2 id="join-h">Getting started</h2>
                 <ol class="steps">
                   <li>
                     <span class="n mono" aria-hidden="true">
                       1
                     </span>
-                    <h3>Get TestFlight</h3>
-                    <p>Apple’s free app for trying beta apps. It’s in the App Store.</p>
+                    <h3>Get the app</h3>
+                    <p>Tap Download on the App Store on this page, or search the App Store for Road Sign Math.</p>
                   </li>
                   <li>
                     <span class="n mono" aria-hidden="true">
                       2
                     </span>
-                    <h3>Open the beta link on your iPhone</h3>
-                    <p>Tap Join the iPhone beta on this page, then Accept in TestFlight.</p>
+                    <h3>Look around</h3>
+                    <p>The map and every sign are there without an account.</p>
                   </li>
                   <li>
                     <span class="n mono" aria-hidden="true">
                       3
                     </span>
-                    <h3>Install and sign in</h3>
+                    <h3>Sign in to play</h3>
                     <p>Sign in with your email: the app sends a code and a link. There’s no password.</p>
                   </li>
                 </ol>

@@ -4,6 +4,7 @@
 // with its pins. Every page's <main> is `id="main"`, where the skip link goes.
 
 import type { FC, PropsWithChildren } from 'hono/jsx';
+import { APP_STORE_BADGE_SIZE } from './app-store-badge.ts';
 import { BRAND_VERSION, LOCKUP_SIZE } from './brand.ts';
 import { LICENSE } from './data.ts';
 import { mathSvg } from './math.ts';
@@ -11,7 +12,11 @@ import { CARD_HEIGHT, CARD_WIDTH, type Card } from './share.ts';
 import { TINYLYTICS_SCRIPT, TINYLYTICS_SITE } from './tinylytics.ts';
 
 export const ARCHIVE_URL = 'https://thingelstad.xyz/things/road-sign-math/';
-/** The public TestFlight invite for Jamie's Beta group: the way into the iPhone app until it's on the App Store. */
+/** The iPhone app's App Store id, which the Smart App Banner names. */
+export const APP_STORE_ID = '6829058896';
+/** The iPhone app on the App Store: where every "Get the app" ends up. */
+export const APP_STORE_URL = `https://apps.apple.com/us/app/road-sign-math/id${APP_STORE_ID}`;
+/** The public TestFlight invite for Jamie's Beta group: early builds, for players who want them first. */
 export const TESTFLIGHT_URL = 'https://testflight.apple.com/join/Httdw7ZY';
 /**
  * Where new signs are syndicated: Road Sign Math's own accounts. Every page names them with
@@ -62,11 +67,9 @@ h1, h2, h3 { font-weight: 900; letter-spacing: -0.01em; }
   background: var(--green); color: #fff; font-weight: 800; text-decoration: none; margin-left: auto; }
 .get:hover { background: var(--green-dark); color: #fff; }
 .get[aria-current] { background: var(--green-dark); box-shadow: 0 0 0 2px var(--page), 0 0 0 4px var(--green-dark); }
-.testflight { display: inline-flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 24px; border-radius: 14px;
-  background: #fff; color: #18201C; font-weight: 900; font-size: 18px; text-decoration: none; align-self: flex-start; }
-.testflight:hover { background: #F2B300; color: #18201C; }
-.testflight:focus-visible { outline: 3px solid #F2B300; outline-offset: 3px; }
-.testflight small { display: block; font-weight: 600; font-size: 14px; color: #3B4540; }
+.appstore { display: inline-block; align-self: flex-start; border-radius: 10px; line-height: 0; }
+.appstore img { display: block; width: auto; height: 54px; }
+.appstore:focus-visible { outline: 3px solid #F2B300; outline-offset: 4px; }
 
 .foot { border-top: 1px solid var(--line); }
 .foot .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px; padding-top: 28px; padding-bottom: 40px;
@@ -146,6 +149,11 @@ export type PageMeta = {
   here?: 'map' | 'signs' | 'players' | 'about' | 'app';
   /** Adds Tinylytics' counter. The sign-in page leaves it out: its URL carries the link's token. */
   count?: boolean;
+  /**
+   * Adds Safari's Smart App Banner for the iPhone app, naming the page's own address as what to
+   * open. The sign-in page leaves it out: that page is already the way back into the app.
+   */
+  banner?: boolean;
   /** Page-only CSS. */
   style?: string;
   /** A small script of the page's own, run after it loads. */
@@ -200,6 +208,25 @@ const Phone: FC<{ size?: number }> = ({ size = 18 }) => (
 );
 export { Phone };
 
+/** Apple's own badge (`/app/app-store-badge.svg`), 54 px tall, linking the app on the App Store. */
+export const AppStoreBadge: FC<{ from: string }> = ({ from }) => (
+  <a class="appstore" href={APP_STORE_URL} data-tinylytics-event="app.store" data-tinylytics-event-value={from}>
+    <img
+      src="/app/app-store-badge.svg"
+      alt="Download on the App Store"
+      width={String(Math.round((APP_STORE_BADGE_SIZE.width * 54) / APP_STORE_BADGE_SIZE.height))}
+      height="54"
+    />
+  </a>
+);
+
+/** The second way in: early builds through TestFlight, for players who want them first. */
+export const BetaLink: FC<{ from: string }> = ({ from }) => (
+  <a href={TESTFLIGHT_URL} data-tinylytics-event="beta.join" data-tinylytics-event-value={from}>
+    Try the beta
+  </a>
+);
+
 export const Page: FC<PropsWithChildren<PageMeta>> = ({
   title,
   description,
@@ -208,6 +235,7 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
   card,
   here,
   count = true,
+  banner = true,
   style = '',
   script,
   feeds = [],
@@ -220,6 +248,12 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
       <title>{title}</title>
       <meta name="description" content={description} />
       <meta name="theme-color" content="#006348" />
+      {banner && (
+        <meta
+          name="apple-itunes-app"
+          content={url ? `app-id=${APP_STORE_ID}, app-argument=${url}` : `app-id=${APP_STORE_ID}`}
+        />
+      )}
       <link rel="icon" href="/favicon.ico" sizes="48x48" />
       <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
       <link rel="apple-touch-icon" href="/apple-touch-icon.png" />

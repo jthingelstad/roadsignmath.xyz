@@ -6,8 +6,9 @@ import { MemoryMailer } from '../src/mail/mailer.ts';
 import { MemoryPhotoStore } from '../src/photos.ts';
 import { MemoryStore } from '../src/store/memory.ts';
 import { addPlayer, addSign } from '../src/store/store.ts';
-import { BETA_QR_FOR, BETA_QR_SVG } from '../src/web/app-assets.ts';
-import { TESTFLIGHT_URL } from '../src/web/layout.tsx';
+import { APP_QR_FOR, APP_QR_SVG } from '../src/web/app-assets.ts';
+import { APP_STORE_BADGE_SVG } from '../src/web/app-store-badge.ts';
+import { APP_STORE_URL } from '../src/web/layout.tsx';
 import { ada, ben, sign, way } from './support/fixtures.ts';
 import { ScriptedModerator } from './support/moderator.ts';
 
@@ -155,19 +156,34 @@ test('/players lists everyone with a sign or a badge, newest player first', asyn
   );
 });
 
-test('/app sends readers to the beta, with a code for a computer and three screens of the app', async () => {
+test('/app sends readers to the App Store, with a code for a computer, the beta second and three screens', async () => {
   const { app, page } = await setup();
   const { res, html } = await page('/app');
   assert.equal(res.status, 200);
   assert.match(
     html,
-    /<a class="testflight" href="https:\/\/testflight\.apple\.com\/join\/Httdw7ZY" data-tinylytics-event="beta\.join" data-tinylytics-event-value="app">/
+    /<a class="appstore" href="https:\/\/apps\.apple\.com\/us\/app\/road-sign-math\/id6829058896" data-tinylytics-event="app\.store" data-tinylytics-event-value="app"><img src="\/app\/app-store-badge\.svg" alt="Download on the App Store" width="162" height="54"\/><\/a>/
   );
+  // The beta stays, as the second way in, for early builds.
+  assert.match(
+    html,
+    /<a href="https:\/\/testflight\.apple\.com\/join\/Httdw7ZY" data-tinylytics-event="beta\.join" data-tinylytics-event-value="app">Try the beta<\/a>/
+  );
+  assert.match(html, /data-tinylytics-event="beta\.join" data-tinylytics-event-value="faq">Try the beta<\/a>/);
+  assert.ok(!html.includes('class="beta"'), 'no Beta pill');
+  assert.ok(!html.includes('Joining the beta'));
   assert.match(html, /<a class="get" href="\/app" aria-current="page"/);
-  assert.match(html, /<span role="img" aria-label="QR code for the iPhone beta"><svg /);
-  // The code is made for the beta's address; run `npm run app-assets` when it changes.
-  assert.equal(BETA_QR_FOR, TESTFLIGHT_URL);
-  assert.match(BETA_QR_SVG, /^<svg [^>]*viewBox="0 0 \d+ \d+"/);
+  assert.match(html, /<span role="img" aria-label="QR code for Road Sign Math on the App Store"><svg /);
+  // The code is made for the App Store address; run `npm run app-assets` when it changes.
+  assert.equal(APP_QR_FOR, APP_STORE_URL);
+  assert.match(APP_QR_SVG, /^<svg [^>]*viewBox="0 0 \d+ \d+"/);
+  // Apple's badge, served as supplied.
+  const badge = await app.request('/app/app-store-badge.svg');
+  assert.equal(badge.status, 200);
+  assert.equal(badge.headers.get('content-type'), 'image/svg+xml');
+  assert.equal(await badge.text(), APP_STORE_BADGE_SVG);
+  assert.match(APP_STORE_BADGE_SVG, /^<svg [^>]*viewBox="0 0 119\.66407 40"/);
+  assert.ok(!/<script|href=|<image/.test(APP_STORE_BADGE_SVG), 'paths only');
   for (const name of ['camera', 'sign', 'home']) {
     assert.match(
       html,

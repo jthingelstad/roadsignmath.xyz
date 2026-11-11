@@ -50,19 +50,39 @@ test('the home page lists shown signs, newest first, and is cached', async () =>
   );
 });
 
-test('home’s app section links the public TestFlight beta', async () => {
+test('home’s app section links the App Store, and the TestFlight beta second', async () => {
   const { app } = await setup();
   const html = await (await app.request('/')).text();
   assert.match(
     html,
-    /<a class="testflight" href="https:\/\/testflight\.apple\.com\/join\/Httdw7ZY" data-tinylytics-event="beta\.join" data-tinylytics-event-value="home">/
+    /<a class="appstore" href="https:\/\/apps\.apple\.com\/us\/app\/road-sign-math\/id6829058896" data-tinylytics-event="app\.store" data-tinylytics-event-value="home">/
+  );
+  assert.match(
+    html,
+    /<a href="https:\/\/testflight\.apple\.com\/join\/Httdw7ZY" data-tinylytics-event="beta\.join" data-tinylytics-event-value="home">Try the beta<\/a>/
   );
   // Tinylytics counts clicks on the way to the app.
   assert.match(
     html,
     /<a class="get" href="\/app" data-tinylytics-event="app\.get" data-tinylytics-event-value="header">/
   );
-  assert.ok(html.includes('Join the iPhone beta'));
+  assert.ok(!html.includes('Join the iPhone beta'));
+});
+
+test('every page but the sign-in link carries the Smart App Banner, opening the page itself', async () => {
+  const { app, slug } = await setup();
+  assert.match(
+    await (await app.request('/')).text(),
+    /<meta name="apple-itunes-app" content="app-id=6829058896, app-argument=https:\/\/example\.test\/?"\/>/
+  );
+  const path = `/signs/${slug('Newer Sign')}`;
+  assert.ok(
+    (await (await app.request(path)).text()).includes(
+      `<meta name="apple-itunes-app" content="app-id=6829058896, app-argument=https://example.test${path}"/>`
+    )
+  );
+  const signin = await (await app.request('/signin?l=01JLOGIN&t=secret-token-value')).text();
+  assert.ok(!signin.includes('apple-itunes-app'));
 });
 
 test('the privacy page says what is public and what is not, and every page links it', async () => {
@@ -117,14 +137,14 @@ test('the house rules and help pages answer, are cached like the others, and eve
   assert.equal((await app.request('/rules/')).status, 301);
 });
 
-test('the about page tells the story, links the archive and the beta, and every page links it', async () => {
+test('the about page tells the story, links the archive and the app, and every page links it', async () => {
   const { app } = await setup();
   const res = await app.request('/about');
   assert.equal(res.status, 200);
   const html = await res.text();
   assert.ok(html.includes('<h1>About</h1>'));
   assert.ok(html.includes('https://thingelstad.xyz/things/road-sign-math/'));
-  assert.match(html, /data-tinylytics-event="beta\.join" data-tinylytics-event-value="about"/);
+  assert.match(html, /data-tinylytics-event="app\.store" data-tinylytics-event-value="about"/);
   // No Genesis sign among the fixtures: the plate stands alone, with no link to a missing page.
   assert.ok(!html.includes('href="/signs/genesis"'));
   assert.match(await (await app.request('/')).text(), /<a href="\/about">About<\/a>/);
