@@ -117,14 +117,15 @@ async function setup() {
 const names = (html: string) =>
   [...html.matchAll(/<a class="pc" href="\/players\/[^"]+">.*?<h2>([^<]+)<\/h2>/g)].map((m) => m[1]);
 
-test('/players lists everyone with a sign or a badge, newest player first', async () => {
+test('/players lists everyone with a sign or a badge, the most signs first', async () => {
   const { page } = await setup();
   const { res, html } = await page('/players');
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('cache-control'), 'public, max-age=60, s-maxage=86400');
-  // Eve started by posting a sign in March 2026, Cy with a way in February, Ben with a sign in
-  // 2025, Ada in 2024; Dee has nothing yet.
-  assert.deepEqual(names(html), ['Eve', 'Cy', 'Ben', 'Ada']);
+  // Ada has two signs and Ben one. Eve and Cy have none of their own, so the newer player comes
+  // first: Eve started by posting a sign in March 2026, Cy with a way in February. Dee has nothing yet.
+  assert.deepEqual(names(html), ['Ada', 'Ben', 'Eve', 'Cy']);
+  assert.match(html, /the most signs first/);
   assert.match(html, /<a href="\/players" aria-current="page">Players<\/a>/);
   // A bio stands in for when they started.
   assert.match(html, /<h2>Ada<\/h2><span class="sub">Counts everything\.<\/span>/);

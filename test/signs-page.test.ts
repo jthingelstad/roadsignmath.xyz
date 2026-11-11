@@ -96,7 +96,7 @@ async function setup(extra = 0) {
     const res = await app.request(path);
     return { res, html: await res.text() };
   };
-  return { page };
+  return { page, app };
 }
 
 /** The sign titles on a page, in the order they appear on cards. */
@@ -148,19 +148,17 @@ test('/signs filters by year and state, and every link keeps the other choices',
   assert.ok(none.includes('No signs match yet.'));
 });
 
-test('Home shows twelve signs in the chosen sort, then a link to all of them', async () => {
-  const { page } = await setup(10);
+test('Home shows the twelve newest signs; its sorts open the Signs page', async () => {
+  const { page, app } = await setup(10);
   const home = (await page('/')).html;
   assert.equal(titles(home).length, 12);
   assert.match(home, /<a class="all" href="\/signs">All 14 signs<\/a>/);
-  assert.match(home, /<a class="chip" href="\/\?sort=popular#signs" data-sort="popular">Popular<\/a>/);
-  const complex = (await page('/?sort=complexity')).html;
-  assert.deepEqual(titles(complex).slice(0, 2), ['Root', 'Fraction']);
-  assert.match(complex, /<a class="all" href="\/signs\?sort=complexity">All 14 signs<\/a>/);
-  // Nearby lists every sign so the browser can bring the closest up; past twelve wait hidden.
-  const near = (await page('/?sort=nearby')).html;
-  assert.equal(titles(near).length, 14);
-  assert.equal((near.match(/<li class="tile" hidden=""/g) ?? []).length, 2);
+  assert.match(home, /<a class="chip" href="\/signs\?sort=popular" data-sort="popular">Popular<\/a>/);
+  // An old link to a sorted Home goes to the Signs page in that sort.
+  const res = await app.request('/?sort=complexity');
+  assert.equal(res.status, 301);
+  assert.equal(res.headers.get('location'), '/signs?sort=complexity');
+  assert.equal((await app.request('/?sort=latest')).status, 200);
 });
 
 test('the sitemap lists /signs', async () => {

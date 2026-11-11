@@ -6,6 +6,7 @@ import { MemoryPhotoStore } from '../src/photos.ts';
 import { MemoryStore } from '../src/store/memory.ts';
 import { addPlayer } from '../src/store/store.ts';
 import { HIGHWAY_SVG } from '../src/web/brand.ts';
+import { MAP_LIBRARIES, MAP_TILES } from '../src/web/home-map.ts';
 import { ScriptedModerator } from './support/moderator.ts';
 import { ada, sign, way } from './support/fixtures.ts';
 
@@ -320,7 +321,12 @@ test('home puts every shown sign on the map: pins, clusters, the year filter and
   );
   assert.match(html, /<a class="pin" href="\/\?at=far-away#map"[^>]*aria-label="Far Away town: 1 sign"/);
   assert.ok(html.includes(`<h2 id="picked-h">Minnesota${SEP}2 signs</h2>`));
-  assert.match(html, /Not on the map: <a href="\/signs\/nowhere">Nowhere<\/a> \(Somewhere on I-90\)/);
+  assert.match(
+    html,
+    /Not on the map: <span class="np"><a href="\/signs\/nowhere">Nowhere<\/a> \(Somewhere on I-90\)<\/span>/
+  );
+  // Signs the picture can't place but the moving map can are marked for its script to take off the list.
+  assert.ok(!html.includes('<span class="np" data-onmap'));
   assert.ok(html.includes(`<a href="/?year=2025#map" data-map="">2025${SEP}1</a>`));
   assert.match(html, /<dd class="mono p-sign-count">4<\/dd>/);
 
@@ -348,6 +354,41 @@ test('home reads in a phone’s order: the pitch, the map, then who’s playing'
   // The picture of the map itself comes before the first player.
   assert.ok(at('src="/us-map.svg"') < at('id="who-h"'));
   assert.match(html, /grid-template-areas: "intro" "map" "who"/);
+});
+
+test('home lists the first ten players, then a link to all of them, and loads the moving map checked', async () => {
+  const store = new MemoryStore();
+  for (let i = 0; i < 12; i++) {
+    const n = String(i).padStart(2, '0');
+    const id = `01JP00000000000000000000${n}`;
+    await addPlayer(store, { ...ada, id, handle: `p${n}`, name: `Player ${n}`, email: `p${n}@example.com` });
+    await store.putSign(
+      sign({
+        id: `01JS00000000000000000001${n}`,
+        title: `Sign ${n}`,
+        postedBy: id,
+        finders: [{ playerId: id, name: `Player ${n}`, role: 'found' }]
+      })
+    );
+  }
+  const app = createApp({
+    store,
+    urls: { site: 'https://example.test' },
+    mailer: new MemoryMailer(),
+    photos: new MemoryPhotoStore(),
+    moderator: new ScriptedModerator()
+  });
+  const html = await (await app.request('/')).text();
+  const who = html.slice(html.indexOf('id="who-h"'), html.indexOf('id="signs"'));
+  assert.equal((who.match(/href="\/players\/p\d\d"/g) ?? []).length, 10);
+  assert.match(who, /<a class="everyone" href="\/players">All 12 players<\/a>/);
+  for (const lib of Object.values(MAP_LIBRARIES).flat()) {
+    assert.ok(html.includes(lib.integrity), 'each library is checked by its hash');
+  }
+  assert.ok(html.includes(MAP_TILES.url));
+  // The privacy page names the tiles' host.
+  const privacy = await (await app.request('/privacy')).text();
+  assert.match(privacy, /OpenStreetMap draws the map on the home page/);
 });
 
 test('robots.txt points to the sitemap, which lists every page that answers and none that do not', async () => {

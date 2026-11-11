@@ -63,6 +63,13 @@ h1, h2, h3 { font-weight: 900; letter-spacing: -0.01em; }
 .top nav a { color: var(--ink); text-decoration: none; padding: 10px 0; border-bottom: 3px solid transparent; }
 .top nav a[aria-current] { border-bottom-color: var(--green); }
 @media (min-width: 760px) { .top nav { order: 0; width: auto; } }
+/* On a phone the logo and Get the app share the first row and the links take the second: a
+   smaller logo and button leave room at 375 px. */
+@media (max-width: 759px) {
+  .top .wrap { column-gap: 12px; }
+  .top .lockup img { height: 34px; }
+  .top .get { flex: 0 0 auto; padding: 0 14px; font-size: 15px; }
+}
 .get { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 18px; border-radius: 10px;
   background: var(--green); color: #fff; font-weight: 800; text-decoration: none; margin-left: auto; }
 .get:hover { background: var(--green-dark); color: #fff; }

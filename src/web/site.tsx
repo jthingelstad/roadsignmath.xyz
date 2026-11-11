@@ -22,7 +22,7 @@ import {
 } from '../api/views.ts';
 import { BADGE_STYLE, BadgeCards, YearPlates } from './badges.tsx';
 import { BIMI_SVG, BRAND_FILES, HIGHWAY_SVG } from './brand.ts';
-import { CHIP_STYLE, Eq, Facts, finderNames, Heart, nearbyScript, Sep, SORT_NOTES, SortChips, Tile } from './cards.tsx';
+import { CHIP_STYLE, Eq, Facts, finderNames, Heart, Sep, SORT_NOTES, SortChips, Tile } from './cards.tsx';
 import {
   APP_STORE_URL,
   AppStoreBadge,
@@ -35,6 +35,7 @@ import {
   Plate,
   shortDay
 } from './layout.tsx';
+import { HOME_MAP_SCRIPT, HOME_MAP_STYLE } from './home-map.ts';
 import { cluster, clusterName, countSigns, project, type Cluster } from './map.ts';
 import { mathSvg } from './math.ts';
 import { feedAlternates } from './feeds.ts';
@@ -43,8 +44,8 @@ import { homeCard, pinValue, playerCard, signCard } from './share.ts';
 import { mountAppPage } from './app-page.tsx';
 import { mountIcons } from './icons.ts';
 import { mountPlayers, playingSince } from './players.tsx';
-import { mountSigns, waysFor } from './signs.tsx';
-import { sortOf, sortSigns } from './sorts.ts';
+import { mountSigns } from './signs.tsx';
+import { sortOf } from './sorts.ts';
 import { PAGE_CACHE, POPULAR_CACHE } from '../edge-cache.ts';
 import { US_BORDERS, US_LAND, US_MAP_SIZE } from './us-map.ts';
 
@@ -90,15 +91,18 @@ const Pins: FC<{ clusters: Cluster[]; href: (c: Cluster) => string; on?: string 
   </>
 );
 
+/**
+ * Signs the picture can't place. One with a place (off the picture, like a sign abroad) is marked
+ * `data-onmap`: Home's moving map places it, and its script takes it off this list.
+ */
 const NoPin: FC<{ signs: Sign[] }> = ({ signs }) =>
   signs.length ? (
     <p class="nopin soft">
       Not on the map:{' '}
-      {signs.map((s, i) => (
-        <>
-          {i > 0 && '; '}
+      {signs.map((s) => (
+        <span class="np" data-onmap={s.place.lat !== undefined && s.place.lng !== undefined ? '' : undefined}>
           <a href={`/signs/${s.slug}`}>{s.title}</a> ({s.place.label})
-        </>
+        </span>
       ))}
       .
     </p>
@@ -127,6 +131,8 @@ const THINGS_URL = 'https://thingelstad.xyz/things/';
 
 /** Signs in Home's list; the rest are a click away on /signs. */
 const HOME_SIGNS = 12;
+/** Players in Home's Who's playing; the rest are a click away on /players. */
+const HOME_PLAYERS = 10;
 
 const HOME_STYLE = `
 .hero { background: var(--ground); border-bottom: 1px solid var(--line); scroll-margin-top: 0; }
@@ -152,6 +158,7 @@ const HOME_STYLE = `
 .who a { display: flex; align-items: center; gap: 12px; min-height: 48px; text-decoration: none; color: var(--ink); }
 .who a b { flex: 1; text-decoration: underline; text-decoration-color: var(--line2); text-underline-offset: 3px; }
 .who a span.soft { font-size: 14px; }
+.who .everyone { display: inline-block; margin-top: 6px; font-weight: 800; }
 #map-panel { grid-area: map; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
 .years { display: flex; flex-wrap: wrap; gap: 8px; }
 .years a { display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border-radius: 999px;
@@ -196,11 +203,16 @@ ${CHIP_STYLE}
 #app .join p a { color: #fff; font-weight: 800; }
 `;
 
-/** On Home, the year chips and the pins swap the map's panel in place instead of loading the page again. */
+/**
+ * On Home, the year chips and the pins swap the map's panel in place instead of loading the page
+ * again. This is the picture's way; once the moving map loads (home-map.ts) it takes over.
+ */
 const HOME_SCRIPT = `
 document.addEventListener('click', async (e) => {
   const link = e.target.closest && e.target.closest('a[data-map]');
   if (!link || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+  // Once the moving map is up (home-map.ts), its script has the year chips.
+  if (document.querySelector('#map-panel[data-live]')) return;
   e.preventDefault();
   try {
     const res = await fetch(link.href, { headers: { Accept: 'text/html' } });
@@ -746,6 +758,7 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
               cookies.
             </li>
             <li>Buttondown sends the newsletter. The game gives it your email address and nothing else.</li>
+            <li>OpenStreetMap draws the map on the home page: your browser fetches the map’s tiles from it.</li>
           </ul>
           <h2>Reports</h2>
           <p>
@@ -872,13 +885,11 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
   });
 
   site.get('/', async (c) => {
+    // Home lists the latest signs; each sort is the Signs page's, so an old sorted Home link goes there.
+    const asked = c.req.query('sort');
+    if (asked && sortOf(asked) !== 'latest') return c.redirect(`/signs?sort=${sortOf(asked)}`, 301);
     const [signs, everyone] = await Promise.all([store.allSigns(), people()]);
     const shown = signs.filter(isPublic).sort(byNewest);
-    const sort = sortOf(c.req.query('sort'));
-    const listed = sortSigns(shown, sort, {
-      counts: sort === 'popular' ? await counts() : undefined,
-      ways: sort === 'complexity' ? await waysFor(store, shown) : undefined
-    });
     const yearOf = (s: Sign) => s.foundOn.slice(0, 4);
     const years = [...new Set(shown.map(yearOf))].sort().reverse();
     const year = years.find((y) => y === c.req.query('year'));
@@ -910,8 +921,8 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
         url={`${urls.site}/`}
         card={homeCard({ signCount: shown.length, playerCount: players.length, stateCount: states.size, pins })}
         here="map"
-        style={HOME_STYLE}
-        script={HOME_SCRIPT + (sort === 'nearby' ? nearbyScript(HOME_SIGNS) : '')}
+        style={HOME_STYLE + HOME_MAP_STYLE}
+        script={HOME_SCRIPT + HOME_MAP_SCRIPT}
       >
         <main id="main">
           <section id="map" class="hero h-feed" aria-labelledby="hero-h">
@@ -929,7 +940,7 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
                 </h1>
                 <p>
                   Spot a road sign with numbers on it, then use those numbers to write something true. These are the
-                  signs players have found. Tap a pin to see them.
+                  signs players have found, around the world. Tap a pin to see them.
                 </p>
                 <dl class="stats">
                   <div>
@@ -997,7 +1008,7 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
                 <section class="who" aria-labelledby="who-h">
                   <h2 id="who-h">Who’s playing</h2>
                   <ul>
-                    {players.map(({ player, count }) => (
+                    {players.slice(0, HOME_PLAYERS).map(({ player, count }) => (
                       <li>
                         <a href={`/players/${player.handle}`}>
                           <Avatar name={player.name} color={player.avatarColor} photo={player.avatar} />
@@ -1007,6 +1018,11 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
                       </li>
                     ))}
                   </ul>
+                  {players.length > HOME_PLAYERS && (
+                    <a class="everyone" href="/players">
+                      All {players.length} players
+                    </a>
+                  )}
                 </section>
               )}
             </div>
@@ -1016,27 +1032,19 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
             <div class="wrap">
               <div class="lede">
                 <h2 id="signs-h">Signs</h2>
-                <SortChips on={sort} href={(key) => (key === 'latest' ? '/#signs' : `/?sort=${key}#signs`)} />
+                {/* Each sort opens on the Signs page, which has room for every sign. */}
+                <SortChips on="latest" href={(key) => (key === 'latest' ? '/signs' : `/signs?sort=${key}`)} />
               </div>
               <div class="sortline">
-                <p class="sortnote">
-                  {SORT_NOTES[sort]}
-                  {sort === 'latest' && ' Every sign posted from the app shows up here.'}
-                </p>
-                {sort === 'nearby' && (
-                  <button type="button" class="locate" hidden>
-                    Use my location
-                  </button>
-                )}
+                <p class="sortnote">{SORT_NOTES.latest} Every sign posted from the app shows up here.</p>
               </div>
-              {/* Nearby lists every sign, the rest hidden, so the browser can bring the closest up. */}
-              <ul class="tiles" data-nearby={sort === 'nearby' ? '' : undefined}>
-                {(sort === 'nearby' ? listed : listed.slice(0, HOME_SIGNS)).map((s, i) => (
-                  <Tile sign={card(s)} place hidden={i >= HOME_SIGNS} />
+              <ul class="tiles">
+                {shown.slice(0, HOME_SIGNS).map((s) => (
+                  <Tile sign={card(s)} place />
                 ))}
               </ul>
               {shown.length > HOME_SIGNS && (
-                <a class="all" href={sort === 'latest' ? '/signs' : `/signs?sort=${sort}`}>
+                <a class="all" href="/signs">
                   All {shown.length} signs
                 </a>
               )}
