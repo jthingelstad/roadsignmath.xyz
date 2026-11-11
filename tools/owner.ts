@@ -4,6 +4,8 @@
 //   npm run owner -- hide-sign <slug> --to live          hide it (a live write: the owner's)
 //   npm run owner -- hide-sign <slug> --to live --note "…"   with the note its poster sees
 //   npm run owner -- unhide-sign <slug> --to check|live  show a hidden or held sign again
+//   npm run owner -- set-place <slug> --lat=41.575 --lng=-87.26 [--label "…"] [--state IN] [--approximate] --to check|live
+//                                                       put a sign on the map (a label or state left out stays)
 //   npm run owner -- remove-player <handle> --to check   read only: what removing them would delete
 //   TINYLYTICS_API_KEY=… BUTTONDOWN_API_KEY=… npm run owner -- remove-player <handle> --to live
 //
@@ -26,12 +28,21 @@ import { KeyedTinylytics } from '../src/tinylytics.ts';
 const USAGE = [
   'Usage: npm run owner -- hide-sign <slug> --to check|live [--note "…"]',
   '       npm run owner -- unhide-sign <slug> --to check|live',
+  '       npm run owner -- set-place <slug> --lat=<n> --lng=<n> [--label "…"] [--state XX] [--approximate] --to check|live',
   '       npm run owner -- remove-player <handle> --to check|live'
 ].join('\n');
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
-  options: { to: { type: 'string' }, note: { type: 'string' } }
+  options: {
+    to: { type: 'string' },
+    note: { type: 'string' },
+    lat: { type: 'string' },
+    lng: { type: 'string' },
+    label: { type: 'string' },
+    state: { type: 'string' },
+    approximate: { type: 'boolean' }
+  }
 });
 const [command, target] = positionals;
 if (
@@ -72,7 +83,16 @@ try {
     command as OwnerCommand,
     target,
     live ? 'live' : 'check',
-    { note: values.note }
+    {
+      note: values.note,
+      place: {
+        lat: values.lat === undefined ? undefined : Number(values.lat),
+        lng: values.lng === undefined ? undefined : Number(values.lng),
+        label: values.label,
+        state: values.state,
+        approximate: values.approximate
+      }
+    }
   );
   for (const line of lines) console.log(line);
 } catch (err) {

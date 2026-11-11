@@ -6,6 +6,8 @@
 //   CloudFront, the sign is `hidden`, so it leaves the site, the feeds, the open data and the API
 //   for everyone but its poster, who sees the note.
 // - unhide-sign <slug>: a hidden or held sign is shown again (`unhideSign`).
+// - set-place <slug>: puts the sign where the owner says, with its label, state and whether the pin is
+//   only approximate (Jamie, 2026-11-11, placing the signs abroad and Gross Vehicle Weight).
 // - remove-player <handle>: exactly what `DELETE /me` does (`removePlayer`): the account and
 //   everything it made, their hearts' kudos first, then their address leaves the newsletter.
 //
@@ -14,7 +16,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { removePlayer } from './auth/account.ts';
-import type { Player, Sign } from './domain/types.ts';
+import type { Place, Player, Sign } from './domain/types.ts';
 import type { EdgeCache } from './edge-cache.ts';
 import type { Newsletter } from './newsletter.ts';
 import type { PhotoStore } from './photos.ts';
@@ -22,7 +24,7 @@ import { hideSign, unhideSign } from './posting/posting.ts';
 import type { Store } from './store/store.ts';
 import type { Tinylytics } from './tinylytics.ts';
 
-export const OWNER_COMMANDS = ['hide-sign', 'unhide-sign', 'remove-player'] as const;
+export const OWNER_COMMANDS = ['hide-sign', 'unhide-sign', 'set-place', 'remove-player'] as const;
 export type OwnerCommand = (typeof OWNER_COMMANDS)[number];
 export type OwnerMode = 'check' | 'live';
 
@@ -45,6 +47,8 @@ const refuse = (message: string): never => {
   throw new OwnerRefused(message);
 };
 
+const where = (p: Place) =>
+  `${p.label}${p.state ? ` [${p.state}]` : ''}, ${p.lat === undefined ? 'no pin' : `${p.lat}, ${p.lng}`}${p.approximate ? ' (approximate)' : ''}`;
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const named = (p: Player | undefined) =>
   !p ? 'a player no longer here' : p.name ? `${p.name} (@${p.handle})` : `@${p.handle}`;
@@ -107,7 +111,7 @@ export async function runOwner(
   command: OwnerCommand,
   target: string,
   mode: OwnerMode,
-  options: { note?: string } = {}
+  options: { note?: string; place?: Partial<Place> } = {}
 ): Promise<string[]> {
   const { store } = deps;
   const out: string[] = [];
@@ -145,6 +149,30 @@ export async function runOwner(
       await thenClear(deps, out, async () => {
         await unhideSign(deps, fresh);
         out.push('Shown.');
+      });
+    });
+    return out;
+  }
+
+  if (command === 'set-place') {
+    const sign = await signBySlug(store, target);
+    out.push(await describeSign(store, sign));
+    const given = options.place ?? {};
+    const { lat, lng } = given;
+    if (lat === undefined || lng === undefined || !Number.isFinite(lat) || !Number.isFinite(lng))
+      refuse('set-place needs --lat and --lng');
+    if (Math.abs(lat!) > 90 || Math.abs(lng!) > 180) refuse(`${lat}, ${lng} is not a place on Earth`);
+    const label = given.label?.trim() || sign.place.label;
+    const state = given.state === undefined ? sign.place.state : given.state.trim().toUpperCase() || undefined;
+    if (state !== undefined && !/^[A-Z]{2}$/.test(state)) refuse(`${state} is not a two-letter state`);
+    const place: Place = { label, ...(state ? { state } : {}), lat, lng, approximate: given.approximate ?? false };
+    out.push(`Now: ${where(sign.place)}`);
+    out.push(`${live ? 'Moving it to' : 'Would move it to'}: ${where(place)}`);
+    if (!live) return out;
+    await underReportLease(store, sign, async () => {
+      await thenClear(deps, out, async () => {
+        if (!(await store.updateSign(sign.id, { place }))) refuse('The sign is gone');
+        out.push('Moved.');
       });
     });
     return out;
