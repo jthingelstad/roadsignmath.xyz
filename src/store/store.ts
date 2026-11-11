@@ -21,6 +21,8 @@ export type SignChanges = {
   wayCount?: number;
   firstWay?: Sign['firstWay'] | null;
   moderation?: Sign['moderation'] | null;
+  /** Replaces the whole place (the owner's `set-place`). */
+  place?: Sign['place'];
 };
 
 /**

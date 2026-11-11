@@ -38,6 +38,8 @@ export type ArchiveSeed = {
       way?: string;
       numbers?: string[];
       coordinates?: [number, number];
+      /** Where the sign is, when the archive named the wrong place. */
+      label?: string;
       approximate?: boolean;
       /** The caption to use instead of the post's own words; null for none. */
       caption?: string | null;
@@ -183,7 +185,7 @@ function placeOf(post: ArchivePost, fix: ArchiveSeed['fixes'][string] | undefine
   const code = !country || country === 'United States' ? STATE_CODES.get(region ?? '') : undefined;
   const [lat, lng] = fix?.coordinates ?? coordinates ?? [];
   return {
-    label,
+    label: fix?.label ?? label,
     ...(code ? { state: code } : {}),
     ...(typeof lat === 'number' && typeof lng === 'number' ? { lat, lng } : {}),
     approximate: fix?.approximate ?? false

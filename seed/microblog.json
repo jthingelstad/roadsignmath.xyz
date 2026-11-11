@@ -93,7 +93,10 @@
         }
       ],
       "place": {
-        "label": "Along I-80/I-90 East"
+        "label": "Along I-80/I-90 East",
+        "state": "IN",
+        "lat": 41.575,
+        "lng": -87.26
       },
       "alt": [
         "A white speed limit sign beside I-80 and I-90 East: cars 70, trucks over 13 tons declared gross weight 65, minimum 45."

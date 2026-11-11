@@ -54,7 +54,7 @@ test('pages are kept a day at the edge, Popular six hours, and the API a minute'
   }
   assert.equal(PAGE_CACHE, 'public, max-age=60, s-maxage=86400');
   assert.equal(POPULAR_CACHE, 'public, max-age=60, s-maxage=21600');
-  for (const path of ['/?sort=popular', '/signs?sort=popular&year=2026']) {
+  for (const path of ['/signs?sort=popular', '/signs?sort=popular&year=2026']) {
     assert.equal((await app.request(path)).headers.get('cache-control'), POPULAR_CACHE, path);
   }
   assert.equal((await app.request('/api/v1/signs')).headers.get('cache-control'), 'public, max-age=60');

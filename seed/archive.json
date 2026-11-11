@@ -25,13 +25,33 @@
   },
   "fixes": {
     "2005-04-23-exit-20-to-haifa": {
-      "approximate": true
+      "approximate": false,
+      "coordinates": [32.14, 34.81]
     },
     "2005-08-05-china-root": {
-      "approximate": true
+      "approximate": false,
+      "coordinates": [36.11, 120.35]
+    },
+    "2005-09-16-madrid-math": {
+      "coordinates": [40.481, -3.668],
+      "label": "Madrid, Spain"
     },
     "2005-09-23-dinosaur-math": {
       "way": "62 − 7 + 20 = 65 + 50 + 10 − (5 × 10)"
+    },
+    "2005-11-20-begin-blvd": {
+      "coordinates": [31.8, 35.2]
+    },
+    "2005-11-20-no-standing-down-under": {
+      "coordinates": [-37.814, 144.963],
+      "label": "Melbourne, Victoria, Australia",
+      "approximate": true
+    },
+    "2005-11-20-taiwan-identity": {
+      "coordinates": [22.99, 120.21]
+    },
+    "2005-11-21-no-standing-down-under-ii": {
+      "coordinates": [-37.845, 144.97]
     },
     "2005-12-11-westminster": {
       "way": "√(√(√(140 + 140 − 21 + 5 − (2 × 2 × 2)))) = 2"
@@ -44,6 +64,9 @@
     },
     "2011-08-15-village-creek": {
       "caption": null
+    },
+    "2012-10-19-bifröst": {
+      "coordinates": [64.8, -21.47]
     },
     "2014-01-07-cloutierville": {
       "way": "119 ÷ 119 = 1"

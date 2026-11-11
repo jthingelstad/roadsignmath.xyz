@@ -153,6 +153,56 @@ test('a hide waits for a report being looked at, and an unknown sign or player i
   await assert.rejects(runOwner(deps, 'remove-player', 'nobody', 'check'), /No player @nobody/);
 });
 
+test('set-place --to check says where the sign would go and writes nothing', async () => {
+  const { store, edgeCache, deps } = await setup();
+  const before = await snapshot(store);
+  const lines = await runOwner(deps, 'set-place', 'exit-seven', 'check', {
+    place: { lat: -37.814, lng: 144.963, label: 'Melbourne, Victoria, Australia', state: '', approximate: true }
+  });
+  assert.deepEqual(lines.slice(1), [
+    'Now: Testville, Minnesota [MN], 44.98, -93.27 (approximate)',
+    'Would move it to: Melbourne, Victoria, Australia, -37.814, 144.963 (approximate)'
+  ]);
+  assert.equal(await snapshot(store), before);
+  assert.equal(edgeCache.clears, 0);
+});
+
+test('set-place --to live moves the sign on the map, keeps a label or state left out, and clears the edge', async () => {
+  const { store, edgeCache, deps, app } = await setup();
+  const lines = await runOwner(deps, 'set-place', 'exit-seven', 'live', {
+    place: { lat: 41.575, lng: -87.26, state: 'in' }
+  });
+  assert.deepEqual(lines.slice(-2), ['Moved.', 'Cleared the edge.']);
+  assert.deepEqual((await store.getSign(S1))!.place, {
+    label: 'Testville, Minnesota',
+    state: 'IN',
+    lat: 41.575,
+    lng: -87.26,
+    approximate: false
+  });
+  assert.equal(edgeCache.clears, 1);
+  const geo = (await (await app.request('/signs.geojson')).json()) as {
+    features: { properties: { slug: string }; geometry: { coordinates: number[] } }[];
+  };
+  const moved = geo.features.find((f) => f.properties.slug === 'exit-seven')!;
+  assert.deepEqual(moved.geometry.coordinates, [-87.26, 41.575]);
+});
+
+test('set-place refuses a missing or impossible place, or a state that is not two letters, and writes nothing', async () => {
+  const { store, deps } = await setup();
+  const before = await snapshot(store);
+  for (const place of [
+    { lat: 41 },
+    { lat: 91, lng: 0 },
+    { lat: Number.NaN, lng: 0 },
+    { lat: 41, lng: -87, state: 'Indiana' }
+  ]) {
+    await assert.rejects(runOwner(deps, 'set-place', 'exit-seven', 'live', { place }), OwnerRefused);
+  }
+  await assert.rejects(runOwner(deps, 'set-place', 'nothing', 'live', { place: { lat: 1, lng: 1 } }), OwnerRefused);
+  assert.equal(await snapshot(store), before);
+});
+
 test('remove-player --to check counts what would go, never prints the address, and writes nothing', async () => {
   const { store, tinylytics, newsletter, edgeCache, deps } = await setup();
   const before = await snapshot(store);

@@ -1,8 +1,8 @@
-// /players: everyone with a sign or a badge on the map, newest player first, as the design's
+// /players: everyone with a sign or a badge on the map, the most signs first, as the design's
 // Players board draws it. A card per player with their face, how long they've played (or their
 // bio), their signs and states, and their newest sign's math on its plate. Earned badges are on
-// the player's own page; a count of them is never shown (AGENTS.md, Badges). No ranks: the
-// order is when each player started, never how much they've done.
+// the player's own page; a count of them is never shown (AGENTS.md, Badges). The order is by
+// signs found (Jamie, 2026-11-11), newest player first among equals; no rank or place is shown.
 
 import type { Hono } from 'hono';
 import { byNewest, isPublic, playerStats, type People, type Urls } from '../api/views.ts';
@@ -68,7 +68,10 @@ export function playingSince(player: Player, shown: Sign[], ways: Map<string, Wa
   return days[0] ?? null;
 }
 
-/** Everyone with a name and a sign or a badge on the map: the same test as their own page. */
+/**
+ * Everyone with a name and a sign or a badge on the map (the same test as their own page), the
+ * most signs first, then the newest player, then by name.
+ */
 export function playerRows(everyone: People, shown: Sign[], ways: Map<string, Way[]>): Row[] {
   const allWays = [...ways.values()].flat();
   const tex = (text: string) => ({ text, tex: texOf(text) ?? null });
@@ -93,7 +96,12 @@ export function playerRows(everyone: People, shown: Sign[], ways: Map<string, Wa
           : post && { sign: post, label: 'Newest post', way: post.firstWay ? tex(post.firstWay.text) : null };
       return [{ player, stats, since: since ?? '', ...(newest && { newest }) }];
     })
-    .sort((a, b) => b.since.localeCompare(a.since) || a.player.name.localeCompare(b.player.name));
+    .sort(
+      (a, b) =>
+        b.stats.sign_count - a.stats.sign_count ||
+        b.since.localeCompare(a.since) ||
+        a.player.name.localeCompare(b.player.name)
+    );
 }
 
 export function mountPlayers(
@@ -116,7 +124,7 @@ export function mountPlayers(
           <div class="wrap">
             <div>
               <h1>Players</h1>
-              <p class="lead">Everyone with a sign or a badge on the map, newest player first.</p>
+              <p class="lead">Everyone with a sign or a badge on the map, the most signs first.</p>
             </div>
             {rows.length > 0 ? (
               <ul class="people">

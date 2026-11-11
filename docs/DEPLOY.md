@@ -199,6 +199,7 @@ owner commands below for that sign. There is no admin website; Jamie acts from t
 npm run owner -- hide-sign <slug> --to check            # read only: what would change
 npm run owner -- hide-sign <slug> --to live [--note "…"]
 npm run owner -- unhide-sign <slug> --to check|live
+npm run owner -- set-place <slug> --lat=<n> --lng=<n> [--label "…"] [--state XX] [--approximate] --to check|live
 npm run owner -- remove-player <handle> --to check
 TINYLYTICS_API_KEY=… BUTTONDOWN_API_KEY=… npm run owner -- remove-player <handle> --to live
 ```
@@ -208,6 +209,9 @@ TINYLYTICS_API_KEY=… BUTTONDOWN_API_KEY=… npm run owner -- remove-player <ha
   its poster, who sees the note (by default "Jamie took this sign down under the house rules.").
   `unhide-sign` shows a hidden or held sign again. Both hold the sign's report lease, so they
   never cross a player's report.
+- `set-place` puts a sign on the map: the coordinates, and the label and two-letter state when
+  given (left out, they stay; `--state ""` clears it). The pin counts as exact unless
+  `--approximate`. Write a negative number with `=` (`--lng=-87.26`). It holds the report lease too.
 - `remove-player` is `DELETE /me` for that player (`removePlayer`, the same code): the account
   and everything it made, their hearts' kudos first, then their address leaves the newsletter.
   `--to live` needs the Tinylytics and Buttondown keys through the environment (`op run`), never
