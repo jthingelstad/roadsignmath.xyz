@@ -323,7 +323,7 @@ test('home puts every shown sign on the map: pins, clusters, the year filter and
   assert.ok(html.includes(`<h2 id="picked-h">Minnesota${SEP}2 signs</h2>`));
   assert.match(
     html,
-    /Not on the map: <span class="np"><a href="\/signs\/nowhere">Nowhere<\/a> \(Somewhere on I-90\)<\/span>/
+    /Not on the map: <span class="np" data-year="2024"><a href="\/signs\/nowhere">Nowhere<\/a> \(Somewhere on I-90\)<\/span>/
   );
   // Signs the picture can't place but the moving map can are marked for its script to take off the list.
   assert.ok(!html.includes('<span class="np" data-onmap'));
@@ -335,6 +335,9 @@ test('home puts every shown sign on the map: pins, clusters, the year filter and
   assert.match(year, /aria-label="North Two town: 1 sign"/);
   assert.ok(year.includes(`<h2 id="picked-h">Far Away town${SEP}1 sign</h2>`));
   assert.match(year, /<a href="\/\?year=2024#map" aria-current="true" data-map="">/);
+  // Another year's sign off the map is in the list, hidden, so the moving map can show it.
+  const other = await (await app.request('/?year=2025')).text();
+  assert.match(other, /<p class="nopin soft" hidden="">Not on the map: <span class="np" data-year="2024" hidden="">/);
   // An unknown year or place falls back to everything, never an error.
   assert.equal((await app.request('/?year=1999&at=nope')).status, 200);
 });

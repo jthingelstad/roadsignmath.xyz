@@ -2,8 +2,9 @@
 // with its pins becomes a Leaflet map of the world, with OpenStreetMap's tiles
 // and every sign from /signs.geojson. Nearby signs gather into a numbered circle that opens as
 // you zoom in, and a sign's dot opens a card that links to its page. The year chips filter the
-// dots in place. Without the script, or if Leaflet, the tiles or the signs can't load, the
-// picture and its pins stay: they are the page as the server draws it.
+// dots in place, and the list of signs off the map with them. Without the script, or if Leaflet,
+// the tiles or the signs can't load, the picture and its pins stay: they are the page as the
+// server draws it. The map stays hidden over the picture until its first tile has drawn.
 //
 // Leaflet and its clustering plugin come from cdnjs at fixed versions, each checked by its
 // subresource integrity hash, and load only after the page is up.
@@ -55,7 +56,8 @@ export const HOME_MAP_STYLE = `
 .lmap .leaflet-popup-content strong { display: block; font-size: 15px; text-decoration: underline; text-decoration-color: var(--line2); }
 .lmap .leaflet-popup-content .math { display: block; color: var(--green-ink); font-weight: 700; }
 .lmap .leaflet-popup-content .soft { display: block; color: var(--soft); font-size: 13px; }
-#map-panel .picked[hidden], #map-panel .nopin[hidden] { display: none; }
+#map-panel .picked[hidden] { display: none; }
+.map .lmap.waiting { visibility: hidden; }
 @media (prefers-color-scheme: dark) {
   .lmap .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9); }
   .lmap .leaflet-popup-content-wrapper, .lmap .leaflet-popup-tip { background: var(--card); color: var(--ink); }
@@ -72,7 +74,6 @@ export const HOME_MAP_STYLE = `
   color: var(--ink); cursor: pointer; }
 .lmap .views button + button { border-left: 1px solid var(--line); }
 .lmap .views button[aria-pressed="true"] { background: var(--chip-on); color: var(--chip-on-ink); }
-.nopin .np + .np::before { content: '; '; }
 `;
 
 /**
@@ -82,8 +83,7 @@ export const HOME_MAP_STYLE = `
  */
 export const HOME_MAP_SCRIPT = `
 (() => {
-  const box = document.querySelector('#map-panel .map');
-  if (!box || !window.fetch || !window.Promise) return;
+  if (!document.querySelector('#map-panel .map') || !window.fetch || !window.Promise) return;
   const LIB = ${JSON.stringify(MAP_LIBRARIES)};
   const TILES = ${JSON.stringify(MAP_TILES)};
   const US = ${JSON.stringify(US_VIEW)};
@@ -116,17 +116,29 @@ export const HOME_MAP_SCRIPT = `
     return a;
   };
   (async () => {
+    let map, holder;
     try {
       const signs = fetch('/signs.geojson').then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); });
       await Promise.all(LIB.css.map((c) => add('link', { rel: 'stylesheet', href: c.href, integrity: c.integrity })));
       for (const s of LIB.js) await add('script', { src: s.src, integrity: s.integrity });
       const features = (await signs).features.filter((f) => f.geometry);
       const L = window.L;
-      const holder = document.createElement('div');
-      holder.className = 'lmap';
+      // Found again now: a pin or chip tapped while Leaflet loaded may have swapped the panel.
+      const box = document.querySelector('#map-panel .map');
+      if (!box) return;
+      holder = document.createElement('div');
+      holder.className = 'lmap waiting';
       box.appendChild(holder);
-      const map = L.map(holder, { scrollWheelZoom: false, worldCopyJump: true, zoomSnap: 0.5, minZoom: 1 });
-      L.tileLayer(TILES.url, { attribution: TILES.attribution, maxZoom: 19 }).addTo(map);
+      map = L.map(holder, { scrollWheelZoom: false, worldCopyJump: true, zoomSnap: 0.5, minZoom: 1 });
+      const tiles = L.tileLayer(TILES.url, { attribution: TILES.attribution, maxZoom: 19 }).addTo(map);
+      // The picture stays until a tile has drawn: with none in ten seconds, or every one failing, it stays for good.
+      const drawn = new Promise((ok, fail) => {
+        let any = false;
+        tiles.once('tileload', () => { any = true; ok(); });
+        tiles.once('load', () => (any ? ok() : fail(new Error('no tiles'))));
+        setTimeout(() => fail(new Error('tiles timed out')), 10000);
+      });
+      drawn.catch(() => {}); // awaited below; this only keeps an early failure from going unhandled
       map.fitBounds(US);
       // Scroll the page, not the map, until the reader reaches for the map.
       map.once('focus click', () => map.scrollWheelZoom.enable());
@@ -152,9 +164,18 @@ export const HOME_MAP_SCRIPT = `
         m.year = String(f.properties.found_on).slice(0, 4);
         return m;
       });
+      let nopin = null;
       const show = (year) => {
         group.clearLayers();
         group.addLayers(year ? markers.filter((m) => m.year === year) : markers);
+        // Signs off the map follow the year too.
+        if (!nopin) return;
+        let any = false;
+        nopin.querySelectorAll('.np').forEach((el) => {
+          el.hidden = Boolean(year) && el.dataset.year !== year;
+          any = any || !el.hidden;
+        });
+        nopin.hidden = !any;
       };
       show(new URLSearchParams(location.search).get('year'));
       map.addLayer(group);
@@ -184,17 +205,24 @@ export const HOME_MAP_SCRIPT = `
         }
       });
       new Views({ position: 'topright' }).addTo(map);
+      await drawn;
+      // If the panel was swapped while the tiles loaded, the map is in the old one: leave the new one as it is.
+      if (!holder.isConnected) throw new Error('panel replaced');
+      holder.classList.remove('waiting');
+      map.invalidateSize();
       // The picture and its pins go; so does the panel that listed a pin's signs, which the cards replace.
       for (const el of box.querySelectorAll(':scope > img, :scope > .pin')) el.remove();
       const panel = document.getElementById('map-panel');
       const picked = panel.querySelector('.picked');
       if (picked) picked.hidden = true;
       // Signs the picture couldn't place but the map can.
-      const nopin = panel.querySelector('.nopin');
+      nopin = panel.querySelector('.nopin');
       if (nopin) {
         nopin.querySelectorAll('[data-onmap]').forEach((el) => el.remove());
-        if (!nopin.querySelector('.np')) nopin.hidden = true;
+        if (!nopin.querySelector('.np')) nopin.remove();
+        nopin = nopin.isConnected ? nopin : null;
       }
+      show(new URLSearchParams(location.search).get('year'));
       panel.dataset.live = '';
       panel.addEventListener('click', (e) => {
         const chip = e.target.closest && e.target.closest('.years a');
@@ -206,7 +234,8 @@ export const HOME_MAP_SCRIPT = `
         history.replaceState(null, '', chip.href);
       });
     } catch (err) {
-      box.querySelector('.lmap')?.remove();
+      if (map) map.remove();
+      if (holder) holder.remove();
     }
   })();
 })();`;

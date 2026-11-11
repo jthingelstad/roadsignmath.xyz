@@ -95,12 +95,21 @@ const Pins: FC<{ clusters: Cluster[]; href: (c: Cluster) => string; on?: string 
  * Signs the picture can't place. One with a place (off the picture, like a sign abroad) is marked
  * `data-onmap`: Home's moving map places it, and its script takes it off this list.
  */
-const NoPin: FC<{ signs: Sign[] }> = ({ signs }) =>
-  signs.length ? (
-    <p class="nopin soft">
+const NoPin: FC<{ signs: Sign[]; byYear?: boolean; year?: string }> = ({ signs, byYear, year }) => {
+  // Home lists every year's, each marked with its year and hidden outside the year shown, so its
+  // moving map can follow the year chips without asking the server again.
+  const off = (s: Sign) => year !== undefined && s.foundOn.slice(0, 4) !== year;
+  const tag = (s: Sign) => (byYear ? s.foundOn.slice(0, 4) : undefined);
+  return signs.length ? (
+    <p class="nopin soft" hidden={signs.every(off) ? true : undefined}>
       Not on the map:{' '}
       {signs.map((s) => (
-        <span class="np" data-onmap={s.place.lat !== undefined && s.place.lng !== undefined ? '' : undefined}>
+        <span
+          class="np"
+          data-year={tag(s)}
+          data-onmap={s.place.lat !== undefined && s.place.lng !== undefined ? '' : undefined}
+          hidden={off(s) ? true : undefined}
+        >
           <a href={`/signs/${s.slug}`}>{s.title}</a> ({s.place.label})
         </span>
       ))}
@@ -109,6 +118,7 @@ const NoPin: FC<{ signs: Sign[] }> = ({ signs }) =>
   ) : (
     <></>
   );
+};
 
 const ABOUT_STYLE = `
 .about { padding-top: 32px; padding-bottom: 56px; max-width: 760px; }
@@ -133,6 +143,12 @@ const THINGS_URL = 'https://thingelstad.xyz/things/';
 const HOME_SIGNS = 12;
 /** Players in Home's Who's playing; the rest are a click away on /players. */
 const HOME_PLAYERS = 10;
+
+/** The list of signs off the map: a separator between the entries shown. */
+const NOPIN_STYLE = `
+.nopin[hidden], .nopin .np[hidden] { display: none; }
+.nopin .np:not([hidden]) ~ .np:not([hidden])::before { content: '; '; }
+`;
 
 const HOME_STYLE = `
 .hero { background: var(--ground); border-bottom: 1px solid var(--line); scroll-margin-top: 0; }
@@ -173,6 +189,7 @@ const HOME_STYLE = `
 .picked .eq { font-size: 14px; }
 .picked .soft { font-size: 13px; }
 .nopin { margin: 0; font-size: 14px; }
+${NOPIN_STYLE}
 .band > .wrap { padding-top: 44px; padding-bottom: 48px; display: flex; flex-direction: column; gap: 20px; }
 .band h2 { margin: 0; font-size: 32px; }
 .band .lede { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; }
@@ -475,6 +492,7 @@ if (share && navigator.share) {
 
 const PLAYER_STYLE = `
 .player { background: var(--ground); }
+${NOPIN_STYLE}
 .player > .wrap { padding-top: 20px; padding-bottom: 56px; display: flex; flex-direction: column; gap: 40px; }
 ${CRUMB_STYLE}
 .who-is { display: flex; flex-wrap: wrap; align-items: center; gap: 20px 40px; }
@@ -894,7 +912,9 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
     const years = [...new Set(shown.map(yearOf))].sort().reverse();
     const year = years.find((y) => y === c.req.query('year'));
     const seen = year ? shown.filter((s) => yearOf(s) === year) : shown;
-    const { clusters, unpinned } = cluster(seen);
+    const { clusters } = cluster(seen);
+    // Every year's, so the moving map can show another year's without asking again.
+    const { unpinned } = cluster(shown);
     const at = c.req.query('at');
     const picked =
       clusters.find((k) => k.key === at) ?? clusters.find((k) => k.signs.some((s) => s.slug === at)) ?? clusters[0];
@@ -1001,7 +1021,7 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
                     </ul>
                   )}
                 </section>
-                <NoPin signs={unpinned} />
+                <NoPin signs={unpinned} byYear year={year} />
               </div>
               {/* After the map in the page so a phone, and a screen reader, reach the map first. */}
               {players.length > 0 && (
