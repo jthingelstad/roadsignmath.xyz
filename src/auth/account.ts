@@ -240,6 +240,14 @@ async function deleteEverything(
   const avatar = (await store.getPlayer(player.id, true))?.avatar ?? player.avatar;
   if (avatar) await photos.remove(avatar);
   await store.deletePlayer(player.id);
+  // A solve of theirs that was under way may have credited them after their sign's sweep above.
+  // With the player gone none can be added now, so this consistent sweep leaves none behind.
+  for (const sign of signs) {
+    if (sign.postedBy === player.id) continue;
+    for (const coFind of await store.listCoFinds(sign.id)) {
+      if (coFind.playerId === player.id) await store.deleteCoFind(coFind);
+    }
+  }
   // Other players' hearts made on their signs while those were deleted.
   await sweepSignKudos(deps, theirSigns);
 }

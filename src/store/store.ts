@@ -68,8 +68,9 @@ export interface Store {
   /** Who also found the ways on a sign, oldest first. */
   listCoFinds(signId: string): Promise<CoFind[]>;
   /**
-   * Credits a player with a way already on its sign, once, in one write that checks the way is
-   * still there: `already` when they have it, `gone` when the way was deleted.
+   * Credits a player with a way already on its sign, once, in one write that checks the way and
+   * the player are still there: `already` when they have it, `gone` when the way or the player was
+   * deleted.
    */
   addCoFind(coFind: CoFind, way: Way): Promise<'added' | 'already' | 'gone'>;
   deleteCoFind(coFind: CoFind): Promise<void>;

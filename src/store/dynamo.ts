@@ -329,6 +329,14 @@ export class DynamoStore implements Store {
                 Key: { pk, sk: `WAY#${way.createdAt}#${way.id}` },
                 ConditionExpression: 'attribute_exists(pk)'
               }
+            },
+            {
+              // And so is the player: once their account is deleted, nothing credits them.
+              ConditionCheck: {
+                TableName: this.table,
+                Key: { pk: 'PLAYERS', sk: `PLAYER#${coFind.playerId}` },
+                ConditionExpression: 'attribute_exists(pk)'
+              }
             }
           ]
         })
@@ -338,7 +346,7 @@ export class DynamoStore implements Store {
       if ((err as Error).name !== 'TransactionCanceledException') throw err;
       const reasons = (err as { CancellationReasons?: { Code?: string }[] }).CancellationReasons ?? [];
       if (reasons[0]?.Code === 'ConditionalCheckFailed') return 'already';
-      if (reasons[1]?.Code === 'ConditionalCheckFailed') return 'gone';
+      if (reasons.slice(1).some((r) => r.Code === 'ConditionalCheckFailed')) return 'gone';
       throw err;
     }
   }

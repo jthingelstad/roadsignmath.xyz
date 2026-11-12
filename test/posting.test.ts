@@ -522,6 +522,30 @@ test('a co-find made on a way while its author is deleted is refused, not left b
   assert.deepEqual(await read(posted.id), []);
 });
 
+test('a solve that lands while its solver is deleted credits nobody', async () => {
+  const t = await setup();
+  const { body: posted } = await t.post({ way: '7 + 12 = 19' });
+  const [way] = await t.store.listWays(posted.id);
+  // Cy's solve was checked before the deletion and writes its co-find just after the sign's sweep.
+  const remove = t.store.deletePlayer.bind(t.store);
+  let raced: string | undefined;
+  t.store.deletePlayer = async (id: string) => {
+    raced = await t.store.addCoFind(
+      { signId: posted.id, wayId: way.id, playerId: cy.id, createdAt: new Date().toISOString(), via: 'quiz' },
+      way
+    );
+    await remove(id);
+  };
+  assert.equal((await t.call('DELETE', '/me', { as: 'cy' })).res.status, 204);
+  assert.equal(raced, 'added', 'the player was still there');
+  assert.deepEqual(await t.store.listCoFinds(posted.id), [], 'the sweep after the player went took it');
+  const late = await t.store.addCoFind(
+    { signId: posted.id, wayId: way.id, playerId: cy.id, createdAt: new Date().toISOString(), via: 'quiz' },
+    way
+  );
+  assert.equal(late, 'gone', 'nothing credits a deleted player');
+});
+
 test('the same way sent twice at once is added once, and every new way counts', async () => {
   const t = await setup();
   const { body: posted } = await t.post({ way: undefined });

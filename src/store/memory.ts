@@ -140,6 +140,7 @@ export class MemoryStore implements Store {
     const key = `${coFind.signId}/${coFind.wayId}/${coFind.playerId}`;
     if (this.coFinds.has(key)) return 'already';
     if (!(this.ways.get(way.signId) ?? []).some((w) => w.id === way.id)) return 'gone';
+    if (!this.players.has(coFind.playerId)) return 'gone';
     this.coFinds.set(key, copy(coFind));
     return 'added';
   }

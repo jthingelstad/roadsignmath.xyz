@@ -302,11 +302,14 @@ for (const [name, make] of kinds) {
         createdAt: '2026-02-02T00:00:00.000Z',
         via: 'app' as const
       };
+      await store.putPlayer(ben);
       assert.equal(await store.addCoFind(coFind, theWay), 'gone', 'not before the way is there');
       assert.equal(await store.addWay(theWay), 'added');
       assert.equal(await store.addCoFind(coFind, theWay), 'added');
       assert.equal(await store.addCoFind({ ...coFind, createdAt: '2026-02-03T00:00:00.000Z' }, theWay), 'already');
-      const earlier = { ...coFind, playerId: 'p-earlier', createdAt: '2026-02-01T00:00:00.000Z' };
+      const earlier = { ...coFind, playerId: ada.id, createdAt: '2026-02-01T00:00:00.000Z' };
+      assert.equal(await store.addCoFind(earlier, theWay), 'gone', 'not for a player who isn’t there');
+      await store.putPlayer(ada);
       assert.equal(await store.addCoFind(earlier, theWay), 'added');
       assert.deepEqual(await store.listCoFinds('S1'), [earlier, coFind]);
       assert.deepEqual(await store.listWays('S1'), [theWay], 'not a way');
@@ -444,6 +447,7 @@ test('DynamoStore leaves no co-find behind when one is added while its sign is d
   const fake = new FakeDynamo('test-table');
   const store = new DynamoStore('test-table', fake);
   await store.putSign(sign({ id: 'S1', title: 'One' }));
+  await store.putPlayer(ben);
   const w = way('S1', { id: 'w1' });
   await store.putWay(w);
   // Right after the deletion reads the partition, a solve credits Ben on the way still there.
@@ -466,9 +470,10 @@ test('DynamoStore leaves no co-find behind when one is added while its sign is d
   assert.deepEqual(await store.listWays('S1'), []);
 });
 
-test('DynamoStore adds a co-find in one transaction that checks its way is still there', async () => {
+test('DynamoStore adds a co-find in one transaction that checks its way and player are still there', async () => {
   const fake = new FakeDynamo('test-table');
   const store = new DynamoStore('test-table', fake);
+  await store.putPlayer(ben);
   const w = way('S1', { id: 'w1' });
   await store.putWay(w);
   const coFind = {
@@ -484,11 +489,17 @@ test('DynamoStore adds a co-find in one transaction that checks its way is still
   const items = sent.input.TransactItems as Record<string, Record<string, unknown>>[];
   assert.deepEqual(
     items.map((i) => Object.keys(i)[0]),
-    ['Put', 'ConditionCheck']
+    ['Put', 'ConditionCheck', 'ConditionCheck']
   );
-  const [row, check] = items.map((i) => Object.values(i)[0]);
+  const [row, check, player] = items.map((i) => Object.values(i)[0]);
   assert.deepEqual(row.Item, { pk: 'SIGN#S1', sk: `ALSO#w1#${ben.id}`, kind: 'also', ...coFind });
   assert.equal(row.ConditionExpression, 'attribute_not_exists(pk)');
   assert.deepEqual(check.Key, { pk: 'SIGN#S1', sk: 'WAY#2026-01-10T12:00:00.000Z#w1' });
   assert.equal(check.ConditionExpression, 'attribute_exists(pk)');
+  assert.deepEqual(player.Key, { pk: 'PLAYERS', sk: `PLAYER#${ben.id}` });
+  assert.equal(player.ConditionExpression, 'attribute_exists(pk)');
+  await store.deletePlayer(ben.id);
+  assert.equal(await store.addCoFind({ ...coFind, wayId: 'w1' }, w), 'already', 'the row is checked first');
+  await store.deleteCoFind(coFind);
+  assert.equal(await store.addCoFind(coFind, w), 'gone', 'nothing credits a deleted player');
 });
