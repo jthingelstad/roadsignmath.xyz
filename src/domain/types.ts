@@ -146,8 +146,8 @@ export type Login = {
 /** A signed-in app. The token is `rsm_<playerId>_<secret>`; only the secret's hash is kept. */
 export type Session = {
   playerId: string;
-  /** Where they signed in. Sessions from before 12 November 2026 have none: all were the app. */
-  via?: 'app' | 'quiz';
+  /** Where they signed in (`site`: the website's own sign-in). Sessions from before 12 November 2026 have none: all were the app. */
+  via?: 'app' | 'quiz' | 'site';
   secretHash: string;
   createdAt: string;
   lastUsedAt: string;

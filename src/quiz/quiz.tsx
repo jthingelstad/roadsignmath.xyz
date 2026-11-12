@@ -18,10 +18,9 @@ import { Hono, type Context } from 'hono';
 import type { Child } from 'hono/jsx';
 import type { ApiOptions } from '../api/app.ts';
 import { LIMITS } from '../api/contract.ts';
-import { ApiError, STATUS, fail } from '../api/errors.ts';
+import { ApiError } from '../api/errors.ts';
 import { earnedBadgeView, isPublic, signPath } from '../api/views.ts';
-import { newsletterAtSignIn, removeAvatar, removePlayer, setAvatar, updateMe } from '../auth/account.ts';
-import { finishSignIn, signOut, startSignIn, type Viewer } from '../auth/auth.ts';
+import type { Viewer } from '../auth/auth.ts';
 import { sameWayKey } from '../domain/equation.ts';
 import { isUlid } from '../domain/ids.ts';
 import type { Player, Sign } from '../domain/types.ts';
@@ -41,27 +40,21 @@ import {
 } from './data.ts';
 import {
   AllDonePage,
-  CodePage,
-  DeletePage,
   FoundPage,
   HomePage,
-  LinkPage,
   MessagePage,
   NamePage,
-  ProfilePage,
-  RemovePhotoPage,
   SignInPage,
   SolvePage,
   ShareCard,
   SolvedPage,
   WaysPage,
-  withAt,
   type Here,
-  type ProfileDone,
-  type ProfileTrouble,
   type Said
 } from './pages.tsx';
-import { forget, fromQuiz, quizViewer, remember } from './session.ts';
+import { mountAccount } from './account.tsx';
+import { forget, fromOrigin, jarFor, sessionViewer } from './session.ts';
+import { SITE_SIGNIN_OPEN } from '../web/account.tsx';
 import { quizCard } from './share.ts';
 import { whatSwapped } from './swapped.ts';
 import { queryOf, signByKey } from '../web/permalinks.ts';
@@ -122,8 +115,10 @@ export function createQuiz(options: QuizOptions): Hono {
     return quiz;
   }
 
-  const { store, urls, mailer, clientIp } = options;
+  const { store, urls } = options;
   const here: Here = { site: urls.site, quiz: urls.quiz ?? quizOrigin(urls.site) };
+  // One sign-in for Quiz and the site while the site's is open (D5a); else Quiz's own cookie.
+  const jar = jarFor(urls.site, options.siteSignInOpen ?? SITE_SIGNIN_OPEN);
   /**
    * A page, naming the share card (Home's, src/quiz/share.ts) in its head. A card that can't be
    * worked out leaves the page without one, never in the way.
@@ -141,7 +136,7 @@ export function createQuiz(options: QuizOptions): Hono {
 
   /** The signed-in player, or a redirect: to sign in, or to give a name first, then back to `to`. */
   async function playing(c: Context, to?: string): Promise<Viewer | Response> {
-    const viewer = await quizViewer(store, c);
+    const viewer = await sessionViewer(store, c, jar);
     if (!viewer) return go(c, withTo('/signin', to));
     if (!viewer.player.name) return go(c, withTo('/name', to));
     return viewer;
@@ -152,7 +147,7 @@ export function createQuiz(options: QuizOptions): Hono {
     to ? signByKey((await loadQuiz(store, undefined)).signs, to)?.found : undefined;
 
   quiz.use('*', async (c, next) => {
-    if (c.req.method === 'POST' && !fromQuiz(c, here.quiz)) {
+    if (c.req.method === 'POST' && !fromOrigin(c, here.quiz)) {
       return page(
         c,
         <MessagePage here={here} title="That didn’t come from Quiz" message="Go back to Quiz and try again." />,
@@ -165,97 +160,13 @@ export function createQuiz(options: QuizOptions): Hono {
   quiz.get('/robots.txt', (c) => c.text('User-agent: *\nAllow: /$\nDisallow: /\n', 200, PRIVATE));
 
   quiz.get('/', async (c) => {
-    if (await quizViewer(store, c)) return go(c, '/next');
+    if (await sessionViewer(store, c, jar)) return go(c, '/next');
     const data = await loadQuiz(store, undefined);
     const withPhoto = data.signs.filter((s) => s.photos.length && s.numbers.length);
     return page(c, <HomePage here={here} sample={withPhoto[0]} more={withPhoto.slice(1, 4)} />);
   });
 
-  // ---- Signing in
-
-  quiz.get('/signin', async (c) => {
-    const loginId = c.req.query('l');
-    const token = c.req.query('t');
-    const to = backTo(c.req.query('to'));
-    if (loginId && token) return page(c, <LinkPage here={here} loginId={loginId} token={token} to={to} />);
-    if (await quizViewer(store, c)) return go(c, onward(to));
-    return page(c, <SignInPage here={here} to={to} />);
-  });
-
-  quiz.post('/signin', async (c) => {
-    const field = await form(c);
-    const to = backTo(field('to'));
-    // "Send the email again" names the sign-in it follows, whose row holds the address.
-    const again = field('again') === '1' && field('login') ? await store.getLogin(field('login')) : undefined;
-    if (field('again') === '1' && field('login') && !again) return go(c, withTo('/signin', to));
-    const email = again?.email ?? field('email').trim();
-    // The math they built on the sign, kept on the sign-in's row (never in a URL), so the code page,
-    // the email's link and the name page can all bring it back. "Send the email again" keeps it.
-    const math = to && field('math') ? carriable(await signNamed(to), field('math')) : undefined;
-    const carry = again ? again.carry : to && math ? { to, text: math } : undefined;
-    const link = (loginId: string, token: string) =>
-      `${here.quiz}/signin?l=${encodeURIComponent(loginId)}&t=${encodeURIComponent(token)}${to ? `&to=${to}` : ''}`;
-    try {
-      const started = await startSignIn({ store, mailer, link, front: 'quiz', carry }, email, clientIp(c));
-      // The code page is a page of its own, so a refresh shows it again instead of sending another email.
-      return go(c, codePath(started.loginId, to, again ? 'sent' : undefined));
-    } catch (err) {
-      if (!(err instanceof ApiError) || (err.code !== 'bad_request' && err.code !== 'rate_limited')) throw err;
-      const message = err.code === 'bad_request' ? 'That doesn’t look like an email address.' : err.message;
-      // A resend that hit a limit keeps the math its sign-in row carries, for the next try.
-      const kept = math ?? (to && again?.carry?.to === to ? again.carry.text : undefined);
-      return page(
-        c,
-        <SignInPage here={here} email={email} error={message} to={to} math={kept} />,
-        err.code === 'bad_request' ? 400 : 429
-      );
-    }
-  });
-
-  /**
-   * The code page, by the sign-in's id: the address comes from its row, never the URL. A sign-in
-   * that has ended (used, too many wrong codes, or past its 15 minutes) goes back to the email page.
-   */
-  quiz.get('/signin/code', async (c) => {
-    const to = backTo(c.req.query('to'));
-    const loginId = c.req.query('l') ?? '';
-    const said = c.req.query('said');
-    const login = loginId ? await store.getLogin(loginId) : undefined;
-    if (!login) {
-      const ended = said === 'tries' ? CODE_TROUBLE.tries : 'That sign-in has ended. Sign in again for a new code.';
-      return page(c, <SignInPage here={here} error={ended} to={to} />);
-    }
-    const error = said && said in CODE_TROUBLE ? CODE_TROUBLE[said as keyof typeof CODE_TROUBLE] : undefined;
-    const math = login.carry && login.carry.to === to ? login.carry.text : undefined;
-    return page(
-      c,
-      <CodePage
-        here={here}
-        loginId={login.id}
-        email={login.email}
-        sent={said === 'sent'}
-        error={error}
-        to={to}
-        math={math}
-      />
-    );
-  });
-
-  /**
-   * Signs in with the code or the link's token, then on to a name or the signs (the one in `to`).
-   * Math carried on the sign-in's row comes back on that sign (`landWith`).
-   */
-  async function finish(c: Context, input: { loginId: string; code?: string; token?: string }, to?: string) {
-    // Read before signing in uses the row up. A wrong code leaves it, math and all.
-    const login = input.loginId ? await store.getLogin(input.loginId) : undefined;
-    const done = await finishSignIn(store, input, 'quiz');
-    // A new player joins the newsletter, as in the app (Jamie, 2026-11-07), tagged `quiz`.
-    await newsletterAtSignIn({ store, newsletter: options.newsletter }, done, 'quiz');
-    remember(c, done.token);
-    const carried = to && login?.carry?.to === to ? login.carry.text : undefined;
-    if (carried) return landWith(c, done.player, to!, carried);
-    return go(c, done.player.name ? onward(to) : withTo('/name', to));
-  }
+  // ---- Signing in, the name step and sign out (src/quiz/account.tsx, shared with the site)
 
   /**
    * Where carried math lands once they are in, drawn as the answer to the POST that signed them in
@@ -275,85 +186,12 @@ export function createQuiz(options: QuizOptions): Hono {
     return solvePage(c, player, got.sign, got.on, got.data, undefined, 200, math);
   }
 
-  quiz.post('/signin/code', async (c) => {
-    const field = await form(c);
-    const loginId = field('login');
-    const to = backTo(field('to'));
-    try {
-      return await finish(c, { loginId, code: field('code').trim() }, to);
-    } catch (err) {
-      if (!(err instanceof ApiError) || err.code === 'internal' || err.code === 'unavailable') throw err;
-      return go(c, codePath(loginId, to, codeTrouble(err)));
-    }
-  });
-
-  quiz.post('/signin/link', async (c) => {
-    const field = await form(c);
-    try {
-      return await finish(c, { loginId: field('login'), token: field('token') }, backTo(field('to')));
-    } catch (err) {
-      if (!(err instanceof ApiError) || err.code === 'internal' || err.code === 'unavailable') throw err;
-      return page(
-        c,
-        <MessagePage
-          here={here}
-          title="That link has ended"
-          message="Sign-in links work once, for 15 minutes. Sign in again and we’ll send a new one."
-        />,
-        400
-      );
-    }
-  });
-
-  quiz.get('/name', async (c) => {
-    const viewer = await quizViewer(store, c);
-    const to = backTo(c.req.query('to'));
-    if (!viewer) return go(c, withTo('/signin', to));
-    if (viewer.player.name) return go(c, onward(to));
-    return page(c, <NamePage here={here} player={viewer.player} to={to} />);
-  });
-
-  quiz.post('/name', async (c) => {
-    const viewer = await quizViewer(store, c);
-    if (!viewer) return go(c, '/signin');
-    const field = await form(c);
-    const to = backTo(field('to'));
-    const math = to && field('math') ? carriable(await signNamed(to), field('math')) : undefined;
-    let named: Player;
-    try {
-      // The same check as the app's: the moderator looks at the name first.
-      named = await updateMe(options, viewer.player, { name: field('name') });
-    } catch (err) {
-      const status = trouble(err, ['bad_request', 'rate_limited', 'refused', 'unavailable']);
-      return page(
-        c,
-        <NamePage
-          here={here}
-          player={viewer.player}
-          error={(err as ApiError).message.replace(/([^.])$/, '$1.')}
-          to={to}
-          math={math}
-        />,
-        status === 400 || status === 429 ? 400 : status
-      );
-    }
-    if (to && math) return landWith(c, named, to, math);
-    return go(c, onward(to));
-  });
-
-  quiz.post('/signout', async (c) => {
-    const viewer = await quizViewer(store, c);
-    if (viewer) await signOut(store, viewer);
-    forget(c);
-    return go(c, '/');
-  });
-
   // ---- Playing
 
   quiz.get('/next', async (c) => {
     // Anyone may play: signed out, every shown sign with numbers is in the draw, small ones first
     // as for a new player. Signed in without a name, the name comes first.
-    const viewer = await quizViewer(store, c);
+    const viewer = await sessionViewer(store, c, jar);
     if (viewer && !viewer.player.name) return go(c, '/name');
     const player = viewer?.player;
     const data = await loadQuiz(store, player);
@@ -432,7 +270,7 @@ export function createQuiz(options: QuizOptions): Hono {
     if (old) return old;
     // Everyone sees the sign and the keypad; sign-in is asked for at Send. A signed-in player with
     // no name gives one first, as before.
-    const viewer = await quizViewer(store, c);
+    const viewer = await sessionViewer(store, c, jar);
     if (viewer && !viewer.player.name) return go(c, withTo('/name', backTo(c.req.param('key') ?? '')));
     const got = await signFor(c, viewer?.player);
     if (got.missing) return got.missing;
@@ -463,7 +301,7 @@ export function createQuiz(options: QuizOptions): Hono {
   }
 
   quiz.post('/signs/:key/solve', async (c) => {
-    const signedIn = await quizViewer(store, c);
+    const signedIn = await sessionViewer(store, c, jar);
     if (!signedIn) return guestSend(c);
     const viewer = await playing(c);
     if (viewer instanceof Response) return viewer;
@@ -574,6 +412,7 @@ export function createQuiz(options: QuizOptions): Hono {
   });
 
   // ---- Your profile: photo, name and bio, sign out, and Delete my account, as the app's settings
+  // (src/quiz/account.tsx, shared with the site)
 
   /** Whether the site has a page for the player yet (a sign or a way of theirs), and the signs they posted. */
   async function profileOf(player: Player) {
@@ -589,127 +428,20 @@ export function createQuiz(options: QuizOptions): Hono {
     return { hasPage, posted: signs.filter((s) => s.postedBy === player.id).length };
   }
 
-  async function profilePage(
-    c: Context,
-    player: Player,
-    more: {
-      done?: ProfileDone;
-      trouble?: ProfileTrouble;
-      typed?: { name: string; bio: string; website: string; home: string };
-    } = {},
-    status: Parameters<typeof page>[2] = 200
-  ) {
-    const { hasPage } = await profileOf(player);
-    return page(c, <ProfilePage here={here} player={player} hasPage={hasPage} at={playingAt(c)} {...more} />, status);
-  }
-
-  quiz.get('/profile', async (c) => {
-    const viewer = await playing(c);
-    if (viewer instanceof Response) return viewer;
-    const done = c.req.query('done');
-    return profilePage(c, viewer.player, { done: done && done in DONE_WORDS ? (done as ProfileDone) : undefined });
-  });
-
-  quiz.post('/profile', async (c) => {
-    const viewer = await playing(c);
-    if (viewer instanceof Response) return viewer;
-    const field = await form(c);
-    const typed = { name: field('name'), bio: field('bio'), website: field('website'), home: field('home') };
-    try {
-      await updateMe(options, viewer.player, typed);
-    } catch (err) {
-      const status = trouble(err, ['bad_request', 'rate_limited', 'refused', 'unavailable']);
-      const message = sentence((err as ApiError).message);
-      return profilePage(c, viewer.player, { trouble: { part: 'about', message }, typed }, status);
-    }
-    return go(c, withAt('/profile?done=saved', playingAt(c)));
-  });
-
-  quiz.post('/profile/photo', async (c) => {
-    const viewer = await playing(c);
-    if (viewer instanceof Response) return viewer;
-    try {
-      // The form's own bytes are a little over the photo's; anything far bigger isn't read.
-      const length = Number(c.req.header('content-length'));
-      if (length > LIMITS.photoBytes + 64 * 1024)
-        fail('too_large', `A photo can be at most ${LIMITS.photoBytes / 1024 / 1024} MB`);
-      const photo = (await c.req.parseBody()).photo;
-      if (!(photo instanceof File) || !photo.size) return fail('bad_request', 'Choose a photo first');
-      // The same as the app's PUT /me/avatar: checked, squared, without its metadata, and looked at by the moderator.
-      await setAvatar(options, viewer.player, photo.type, () => photo.arrayBuffer(), photo.size);
-    } catch (err) {
-      const status = trouble(err, ['bad_request', 'too_large', 'refused', 'rate_limited', 'conflict', 'unavailable']);
-      const message = sentence((err as ApiError).message);
-      return profilePage(c, viewer.player, { trouble: { part: 'photo', message } }, status);
-    }
-    return go(c, withAt('/profile?done=photo', playingAt(c)));
-  });
-
-  quiz.get('/profile/photo/remove', async (c) => {
-    const viewer = await playing(c);
-    if (viewer instanceof Response) return viewer;
-    if (!viewer.player.avatar) return go(c, withAt('/profile', playingAt(c)));
-    return page(c, <RemovePhotoPage here={here} player={viewer.player} at={playingAt(c)} />);
-  });
-
-  quiz.post('/profile/photo/remove', async (c) => {
-    const viewer = await playing(c);
-    if (viewer instanceof Response) return viewer;
-    try {
-      await removeAvatar(options, viewer.player);
-    } catch (err) {
-      const status = trouble(err, ['conflict']);
-      return page(
-        c,
-        <RemovePhotoPage
-          here={here}
-          player={viewer.player}
-          error={sentence((err as ApiError).message)}
-          at={playingAt(c)}
-        />,
-        status
-      );
-    }
-    return go(c, withAt('/profile?done=removed', playingAt(c)));
-  });
-
-  quiz.get('/profile/delete', async (c) => {
-    const viewer = await playing(c);
-    if (viewer instanceof Response) return viewer;
-    const { posted } = await profileOf(viewer.player);
-    return page(c, <DeletePage here={here} player={viewer.player} posted={posted} at={playingAt(c)} />);
-  });
-
-  quiz.post('/profile/delete', async (c) => {
-    const viewer = await playing(c);
-    if (viewer instanceof Response) return viewer;
-    try {
-      // The same code as DELETE /me: everything the account made goes, then the newsletter.
-      await removePlayer(options, viewer.player);
-    } catch (err) {
-      const status = trouble(err, ['conflict', 'unavailable']);
-      const { posted } = await profileOf(viewer.player);
-      const error = sentence((err as ApiError).message);
-      return page(
-        c,
-        <DeletePage here={here} player={viewer.player} posted={posted} error={error} at={playingAt(c)} />,
-        status
-      );
-    }
-    forget(c);
-    return go(c, '/deleted');
-  });
-
-  quiz.get('/deleted', async (c) => {
-    if (await quizViewer(store, c)) return go(c, '/profile');
-    return page(
-      c,
-      <MessagePage
-        here={here}
-        title="Your account is deleted"
-        message="It’s gone, with everything it made, here and in the app. Thanks for playing Road Sign Math."
-      />
-    );
+  mountAccount(quiz, {
+    options,
+    here,
+    jar,
+    page,
+    backTo,
+    onward,
+    carry: {
+      fromForm: async (to, raw) => carriable(await signNamed(to), raw),
+      land: landWith
+    },
+    profileOf,
+    at: playingAt,
+    deletedWords: 'It’s gone, with everything it made, here and in the app. Thanks for playing Road Sign Math.'
   });
 
   quiz.notFound((c) =>
@@ -718,7 +450,7 @@ export function createQuiz(options: QuizOptions): Hono {
 
   quiz.onError((err, c) => {
     if (err instanceof ApiError && err.code === 'unauthorized') {
-      forget(c);
+      forget(c, jar);
       return go(c, '/signin');
     }
     console.error(err);
@@ -739,42 +471,8 @@ export function createQuiz(options: QuizOptions): Hono {
   return quiz;
 }
 
-const DONE_WORDS: Record<ProfileDone, true> = { photo: true, removed: true, saved: true };
-
 /** What a signed-out Send says when the math is longer than any way may be. */
 const TOO_LONG = 'That math is too long to send.';
-
-/**
- * The status for an error a profile form shows on its page, when it is one of `shown`; anything
- * else (a gone account, a broken server) is thrown on to Quiz's error handler.
- */
-function trouble(err: unknown, shown: ApiError['code'][]): 200 | 400 | 409 | 413 | 422 | 429 | 503 {
-  if (!(err instanceof ApiError) || !shown.includes(err.code)) throw err;
-  return STATUS[err.code] as 400 | 409 | 413 | 422 | 429 | 503;
-}
-
-/** A server message as a sentence: a capital first, a full stop last. */
-const sentence = (message: string) => message.charAt(0).toUpperCase() + message.slice(1).replace(/([^.!?])$/, '$1.');
-
-/** What went wrong with a code, in words for the code page (`said=` on its address). */
-const CODE_TROUBLE = {
-  tries: 'Too many tries. Sign in again for a new code.',
-  format: 'Type the 6-digit code from the email.',
-  wrong: 'That code didn’t work. Check the newest email, or send it again.'
-} as const;
-
-/** What the code page says after a send: another email went, or what went wrong with a code. */
-type CodeSaid = 'sent' | keyof typeof CODE_TROUBLE;
-
-function codeTrouble(err: ApiError): CodeSaid {
-  if (err.code === 'rate_limited') return 'tries';
-  if (err.code === 'bad_request') return 'format';
-  return 'wrong';
-}
-
-/** The code page's address for a sign-in, with the sign to land on and what to say. */
-const codePath = (loginId: string, to: string | undefined, said?: CodeSaid) =>
-  `/signin/code?l=${encodeURIComponent(loginId)}${to ? `&to=${to}` : ''}${said ? `&said=${said}` : ''}`;
 
 /** The sign being played (`?at=`, a checked slug or id) on the profile and solved pages. */
 const playingAt = (c: Context) => backTo(c.req.query('at'));

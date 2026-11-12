@@ -34,6 +34,8 @@ const server = createApp({
   store,
   urls: { site, quiz },
   quizOpen: true,
+  // The website's sign-in (src/web/account.tsx) stays shut unless asked for: `SITE_SIGNIN_OPEN=1 npm run dev`.
+  siteSignInOpen: process.env.SITE_SIGNIN_OPEN === '1',
   mailer: new FileMailer(),
   photos,
   moderator,

@@ -63,7 +63,8 @@ for (const player of players) {
   wanted.set(email, tags);
   owners.set(email, [...(owners.get(email) ?? []), player.id]);
   if (isFirstEraPlayer(player.id)) tags.add('first-era');
-  for (const session of await store.sessionsOf(player.id)) tags.add(session.via ?? 'app');
+  // A sign-in on the website has no tag of its own (`/privacy` names only the app and Quiz).
+  for (const session of await store.sessionsOf(player.id)) if (session.via !== 'site') tags.add(session.via ?? 'app');
 }
 
 /** The subscriber's tags, or undefined when Buttondown doesn't have the address: a read. */
