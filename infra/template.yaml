@@ -173,14 +173,18 @@ Resources:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
-                # src/store/dynamo.ts: single-item reads and writes, conditional claims and
-                # queries. No scans, batches or transactions.
+                # src/store/dynamo.ts: single-item reads and writes, conditional claims,
+                # queries, and transactions of puts, updates and condition checks (a way and its
+                # math in one write, a co-find with a check that its way is still there). Each
+                # item in a transaction needs its own action. No scans or batches.
+                # test/infra.test.ts checks this list against the store.
                 Action:
                   - dynamodb:GetItem
                   - dynamodb:PutItem
                   - dynamodb:UpdateItem
                   - dynamodb:DeleteItem
                   - dynamodb:Query
+                  - dynamodb:ConditionCheckItem
                 Resource: !GetAtt Table.Arn
               - Effect: Allow
                 # src/photos.ts: uploads wait under uploads/, a shown sign's photos are under p/
