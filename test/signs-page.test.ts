@@ -233,10 +233,11 @@ test('a filtered /signs names plain /signs as canonical; the filters fold on a p
 test('/signs has a search box for script, over every sign in /signs.json, with no query parameter', async () => {
   const { page } = await setup(60);
   const html = (await page('/signs')).html;
-  assert.match(html, /<div class="search" role="search" hidden="">/);
   // The box is no form field: nothing it holds goes in an address.
   assert.match(html, /<input id="find" type="search" autocomplete="off"/);
   assert.ok(!/<input id="find"[^>]*name=/.test(html));
-  assert.ok(html.includes("fetch('/signs.json')"));
+  assert.ok(html.includes("get('/signs.json', 'json')"));
+  // Its cards are the pages' own, math drawn on the server: it knows how many plain pages there are.
+  assert.match(html, /<div class="search" role="search" data-pages="2" hidden="">/);
   assert.ok(html.includes('function rsmSignMatches(sign, query)'));
 });

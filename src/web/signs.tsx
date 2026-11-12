@@ -163,16 +163,18 @@ const MORE_SCRIPT = `
 })();`;
 
 /**
- * The search box: hidden without script. The first time someone types it fetches /signs.json, then
- * filters every sign there on each keystroke (search.ts) and draws the matches as cards in place of
- * the page's own list, which comes back when the box is emptied.
+ * The search box: hidden without script. The first time someone types it fetches /signs.json, and
+ * the plain pages of /signs for their cards (the math on them is drawn on the server), then filters
+ * every sign on each keystroke (search.ts) and shows the matching cards in place of the page's own
+ * list, which comes back when the box is emptied. A sign whose card it can't find gets one drawn
+ * here, with its math as text.
  */
 const SEARCH_SCRIPT = `${SIGN_SEARCH_JS}
 (() => {
   const box = document.querySelector('.search');
   const results = document.querySelector('.results');
   const listing = document.querySelector('.listing[data-list]');
-  if (!box || !results || !listing || !window.fetch) return;
+  if (!box || !results || !listing || !window.fetch || !window.DOMParser) return;
   const input = box.querySelector('input');
   const note = box.querySelector('.found');
   box.hidden = false;
@@ -188,7 +190,22 @@ const SEARCH_SCRIPT = `${SIGN_SEARCH_JS}
     dot.append(make('span', 'vh', ', '));
     return dot;
   };
+  const drawn = new Map();
+  const fresh = (li) => {
+    // A copy of a card whose heart Tinylytics has filled: empty again, for HEART_SCRIPT to fill.
+    const copy = li.cloneNode(true);
+    copy.hidden = false;
+    copy.querySelectorAll('.kudo').forEach((b) => {
+      b.className = 'kudo';
+      b.removeAttribute('data-tinylytics-kudos-bound');
+      b.removeAttribute('data-watched');
+      b.replaceChildren();
+    });
+    return copy;
+  };
   const tile = (s) => {
+    const card = drawn.get(s.slug);
+    if (card) return fresh(card);
     const li = make('li', 'tile');
     const a = make('a');
     a.href = '/signs/' + s.slug;
@@ -221,9 +238,19 @@ const SEARCH_SCRIPT = `${SIGN_SEARCH_JS}
   };
   let signs;
   let loading;
-  const load = () => (loading ??= fetch('/signs.json')
-    .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-    .then((d) => { signs = d.signs; }));
+  const get = (url, read) => fetch(url).then((r) => (r.ok ? r[read]() : Promise.reject(new Error(String(r.status)))));
+  const pages = Number(box.dataset.pages) || 1;
+  const cards = () => Promise.all(
+    Array.from({ length: pages }, (_, i) => get('/signs' + (i ? '?page=' + (i + 1) : ''), 'text').then((html) => {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      doc.querySelectorAll('.listing li.tile').forEach((li) => {
+        const slug = li.querySelector('a')?.getAttribute('href')?.split('/').pop();
+        if (slug) drawn.set(decodeURIComponent(slug), li);
+      });
+    }))
+  ).catch(() => {});
+  const load = () => (loading ??= Promise.all([get('/signs.json', 'json'), cards()])
+    .then(([d]) => { signs = d.signs; }));
   const failed = () => { loading = undefined; };
   const show = () => {
     const query = input.value.trim();
@@ -371,7 +398,7 @@ export function mountSigns(site: Hono, { store, urls, people, counts, siteCard }
               )}
             </div>
 
-            <div class="search" role="search" hidden>
+            <div class="search" role="search" data-pages={String(Math.ceil(shown.length / PER_PAGE))} hidden>
               <label for="find">Search every sign</label>
               <input
                 id="find"
