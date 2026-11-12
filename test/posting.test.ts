@@ -1081,3 +1081,64 @@ test('a duplicate report goes with its sign', async () => {
   assert.equal((await t.call('DELETE', `/signs/${second.id}`, { as: 'ada' })).res.status, 204);
   assert.equal(await t.store.getDuplicate(second.id, ben.id), undefined);
 });
+
+test('a way that only adds a do-nothing identity is the same way: no new way and no found too', async () => {
+  const t = await setup();
+  const numbers = ['7', '12', '19', '1'].map((value) => ({ value }));
+  const { body: posted } = await t.post({ numbers, way: '(7 + 12) × 1 = 19' });
+  const add = (text: string, as = 'ben') => t.call('POST', `/signs/${posted.id}/ways`, { as, body: { text } });
+  const solve = (text: string, as = 'cy') => t.call('POST', `/signs/${posted.id}/solve`, { as, body: { text } });
+
+  // Jamie, 2026-11-12: "agree these should not be considered new."
+  for (const text of [
+    '(7 + 12) × 1! = 19',
+    '(12 + 7) × √1 = 19',
+    '(−(−7) + 12) × 1 = 19',
+    '19 = (12 + −(−7)) × 1',
+    '1!! × (7 + 12) = 19'
+  ]) {
+    const twin = await add(text);
+    assert.equal(twin.res.status, 409, text);
+    assert.equal(twin.body.error.code, 'conflict');
+    assert.equal(twin.body.error.message, REORDERED);
+    const solved = await solve(text);
+    assert.equal(solved.res.status, 409, text);
+    assert.equal(solved.body.error.message, REORDERED, 'a twin is never a found too');
+  }
+  // x^1 is the identity; x × 1 isn't, so these two are different ways.
+  const power = await add('(7 + 12)^1 = 19');
+  assert.equal(power.res.status, 201);
+  const twinOfPower = await solve('7 + 12 = 19^1');
+  assert.equal(twinOfPower.res.status, 409);
+  assert.equal(twinOfPower.body.error.message, REORDERED);
+  // The exact math again is still a found too.
+  const too = await solve('(7 + 12) × 1 = 19');
+  assert.equal(too.res.status, 200);
+  assert.equal(too.body.result, 'also_found');
+  assert.equal((await t.store.listWays(posted.id)).length, 2);
+});
+
+test('a way posted before the identities joined the rule keeps its place, and its twin is refused', async () => {
+  const t = await setup();
+  const numbers = ['7', '12', '19', '1'].map((value) => ({ value }));
+  const { body: posted } = await t.post({ numbers, way: '(7 + 12) × 1 = 19' });
+  // Posting compares a new way with the ways on the sign as it reads them, so where a way's
+  // SAME row came from doesn't matter here (test/store.test.ts has the old rows).
+  await t.store.addWay({
+    id: '01JZZZZZZZZZZZZZZZZZZZZZZZ',
+    signId: posted.id,
+    playerId: ben.id,
+    text: '(7 + 12)^1! = 19',
+    value: '19',
+    numbers: ['7', '12', '1', '19'],
+    createdAt: '2026-11-01T00:00:00.000Z'
+  });
+  const twin = await t.call('POST', `/signs/${posted.id}/solve`, { as: 'cy', body: { text: '19 = 12 + 7^1' } });
+  assert.equal(twin.res.status, 409);
+  assert.equal(twin.body.error.message, REORDERED);
+  const ways = await t.store.listWays(posted.id);
+  assert.ok(
+    ways.some((w) => w.text === '(7 + 12)^1! = 19'),
+    'the old way stays as it was written'
+  );
+});

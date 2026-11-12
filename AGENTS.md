@@ -24,7 +24,13 @@ ids or ARNs, local paths, or photos of plates or faces that weren't meant to be 
   and checks its own LaTeX writer against these vectors. **The same way** (`sameWayKey`, Jamie,
   2026-11-11: a reordered way "earns nothing"): two ways are one when they differ only by the order
   of what is added or multiplied (each term keeping its sign, each factor whether it divides, inside
-  roots, powers and brackets too), brackets that do nothing, or which side of the `=` is which. A
+  roots, powers and brackets too), brackets that do nothing, which side of the `=` is which, or a
+  do-nothing identity anywhere in it: `2!` for `2`, `1!` for `1`, `√1` for `1`, `x^1` for `x`
+  (the exponent the literal 1) and `−(−x)` for `x` (Jamie, 2026-11-12: "agree these should not
+  be considered new"). `3!`, `0!`, `√4`, `x × 1`, `x + 0` and `x^0` stay new ways. The ways
+  already on signs stay as written; `SAME#` rows from before then hold the order-only key
+  (`orderOnlyKey`), so posting compares a new way with the sign's ways as it reads them, and
+  deleting a way frees both rows. A
   new way that is the same as one on the sign is a 409 `conflict` (`REORDERED`, which ends without
   a full stop: the app's Find another way adds one). The vectors' `same_way` pairs hold the rule.
 - **Public reads, signed-in writes.** Only `shown` signs are public; a player also sees their

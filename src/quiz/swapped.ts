@@ -1,8 +1,9 @@
 // What a reordered way changed against the way already on the sign, in words for the solve page:
 // the sides of the = the other way round, numbers swapped or moved, or brackets that change
-// nothing. Only for two ways `sameWayKey` already calls the same.
+// nothing. Only for two ways `sameWayKey` already calls the same, and only when they differ by
+// order alone: a do-nothing identity (2! for 2, √1 for 1) is none of those, so it says nothing.
 
-import { format, numbersIn, parse, sameWayKey, type Node } from '../domain/equation.ts';
+import { format, numbersIn, orderOnlyKey, parse, sameWayKey, type Node } from '../domain/equation.ts';
 
 /** "7", "7 and 12", "3, 4 and 5". */
 const list = (items: string[]) =>
@@ -24,10 +25,11 @@ function moved(tried: Node, was: Node): string[] {
 /**
  * A sentence saying what `tried` swapped against `was`, such as "You swapped 7 and 12." or "You
  * put the two sides of the = the other way round." Undefined when they aren't the same way, or
- * the difference can't be put in words.
+ * the difference can't be put in words (as when one has a do-nothing identity the other hasn't).
  */
 export function whatSwapped(tried: string, was: string): string | undefined {
   if (sameWayKey(tried) === undefined || sameWayKey(tried) !== sameWayKey(was)) return undefined;
+  if (orderOnlyKey(tried) !== orderOnlyKey(was)) return undefined;
   const t = parse(tried);
   const w = parse(was);
   if (!t || !w || t.length !== w.length) return undefined;

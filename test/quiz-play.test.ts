@@ -1005,6 +1005,19 @@ test('what a reordering swapped, in words', () => {
   assert.equal(whatSwapped('4 + 5 + 3 = 12', '3 + 4 + 5 = 12'), 'You moved 3, 4 and 5 around.');
   assert.equal(whatSwapped('(1 + 2) + 3 = 6', '1 + 2 + 3 = 6'), 'The only difference is brackets that change nothing.');
   assert.equal(whatSwapped('7 − 4 = 3', '7 − 3 = 4'), undefined, 'not the same way');
+  // A do-nothing identity (Jamie, 2026-11-12) is the same way, but none of these words fit it.
+  assert.equal(whatSwapped('−(−7) + 12 = 19', '7 + 12 = 19'), undefined);
+  assert.equal(whatSwapped('12 + 7 = 19^1', '7 + 12 = 19'), undefined);
+});
+
+test('a way that only adds a do-nothing identity gets the turned-around answer, with no swap named', async () => {
+  const t = await setup();
+  const twin = await t.quiz('/signs/seven-twelve/solve', { as: 'ben', form: { text: '−(−7) + 12 = 19' } });
+  assert.equal(twin.res.status, 409);
+  const html = decoded(twin.html);
+  assert.ok(html.includes('data-said="That’s Ada’s way, turned around."'));
+  assert.ok(!html.includes('The only difference is brackets'));
+  assert.ok(html.includes('value="−(−7) + 12 = 19"'), 'the attempt stays');
 });
 
 test('the keypad puts the attempt back as tiles and operators', () => {

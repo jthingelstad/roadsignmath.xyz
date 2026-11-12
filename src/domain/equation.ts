@@ -500,11 +500,61 @@ export function numbersLeftOut(used: string[], onSign: string[]): string[] {
  * divided, each keeping whether it divides; the same inside every root, power and bracket.
  * Brackets that do nothing go: those in a + or × place. Those after a − or ÷ stay whole, since
  * taking them away would change a sign (7 − (4 − 1) isn't 7 − 4 + 1). The sides are sorted too,
- * so 7 = 3 + 4 is 3 + 4 = 7. Different numbers, operators or moves across the = are new ways.
+ * so 7 = 3 + 4 is 3 + 4 = 7. Identities that do nothing go as well (Jamie, 2026-11-12: "agree
+ * these should not be considered new"): 2! is 2 and 1! is 1 (the literal numbers only: 3! is 6, a
+ * new way), √1 is 1, x^1 is x (an exponent of exactly 1) and −(−x) is x, at any depth. Different
+ * numbers, operators or moves across the = are new ways, and so are x × 1, x + 0, x^0 and √4.
  */
 export function sameWayKey(text: string): string | undefined {
   const sides = parse(text);
+  return sides
+    ?.map((side) => wayKey(plain(side)))
+    .sort()
+    .join(' = ');
+}
+
+/**
+ * The key from before 2026-11-12, order only, with the do-nothing identities kept. The table's
+ * `SAME#` rows for ways posted before then were written with it.
+ */
+export function orderOnlyKey(text: string): string | undefined {
+  const sides = parse(text);
   return sides?.map(wayKey).sort().join(' = ');
+}
+
+const isLiteral = (node: Node, ...texts: string[]): boolean => {
+  const n = unwrap(node);
+  return n.op === 'num' && texts.includes(n.text);
+};
+
+/** The tree with the identities that do nothing taken out, from the inside out. */
+function plain(node: Node): Node {
+  switch (node.op) {
+    case 'num':
+      return node;
+    case 'group':
+      return { op: 'group', arg: plain(node.arg) };
+    case 'neg': {
+      const arg = plain(node.arg);
+      const inner = unwrap(arg);
+      return inner.op === 'neg' ? inner.arg : { op: 'neg', arg };
+    }
+    case 'sqrt': {
+      const arg = plain(node.arg);
+      return isLiteral(arg, '1') ? unwrap(arg) : { op: 'sqrt', arg };
+    }
+    case 'fact': {
+      const arg = plain(node.arg);
+      return isLiteral(arg, '1', '2') ? unwrap(arg) : { op: 'fact', arg };
+    }
+    case 'pow': {
+      const left = plain(node.left);
+      const right = plain(node.right);
+      return isLiteral(right, '1') ? left : { op: 'pow', left, right };
+    }
+    default:
+      return { op: node.op, left: plain(node.left), right: plain(node.right) };
+  }
 }
 
 function wayKey(node: Node): string {

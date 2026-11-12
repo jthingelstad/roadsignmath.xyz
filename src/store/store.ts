@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { sameWayKey } from '../domain/equation.ts';
+import { orderOnlyKey, sameWayKey } from '../domain/equation.ts';
 import type {
   CoFind,
   Block,
@@ -183,6 +183,15 @@ export const normalizeEmail = (email: string): string => email.trim().toLowerCas
 export const wayHash = (text: string): string => createHash('sha256').update(text).digest('hex');
 /** The hash of a way's math in any order, so the same way reordered claims the same row. */
 export const sameWayHash = (text: string): string => wayHash(sameWayKey(text) ?? text);
+/**
+ * Every `SAME#` hash a way may hold: today's, and the order-only one its row was written under
+ * before the do-nothing identities joined the rule (2026-11-12). They differ only for a way with
+ * one of those identities in it. Posting compares a new way with the ways on the sign as they are
+ * read, so an old row never lets a twin through; this is so deleting the way frees both.
+ */
+export const sameWayHashes = (text: string): string[] => [
+  ...new Set([sameWayHash(text), wayHash(orderOnlyKey(text) ?? text)])
+];
 
 export const emailHash = (email: string): string => createHash('sha256').update(normalizeEmail(email)).digest('hex');
 
