@@ -82,8 +82,11 @@ const plate = `<table role="presentation" align="center" cellpadding="0" cellspa
 </td></tr>
 </table>`;
 
-/** Where the sign-in started: the iPhone app, or Quiz in a browser. The email says it the same way. */
-export type SignInFront = 'app' | 'quiz';
+/**
+ * Where the sign-in started: the iPhone app, Quiz in a browser, or the website's own sign-in (while
+ * `SITE_SIGNIN_OPEN`, src/web/account.tsx). The email says it the same way.
+ */
+export type SignInFront = 'app' | 'quiz' | 'site';
 
 const WORDS: Record<
   SignInFront,
@@ -104,6 +107,14 @@ const WORDS: Record<
     type: 'Or type this code on the sign-in page',
     open: 'If the button doesn&rsquo;t work, open this link:',
     pixel: '/email/signin-quiz'
+  },
+  site: {
+    title: 'Sign in to Road Sign Math',
+    tap: 'Tap the button to sign in on this device.',
+    textTap: 'Tap to sign in to roadsignmath.xyz:',
+    type: 'Or type this code on the sign-in page',
+    open: 'If the button doesn&rsquo;t work, open this link:',
+    pixel: '/email/signin-site'
   }
 };
 

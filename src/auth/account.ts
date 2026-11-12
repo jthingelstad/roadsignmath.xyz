@@ -294,7 +294,14 @@ export async function newsletterAtSignIn(
   via: SignInFront
 ): Promise<void> {
   const { player, isNew } = done;
-  if (!player.email || !deps.newsletter || player.newsletterTags?.includes(via)) return;
+  if (!player.email || !deps.newsletter) return;
+  if (via === 'site') {
+    // The website's sign-in has no tag (`/privacy` names only the app and Quiz): a new player joins
+    // the list untagged, and one already there is left as they are.
+    if (isNew) console.log({ event: 'newsletter', op: 'add', outcome: await deps.newsletter.add(player.email) });
+    return;
+  }
+  if (player.newsletterTags?.includes(via)) return;
   // Tagging reads the subscriber's tags and writes them back, so one sign-in at a time per player.
   // A busy lease skips it: nothing is recorded, and the next sign-in there tries again.
   const lease = newsletterLease(player.id);

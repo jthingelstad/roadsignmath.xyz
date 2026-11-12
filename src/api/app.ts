@@ -31,6 +31,7 @@ import { notFoundPage } from '../web/not-found.tsx';
 import { frontOf } from '../front.ts';
 import { createQuiz } from '../quiz/quiz.tsx';
 import { Census } from '../census.ts';
+import { SITE_SIGNIN_OPEN, createAccount, signInHeader } from '../web/account.tsx';
 import { createSite } from '../web/site.tsx';
 import { mergedSlugs } from '../web/permalinks.ts';
 import {
@@ -88,6 +89,11 @@ export type ApiOptions = {
   edgeCache?: EdgeCache;
   /** Opens Quiz whatever `QUIZ_OPEN` says: tests and `npm run dev`'s Quiz port. */
   quizOpen?: boolean;
+  /**
+   * Opens the site's signed-in side whatever `SITE_SIGNIN_OPEN` says (src/web/account.tsx): tests,
+   * and `SITE_SIGNIN_OPEN=1 npm run dev`.
+   */
+  siteSignInOpen?: boolean;
   /** Logs the hourly census (src/census.ts): the live server only. */
   census?: boolean;
 };
@@ -717,6 +723,11 @@ function siteApp(options: ApiOptions & { heartCounts: HeartCounts }): Hono {
       c.body(association, 200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' });
     app.get('/.well-known/apple-app-site-association', serve);
     app.get('/apple-app-site-association', serve);
+  }
+  // The website's signed-in side, only while it is open (src/web/account.tsx): shut, the site is as it was.
+  if (options.siteSignInOpen ?? SITE_SIGNIN_OPEN) {
+    app.use('*', signInHeader());
+    app.route('/', createAccount({ ...options, clientIp: options.clientIp ?? cloudFrontIp }));
   }
   app.route('/', createSite(options));
   const page = notFoundPage(options);

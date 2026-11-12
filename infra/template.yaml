@@ -546,6 +546,83 @@ Resources:
             FunctionAssociations:
               - EventType: viewer-request
                 FunctionARN: !GetAtt WwwRedirectFunction.FunctionMetadata.FunctionARN
+          # The website's signed-in side (src/web/account.tsx, ACCOUNT_PATHS): sign-in, /you and
+          # posting. Never cached, every method, and the only site paths the sign-in cookie reaches
+          # (Quiz's policies: a 0-TTL key with the cookies and every query string). Every other page
+          # stays cached, without a cookie. With SITE_SIGNIN_OPEN false the server answers here as
+          # before: /signin is the iPhone app's landing page (already no-store), the rest a 404.
+          - PathPattern: /signin
+            TargetOriginId: web
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref QuizCachePolicy
+            OriginRequestPolicyId: !Ref QuizRequestPolicy
+            ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt WwwRedirectFunction.FunctionMetadata.FunctionARN
+          - PathPattern: /signin/*
+            TargetOriginId: web
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref QuizCachePolicy
+            OriginRequestPolicyId: !Ref QuizRequestPolicy
+            ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt WwwRedirectFunction.FunctionMetadata.FunctionARN
+          - PathPattern: /you
+            TargetOriginId: web
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref QuizCachePolicy
+            OriginRequestPolicyId: !Ref QuizRequestPolicy
+            ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt WwwRedirectFunction.FunctionMetadata.FunctionARN
+          - PathPattern: /you/*
+            TargetOriginId: web
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref QuizCachePolicy
+            OriginRequestPolicyId: !Ref QuizRequestPolicy
+            ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt WwwRedirectFunction.FunctionMetadata.FunctionARN
+          - PathPattern: /post
+            TargetOriginId: web
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref QuizCachePolicy
+            OriginRequestPolicyId: !Ref QuizRequestPolicy
+            ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt WwwRedirectFunction.FunctionMetadata.FunctionARN
+          - PathPattern: /post/*
+            TargetOriginId: web
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref QuizCachePolicy
+            OriginRequestPolicyId: !Ref QuizRequestPolicy
+            ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt WwwRedirectFunction.FunctionMetadata.FunctionARN
 
   # The distribution's access log, kept 24 months like the other sites'. The fields leave out
   # the client IP and the query string, which can carry a sign-in link's token (the token is
@@ -602,7 +679,8 @@ Resources:
   # Quiz's pages uncompressed. MaxTTL 1 caps anything that ever forgets to say no-store, and the
   # session cookie (rsm_quiz, HttpOnly, src/quiz/session.ts) is in the key with every query
   # string, so even that second is never shared between players. The cookie and the query reach
-  # the server through the key.
+  # the server through the key. The site's signed-in paths use it too, with the shared sign-in
+  # cookie (rsm_session, for the domain and its names) beside Quiz's own.
   QuizCachePolicy:
     Type: AWS::CloudFront::CachePolicy
     Properties:
@@ -618,7 +696,7 @@ Resources:
           HeadersConfig: { HeaderBehavior: none }
           CookiesConfig:
             CookieBehavior: whitelist
-            Cookies: [rsm_quiz]
+            Cookies: [rsm_quiz, rsm_session]
           QueryStringsConfig: { QueryStringBehavior: all }
 
   # What Quiz's pages read beyond the key: the form's type, the answer wanted, the Origin a write

@@ -9,6 +9,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
+import { COOKIE, MARKER_COOKIE, SESSION_COOKIE } from '../src/quiz/session.ts';
+import { ACCOUNT_PATHS } from '../src/web/account.tsx';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const SRC = join(ROOT, 'src');
@@ -131,7 +133,48 @@ test('Quiz keeps forwarding every query string and its cookie, caches nothing an
   assert.equal(key.EnableAcceptEncodingGzip, true);
   assert.equal(key.EnableAcceptEncodingBrotli, true);
   assert.equal(key.QueryStringsConfig.QueryStringBehavior, 'all');
-  assert.deepEqual(key.CookiesConfig, { CookieBehavior: 'whitelist', Cookies: ['rsm_quiz'] });
+  assert.deepEqual(key.CookiesConfig, { CookieBehavior: 'whitelist', Cookies: [COOKIE, SESSION_COOKIE] });
   const request = resources[quiz.OriginRequestPolicyId.Ref]!.Properties.OriginRequestPolicyConfig;
   assert.equal(request.QueryStringsConfig.QueryStringBehavior, 'all');
+});
+
+test('the site’s signed-in paths are never cached, take every method and alone get the sign-in cookie', () => {
+  const site = distribution('Distribution');
+  const signedIn = site.CacheBehaviors.filter((b: { PathPattern: string }) =>
+    (ACCOUNT_PATHS as readonly string[]).includes(b.PathPattern)
+  );
+  // Every path the signed-in side answers under has its behaviour, and no other path is the server's.
+  assert.deepEqual(signedIn.map((b: { PathPattern: string }) => b.PathPattern).sort(), [...ACCOUNT_PATHS].sort());
+  for (const path of site.CacheBehaviors.map((b: { PathPattern: string }) => b.PathPattern)) {
+    assert.ok(['/api/*', '/p/*', ...ACCOUNT_PATHS].includes(path), `${path} is a behaviour this test doesn't know`);
+  }
+  for (const b of signedIn) {
+    assert.equal(b.TargetOriginId, 'web');
+    assert.equal(b.Compress, true);
+    assert.deepEqual(b.AllowedMethods, ['GET', 'HEAD', 'OPTIONS', 'PUT', 'PATCH', 'POST', 'DELETE']);
+    assert.equal(b.ResponseHeadersPolicyId, site.DefaultCacheBehavior.ResponseHeadersPolicyId);
+    assert.deepEqual(b.FunctionAssociations, site.DefaultCacheBehavior.FunctionAssociations);
+    const policy = resources[policyOf(b)]!.Properties.CachePolicyConfig;
+    assert.equal(policy.DefaultTTL, 0);
+    assert.ok(policy.MaxTTL <= 1, `${b.PathPattern} can be cached`);
+    const key = policy.ParametersInCacheKeyAndForwardedToOrigin;
+    assert.ok(key.CookiesConfig.Cookies.includes(SESSION_COOKIE), `${b.PathPattern} doesn't get the sign-in cookie`);
+    assert.equal(key.QueryStringsConfig.QueryStringBehavior, 'all');
+    const request = resources[b.OriginRequestPolicyId.Ref]!.Properties.OriginRequestPolicyConfig;
+    assert.ok(request.HeadersConfig.Headers.includes('Origin'), 'a POST’s Origin is checked');
+  }
+  // Every other site path, pages and API, gets no cookie at all: the same answer for everyone.
+  for (const b of [site.DefaultCacheBehavior, ...site.CacheBehaviors.filter((x: unknown) => !signedIn.includes(x))]) {
+    const key = resources[policyOf(b)]?.Properties.CachePolicyConfig.ParametersInCacheKeyAndForwardedToOrigin;
+    if (key) assert.deepEqual(key.CookiesConfig, { CookieBehavior: 'none' }, `${b.PathPattern ?? 'default'}`);
+    if (b.OriginRequestPolicyId) {
+      const request = resources[b.OriginRequestPolicyId.Ref]!.Properties.OriginRequestPolicyConfig;
+      assert.equal(request.CookiesConfig.CookieBehavior, 'none');
+    }
+  }
+  // The marker the header reads holds no secret and is read by the browser only: never forwarded.
+  for (const r of Object.values(resources)) {
+    const cookies = r.Properties?.CachePolicyConfig?.ParametersInCacheKeyAndForwardedToOrigin?.CookiesConfig?.Cookies;
+    assert.ok(!cookies?.includes(MARKER_COOKIE));
+  }
 });

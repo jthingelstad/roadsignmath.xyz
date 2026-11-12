@@ -4,7 +4,7 @@
 // its own is the solve page's keypad (src/quiz/keypad.ts). Nothing here counts or ranks: no
 // points, scores, streaks, timers or totals.
 
-import { createContext, useContext, type FC, type PropsWithChildren } from 'hono/jsx';
+import { createContext, useContext, type Child, type FC, type PropsWithChildren } from 'hono/jsx';
 import { texOf } from '../domain/equation.ts';
 import type { Player, Sign, Way } from '../domain/types.ts';
 import { LIMITS } from '../api/contract.ts';
@@ -12,7 +12,7 @@ import { BIO_MAX, HOME_MAX, NAME_MAX, WEBSITE_MAX } from '../auth/account.ts';
 import { photoUrl, playerUrl, signPath, signUrl, websiteHost, type People } from '../api/views.ts';
 import { BRAND_VERSION, LOCKUP_SIZE } from '../web/brand.ts';
 import { BADGE_STYLE, BadgeCards, type BadgeView } from '../web/badges.tsx';
-import { longDay } from '../web/layout.tsx';
+import { Page, longDay } from '../web/layout.tsx';
 import { mathSvg } from '../web/math.ts';
 import { CARD_HEIGHT, CARD_WIDTH, type Card } from '../web/share.ts';
 import { QUIZ_TINYLYTICS_SITE, TINYLYTICS_SCRIPT } from '../web/tinylytics.ts';
@@ -21,8 +21,63 @@ import { KEYPAD_JS } from './keypad.ts';
 import { PHOTOS_JS } from './photos.ts';
 import type { OnSign, Solve } from './data.ts';
 
-/** Where Quiz's pages link and load from: its own origin, and the site's for photos and logos. */
-export type Here = { site: string; quiz: string };
+/**
+ * Where Quiz's pages link and load from: its own origin, and the site's for photos and logos. The
+ * sign-in and profile pages are shared with the site's signed-in side (src/web/account.tsx), which
+ * gives `front: 'site'`: the same pages in the site's frame, at the site's paths, with its words.
+ */
+export type Here = { site: string; quiz: string; front?: 'quiz' | 'site' };
+
+/** Where each shared page lives on a front. */
+export type Paths = {
+  signin: string;
+  code: string;
+  /** Where the email's link lands (a GET that changes nothing) and posts its token. */
+  link: string;
+  name: string;
+  signout: string;
+  profile: string;
+  photo: string;
+  photoRemove: string;
+  del: string;
+  deleted: string;
+};
+
+const QUIZ_PATHS: Paths = {
+  signin: '/signin',
+  code: '/signin/code',
+  link: '/signin/link',
+  name: '/name',
+  signout: '/signout',
+  profile: '/profile',
+  photo: '/profile/photo',
+  photoRemove: '/profile/photo/remove',
+  del: '/profile/delete',
+  deleted: '/deleted'
+};
+
+/**
+ * The site's: all under `/signin` and `/you`, the paths its distribution never caches. The email's
+ * link lands on `/signin/link`, not `/signin`, which the iPhone app claims (src/web/apple.ts).
+ */
+export const SITE_PATHS: Paths = {
+  signin: '/signin',
+  code: '/signin/code',
+  link: '/signin/link',
+  name: '/signin/name',
+  signout: '/you/signout',
+  profile: '/you',
+  photo: '/you/photo',
+  photoRemove: '/you/photo/remove',
+  del: '/you/delete',
+  deleted: '/you/deleted'
+};
+
+export const pathsOf = (here: Here): Paths => (here.front === 'site' ? SITE_PATHS : QUIZ_PATHS);
+const onSite = (here: Here) => here.front === 'site';
+
+/** A path with the sign to land on (`to`) after signing in. */
+const toPath = (path: string, to?: string) => (to ? `${path}?to=${encodeURIComponent(to)}` : path);
 
 /** The share card every Quiz page names (src/quiz/share.ts), given once per answer by quiz.tsx. */
 export const ShareCard = createContext<Card | undefined>(undefined);
@@ -195,6 +250,66 @@ label { font-weight: 800; }
 }
 `;
 
+/**
+ * The shared pages' parts of Quiz's style, for the site's frame, each kept inside `.acct` (the
+ * site's `main` for these pages) so none reaches the site's own header, footer or pages.
+ */
+export const FORM_STYLE = `
+.acct { --bad: #8A1C2B; --tint-ink: #1F3A2E; padding-top: 20px; padding-bottom: 40px; }
+@media (prefers-color-scheme: dark) { .acct { --bad: #F2A7B1; --tint-ink: #CFE3D8; --tint: #183126; } }
+.acct .stack { display: flex; flex-direction: column; gap: 14px; }
+.acct .narrow { max-width: 560px; }
+.acct h1 { margin: 0; font-size: 28px; line-height: 1.12; }
+.acct .h2 { margin: 0; font-size: 19px; font-weight: 900; }
+.acct .meta { margin: 0; font-size: 14px; color: var(--soft); }
+.acct .lede { margin: 0; font-size: 17px; line-height: 1.45; color: var(--ink2); }
+.acct .btn { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 0 18px;
+  border-radius: 14px; border: 0; background: var(--green); color: #fff; font: inherit; font-size: 17px; font-weight: 800;
+  text-decoration: none; cursor: pointer; width: 100%; touch-action: manipulation; }
+.acct a.btn { color: #fff; }
+.acct .btn.ghost, .acct a.btn.ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--line2); }
+.acct .btn.danger, .acct a.btn.danger { background: transparent; color: var(--bad); border: 1.5px solid var(--bad); }
+.acct .txt { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 6px; border: 0;
+  background: transparent; font: inherit; font-size: 16px; font-weight: 800; color: var(--green-ink); cursor: pointer;
+  text-decoration: none; }
+.acct .txt.bad { color: var(--bad); }
+.acct .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.acct .field { width: 100%; min-height: 52px; padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--line2);
+  background: var(--card); color: var(--ink); font: inherit; font-size: 18px; }
+.acct .field.code { font: 700 28px 'Overpass Mono', ui-monospace, monospace; letter-spacing: .3em; text-align: center; }
+.acct .field.file { font-size: 15px; padding: 12px; }
+.acct label { font-weight: 800; }
+.acct .note { display: flex; gap: 10px; align-items: center; padding: 12px 14px; border-radius: 12px; background: var(--tint);
+  color: var(--tint-ink); font-size: 15px; line-height: 1.45; margin: 0; }
+.acct .oops { padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--bad); color: var(--bad); font-weight: 700; margin: 0; }
+.acct .card { border: 1px solid var(--line); border-radius: 16px; background: var(--card); }
+.acct .prof { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 20px 14px; text-align: center; }
+.acct .prof .name { font-size: 22px; font-weight: 900; }
+.acct .prof .bio { margin: 0; color: var(--ink2); max-width: 420px; }
+.acct .part { display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--line); padding-top: 18px; }
+.acct .photo-row { display: flex; align-items: center; gap: 14px; }
+.acct .photo-row p { margin: 0; }
+.acct .facts { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; }
+.acct .facts dt { font-weight: 800; }
+.acct .facts dd { margin: 0; color: var(--ink2); overflow-wrap: anywhere; }
+.acct .av { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: #fff;
+  font-weight: 900; padding-top: 2px; overflow: hidden; }
+.acct .av.ink { color: #18201C; }
+.acct .av.pic { padding: 0; background: var(--photo); }
+.acct .av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.acct .mine { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.acct .mine li { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--rule); align-items: flex-start; }
+.acct .mine img, .acct .mine .noimg { width: 76px; height: 76px; object-fit: cover; border-radius: 10px; background: var(--photo);
+  flex: 0 0 auto; }
+.acct .mine .what { display: flex; flex-direction: column; gap: 4px; min-width: 0; align-items: flex-start; }
+.acct .mine strong { font-weight: 900; overflow-wrap: anywhere; }
+.acct .mine .txt { min-height: 36px; padding: 0; }
+.acct .pill { display: inline-flex; align-items: center; font-size: 12px; font-weight: 900; letter-spacing: .04em;
+  padding: 4px 9px 2px; border-radius: 999px; background: var(--tint); color: var(--tint-ink); text-transform: uppercase; }
+.acct .pill.y { background: #F2B300; color: #18201C; }
+.acct .pill.g { background: var(--ground); color: var(--ink2); }
+`;
+
 /** Carries the sign a player came to try through signing in (`to`, an id or a slug Quiz checked). */
 const BackTo: FC<{ to?: string }> = ({ to }) => (to ? <input type="hidden" name="to" value={to} /> : null);
 
@@ -218,6 +333,23 @@ export const Frame: FC<
     at?: string;
   }>
 > = ({ here, title, player, script, description, count = true, at, children }) => {
+  if (onSite(here)) {
+    // The site's own frame: its header (the face swapped in by src/web/account.tsx), its footer.
+    return (
+      <Page
+        title={`${title} · Road Sign Math`}
+        description={description ?? 'Your Road Sign Math account.'}
+        count={count}
+        banner={false}
+        style={FORM_STYLE}
+        script={script}
+      >
+        <main id="main" class="wrap acct">
+          {children}
+        </main>
+      </Page>
+    );
+  }
   const card = useContext(ShareCard);
   const fullTitle = title === 'Road Sign Math Quiz' ? title : `${title} · Road Sign Math Quiz`;
   const about = description ?? 'Find the math in road signs spotted on real road trips. Road Sign Math Quiz.';
@@ -309,7 +441,7 @@ export const Frame: FC<
  * A player's face: their profile photo from the site (the small size, or the large one drawn
  * big), or their first letter in their colour (yellow takes ink).
  */
-const Face: FC<{ player: Pick<Player, 'name' | 'avatarColor' | 'avatar'>; size: number; here: Here }> = ({
+export const Face: FC<{ player: Pick<Player, 'name' | 'avatarColor' | 'avatar'>; size: number; here: Here }> = ({
   player,
   size,
   here
@@ -599,20 +731,24 @@ export const SignInPage: FC<{ here: Here; error?: string; email?: string; to?: s
 }) => (
   <Frame here={here} title="Sign in">
     <div class="stack narrow">
-      <h1>{math ? 'Sign in to send it' : 'Sign in to play'}</h1>
+      <h1>{math ? 'Sign in to send it' : onSite(here) ? 'Sign in' : 'Sign in to play'}</h1>
       {math && (
         <div class="stack" style="gap: 8px; align-items: flex-start">
           <MathPlate text={math} mini />
           <p class="meta">Your math is kept while you sign in. You can send it right after.</p>
         </div>
       )}
-      <p class="lede">One account for Quiz and the Road Sign Math app. Already play in the app? Use the same email.</p>
+      <p class="lede">
+        {onSite(here)
+          ? 'One account for roadsignmath.xyz, Quiz and the Road Sign Math app. Already play? Use the same email.'
+          : 'One account for Quiz and the Road Sign Math app. Already play in the app? Use the same email.'}
+      </p>
       {error && (
         <p class="oops" role="alert">
           {error}
         </p>
       )}
-      <form method="post" action="/signin" class="stack">
+      <form method="post" action={pathsOf(here).signin} class="stack">
         <BackTo to={to} />
         <Carry math={math} />
         <label for="em">Email</label>
@@ -665,7 +801,7 @@ export const CodePage: FC<{
           {error}
         </p>
       )}
-      <form method="post" action="/signin/code" class="stack">
+      <form method="post" action={pathsOf(here).code} class="stack">
         <input type="hidden" name="login" value={loginId} />
         <BackTo to={to} />
         <label for="code">6-digit code</label>
@@ -684,7 +820,7 @@ export const CodePage: FC<{
         </button>
       </form>
       <div class="row">
-        <form method="post" action="/signin">
+        <form method="post" action={pathsOf(here).signin}>
           <input type="hidden" name="login" value={loginId} />
           <input type="hidden" name="again" value="1" />
           <BackTo to={to} />
@@ -692,7 +828,7 @@ export const CodePage: FC<{
             Send the email again
           </button>
         </form>
-        <a class="txt" href={to ? `/signin?to=${to}` : '/signin'}>
+        <a class="txt" href={toPath(pathsOf(here).signin, to)}>
           Use a different email
         </a>
       </div>
@@ -719,12 +855,12 @@ export const LinkPage: FC<{ here: Here; loginId: string; token: string; to?: str
   >
     <div class="stack narrow">
       <h1>Signing you in…</h1>
-      <form id="go" method="post" action="/signin/link" class="stack">
+      <form id="go" method="post" action={pathsOf(here).link} class="stack">
         <input type="hidden" name="login" value={loginId} />
         <input type="hidden" name="token" value={token} />
         <BackTo to={to} />
         <button class="btn" type="submit">
-          Sign in to Quiz
+          {onSite(here) ? 'Sign in to Road Sign Math' : 'Sign in to Quiz'}
         </button>
       </form>
     </div>
@@ -747,14 +883,14 @@ export const NamePage: FC<{ here: Here; player: Player; error?: string; to?: str
           {error}
         </p>
       )}
-      <form method="post" action="/name" class="stack">
+      <form method="post" action={pathsOf(here).name} class="stack">
         <BackTo to={to} />
         <Carry math={math} />
         <label for="nm">Your name</label>
         <input id="nm" class="field" type="text" name="name" autocomplete="given-name" maxlength={40} required />
         <p class="meta">It also makes your page’s address on roadsignmath.xyz, for good.</p>
         <button class="btn" type="submit">
-          Start playing
+          {onSite(here) ? 'Save my name' : 'Start playing'}
         </button>
       </form>
       <p class="note">Got the iPhone app? Sign in there with the same email and it’s all one player.</p>
@@ -1267,12 +1403,13 @@ export const SolvedPage: FC<{
 // Your profile: what the app's You and Settings let a player change, on the web
 
 /** What the last change on the profile page did, said once at its top. */
-export type ProfileDone = 'photo' | 'removed' | 'saved';
+export type ProfileDone = 'photo' | 'removed' | 'saved' | 'deleted';
 
 const DONE: Record<ProfileDone, string> = {
   photo: 'Your new photo is up.',
   removed: 'Your photo is gone. Your first letter shows in its place.',
-  saved: 'Saved.'
+  saved: 'Saved.',
+  deleted: 'Your sign is deleted.'
 };
 
 /** A trouble on the profile page, shown in the part it came from. */
@@ -1305,14 +1442,18 @@ export const ProfilePage: FC<{
   typed?: { name: string; bio: string; website: string; home: string };
   /** The sign being played, by slug, to go back to. */
   at?: string;
-}> = ({ here, player, hasPage, done, trouble, typed, at }) => {
+  /** In place of the link to the signs you've solved: the site's list of the signs you posted. */
+  yours?: Child;
+}> = ({ here, player, hasPage, done, trouble, typed, at, yours }) => {
   const page = playerUrl(here, player);
   return (
     <Frame here={here} title="Your profile" player={player} at={at}>
       <div class="stack narrow">
-        <a class="txt" href={at ? `/signs/${at}` : '/next'} style="align-self: flex-start">
-          Back to the signs
-        </a>
+        {!onSite(here) && (
+          <a class="txt" href={at ? `/signs/${at}` : '/next'} style="align-self: flex-start">
+            Back to the signs
+          </a>
+        )}
         <h1>Your profile</h1>
         {done && (
           <p class="note" role="status">
@@ -1349,7 +1490,7 @@ export const ProfilePage: FC<{
             </p>
           </div>
           <Oops message={trouble?.part === 'photo' ? trouble.message : undefined} />
-          <form method="post" action={withAt('/profile/photo', at)} enctype="multipart/form-data" class="stack">
+          <form method="post" action={withAt(pathsOf(here).photo, at)} enctype="multipart/form-data" class="stack">
             <label for="photo">{player.avatar ? 'Choose a new photo' : 'Choose a photo'}</label>
             <input
               id="photo"
@@ -1368,7 +1509,7 @@ export const ProfilePage: FC<{
             </button>
           </form>
           {player.avatar && (
-            <a class="txt bad" href={withAt('/profile/photo/remove', at)} style="align-self: flex-start">
+            <a class="txt bad" href={withAt(pathsOf(here).photoRemove, at)} style="align-self: flex-start">
               Remove photo
             </a>
           )}
@@ -1379,7 +1520,7 @@ export const ProfilePage: FC<{
             Name, bio, website and home
           </h2>
           <Oops message={trouble?.part === 'about' ? trouble.message : undefined} />
-          <form method="post" action={withAt('/profile', at)} class="stack">
+          <form method="post" action={withAt(pathsOf(here).profile, at)} class="stack">
             <label for="nm">Name</label>
             <input
               id="nm"
@@ -1449,14 +1590,16 @@ export const ProfilePage: FC<{
           )}
         </section>
 
-        <section class="part" aria-label="Your signs">
-          <a class="txt" href={withAt('/solved', at)} style="align-self: flex-start">
-            Signs you’ve solved
-          </a>
-        </section>
+        {yours ?? (
+          <section class="part" aria-label="Your signs">
+            <a class="txt" href={withAt('/solved', at)} style="align-self: flex-start">
+              Signs you’ve solved
+            </a>
+          </section>
+        )}
 
         <section class="part" aria-label="Sign out">
-          <form method="post" action="/signout">
+          <form method="post" action={pathsOf(here).signout}>
             <button type="submit" class="btn ghost">
               Sign out
             </button>
@@ -1465,7 +1608,7 @@ export const ProfilePage: FC<{
         </section>
 
         <section class="part" aria-label="Delete my account">
-          <a class="btn danger" href={withAt('/profile/delete', at)}>
+          <a class="btn danger" href={withAt(pathsOf(here).del, at)}>
             Delete my account
           </a>
           <p class="meta">Deletes your account and everything you posted. It can’t be undone.</p>
@@ -1488,12 +1631,12 @@ export const RemovePhotoPage: FC<{ here: Here; player: Player; error?: string; a
       <Face player={player} size={84} here={here} />
       <p class="lede">Your first letter shows again in its place.</p>
       <Oops message={error} />
-      <form method="post" action={withAt('/profile/photo/remove', at)}>
+      <form method="post" action={withAt(pathsOf(here).photoRemove, at)}>
         <button class="btn danger" type="submit">
           Remove photo
         </button>
       </form>
-      <a class="btn ghost" href={withAt('/profile', at)}>
+      <a class="btn ghost" href={withAt(pathsOf(here).profile, at)}>
         Keep it
       </a>
     </div>
@@ -1524,16 +1667,18 @@ export const DeletePage: FC<{ here: Here; player: Player; posted: number; error?
       <h1>Delete your account?</h1>
       <p class="lede">{deleteWords(posted)}</p>
       <p class="meta">
-        It’s the same account as the app, so it’s gone there too. Your email leaves the newsletter, and anything deleted
-        is gone from the backups within a year.
+        {onSite(here)
+          ? 'It’s the same account as the app and Quiz, so it’s gone there too.'
+          : 'It’s the same account as the app, so it’s gone there too.'}{' '}
+        Your email leaves the newsletter, and anything deleted is gone from the backups within a year.
       </p>
       <Oops message={error} />
-      <form method="post" action={withAt('/profile/delete', at)}>
+      <form method="post" action={withAt(pathsOf(here).del, at)}>
         <button class="btn danger" type="submit">
           Delete my account
         </button>
       </form>
-      <a class="btn ghost" href={withAt('/profile', at)}>
+      <a class="btn ghost" href={withAt(pathsOf(here).profile, at)}>
         Keep it
       </a>
     </div>
@@ -1554,7 +1699,7 @@ export const MessagePage: FC<{
       <h1>{title}</h1>
       <p class="lede">{message}</p>
       <a class="btn" href={action?.href ?? '/'}>
-        {action?.label ?? 'Back to Quiz'}
+        {action?.label ?? (onSite(here) ? 'Back to Road Sign Math' : 'Back to Quiz')}
       </a>
     </div>
   </Frame>
