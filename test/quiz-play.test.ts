@@ -188,7 +188,7 @@ test('sign in by code: the Quiz email, a cookie only Quiz’s pages send, then a
   const ended = decoded((await t.quiz(`/signin/code?l=${newLogin}`)).html);
   assert.ok(ended.includes('That sign-in has ended.'), 'a used sign-in’s code page goes back to the email');
   const cookie = done.res.headers.get('set-cookie')!;
-  assert.match(cookie, /^rsm_quiz=rsm_[0-9A-Z]{26}_[\w-]{43};/);
+  assert.match(cookie, /^rsm_session=rsm_[0-9A-Z]{26}_[\w-]{43};/);
   assert.match(cookie, /HttpOnly/);
   assert.match(cookie, /Secure/);
   assert.match(cookie, /SameSite=Lax/);
@@ -461,7 +461,7 @@ test('the email’s link opens a page that changes nothing; its button signs in'
   const done = await t.quiz('/signin/link', { form: { login: loginId, token } });
   assert.equal(done.res.status, 303);
   assert.equal(done.location, '/next', 'Ada has a name already: straight to the signs');
-  assert.match(done.res.headers.get('set-cookie')!, /^rsm_quiz=rsm_01JAAAAAAAAAAAAAAAAAAAAAAA_/);
+  assert.match(done.res.headers.get('set-cookie')!, /^rsm_session=rsm_01JAAAAAAAAAAAAAAAAAAAAAAA_/);
   const again = await t.quiz('/signin/link', { form: { login: loginId, token } });
   assert.equal(again.res.status, 400, 'a link works once');
   assert.ok(again.html.includes('That link has ended'));
@@ -1189,8 +1189,11 @@ test('the cookie is sent again as the session slides, so the browser’s copy ne
   const first = await t.quiz('/next', { as: 'ben' });
   const max = Number(/Max-Age=(\d+)/.exec(first.res.headers.get('set-cookie') ?? '')?.[1]);
   assert.ok(max > 3500 && max <= 3600, String(max));
-  assert.match(first.res.headers.get('set-cookie')!, /^rsm_quiz=rsm_.*HttpOnly; Secure; SameSite=Lax/);
-  assert.ok(!/Domain=/i.test(first.res.headers.get('set-cookie')!), 'host-only');
+  // The site's sign-in is open: one cookie for the site and Quiz, for the domain.
+  assert.match(
+    first.res.headers.get('set-cookie')!,
+    /^rsm_session=rsm_[^;]*; Max-Age=\d+; Domain=[^;]+; Path=\/; HttpOnly; Secure; SameSite=Lax/
+  );
   // Once the session is pushed back, the cookie follows it.
   const hash = createHash('sha256').update('ben'.padEnd(43, 'x')).digest('hex');
   const stored = (await t.store.getSession(ben.id, hash))!;
