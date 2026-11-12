@@ -49,6 +49,8 @@ const SIGNS_STYLE = `
 .search input { width: 100%; max-width: 560px; min-height: 48px; padding: 0 16px; border: 1.5px solid var(--line2); border-radius: 12px;
   background: var(--card); font: inherit; font-size: 17px; color: var(--ink); }
 .search .found { margin: 0; color: var(--soft); min-height: 1.5em; }
+/* Empty, it stays in the page for screen readers but takes no room. */
+.search .found:empty { min-height: 0; margin-top: -8px; }
 .listing { display: flex; flex-direction: column; gap: 32px; }
 .listing[hidden], .results[hidden] { display: none; }
 .year { display: flex; flex-direction: column; gap: 20px; }
@@ -69,7 +71,7 @@ ${CHIP_STYLE}
   .filterbox > summary { display: flex; align-items: center; gap: 12px; min-height: 52px;
     padding: 0 20px; cursor: pointer; font-weight: 800; list-style: none; }
   .filterbox > summary::-webkit-details-marker { display: none; }
-  .filterbox > summary > span:first-child { flex: none; }
+  .filterbox > summary > span:first-child { flex: none; white-space: nowrap; }
   .filterbox > summary::after { content: ''; width: 9px; height: 9px; border: solid currentColor; border-width: 0 2px 2px 0;
     transform: rotate(45deg); margin: -4px 4px 0 auto; flex: none; }
   .filterbox[open] > summary::after { transform: rotate(-135deg); margin-top: 4px; }
