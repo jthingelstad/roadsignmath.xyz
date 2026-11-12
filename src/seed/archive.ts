@@ -198,6 +198,9 @@ const centralDay = (time: number): string =>
 /** Every player id starts from this time, so a later batch that adds an older sign finds the same id. */
 const PLAYER_EPOCH = Date.parse('2005-02-13T00:00:00Z');
 
+/** Whether the player came from the 2005-2014 archive: their id carries PLAYER_EPOCH's time. */
+export const isFirstEraPlayer = (id: string): boolean => id.slice(0, 10) === ulidFrom(PLAYER_EPOCH, '').slice(0, 10);
+
 /** Turns the archive into signs, ways and players. Throws one error listing every problem. */
 export function buildArchivePlan(posts: ArchivePost[], seed: ArchiveSeed): ArchivePlan {
   const problems: string[] = [];

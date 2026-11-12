@@ -106,7 +106,8 @@ async function playerFor(store: Store, email: string, now: number): Promise<{ pl
 /** Checks the link token or the code and returns a new token, making the player on first sign-in. */
 export async function finishSignIn(
   store: Store,
-  input: { loginId?: unknown; code?: unknown; token?: unknown }
+  input: { loginId?: unknown; code?: unknown; token?: unknown },
+  via: SignInFront
 ): Promise<{ token: string; player: Player; isNew: boolean }> {
   if (typeof input.loginId !== 'string') fail('bad_request', 'login_id is required');
   const hasCode = typeof input.code === 'string';
@@ -140,6 +141,7 @@ export async function finishSignIn(
   const at = new Date(now * 1000).toISOString();
   await store.putSession({
     playerId: player.id,
+    via,
     secretHash: sha256(secret),
     createdAt: at,
     lastUsedAt: at,

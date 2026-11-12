@@ -16,7 +16,7 @@ import type { ApiOptions } from '../api/app.ts';
 import { LIMITS } from '../api/contract.ts';
 import { ApiError, STATUS, fail } from '../api/errors.ts';
 import { earnedBadgeView, isPublic } from '../api/views.ts';
-import { removeAvatar, removePlayer, setAvatar, updateMe } from '../auth/account.ts';
+import { newsletterAtSignIn, removeAvatar, removePlayer, setAvatar, updateMe } from '../auth/account.ts';
 import { finishSignIn, signOut, startSignIn, type Viewer } from '../auth/auth.ts';
 import { sameWayKey } from '../domain/equation.ts';
 import type { Player, Sign } from '../domain/types.ts';
@@ -157,12 +157,9 @@ export function createQuiz(options: QuizOptions): Hono {
 
   /** Signs in with the code or the link's token, then on to a name or the signs (the one in `to`). */
   async function finish(c: Context, input: { loginId: string; code?: string; token?: string }, to?: string) {
-    const done = await finishSignIn(store, input);
-    // A new player joins the newsletter, as in the app (Jamie, 2026-11-07). Never in the way.
-    if (done.isNew && done.player.email && options.newsletter) {
-      const outcome = await options.newsletter.add(done.player.email);
-      console.log({ event: 'newsletter', op: 'add', outcome });
-    }
+    const done = await finishSignIn(store, input, 'quiz');
+    // A new player joins the newsletter, as in the app (Jamie, 2026-11-07), tagged `quiz`.
+    await newsletterAtSignIn({ store, newsletter: options.newsletter }, done, 'quiz');
     remember(c, done.token);
     return go(c, done.player.name ? onward(to) : withTo('/name', to));
   }

@@ -23,6 +23,24 @@ for (const [name, make] of kinds) {
       assert.equal(await store.getSign('nope'), undefined);
     });
 
+    test('newsletter tags are kept on the player, and sessions list with where they signed in', async () => {
+      const store = make();
+      await addPlayer(store, ada);
+      await store.setNewsletterTags(ada.id, ['app', 'quiz']);
+      assert.deepEqual((await store.getPlayer(ada.id))?.newsletterTags, ['app', 'quiz']);
+      await store.setNewsletterTags('nobody', ['app']);
+      assert.equal(await store.getPlayer('nobody'), undefined, 'a player who is gone stays gone');
+      const base = { playerId: ada.id, createdAt: '2026-11-12T00:00:00.000Z', lastUsedAt: '2026-11-12T00:00:00.000Z' };
+      await store.putSession({ ...base, secretHash: 'a', via: 'quiz', expiresAt: nowSeconds() + 60 });
+      await store.putSession({ ...base, secretHash: 'b', expiresAt: nowSeconds() + 60 });
+      await store.putSession({ ...base, secretHash: 'c', via: 'app', expiresAt: nowSeconds() - 1 });
+      const sessions = await store.sessionsOf(ada.id);
+      assert.deepEqual(sessions.map((x) => [x.secretHash, x.via]).sort(), [
+        ['a', 'quiz'],
+        ['b', undefined]
+      ]);
+    });
+
     test('a profile photo is set, replaced and removed, and says what it replaced', async () => {
       const store = make();
       await addPlayer(store, ada);

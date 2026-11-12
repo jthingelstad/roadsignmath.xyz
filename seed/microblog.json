@@ -57,7 +57,8 @@
         "lat": 33.67,
         "lng": -112.06
       },
-      "alt": ["An overhead green sign: 7th St 1, 7th Ave 2, 19th Ave 3."]
+      "alt": ["An overhead green sign: 7th St 1, 7th Ave 2, 19th Ave 3."],
+      "uploads": ["uploads/2023/image.jpg"]
     },
     {
       "post": "2021/07/31/gross-vehicle-weight.html",
@@ -100,7 +101,8 @@
       },
       "alt": [
         "A white speed limit sign beside I-80 and I-90 East: cars 70, trucks over 13 tons declared gross weight 65, minimum 45."
-      ]
+      ],
+      "uploads": ["uploads/2023/b30e0c6d95.jpg"]
     },
     {
       "post": "2021/08/02/wurtsboro.html",
@@ -127,7 +129,8 @@
         "lat": 41.577,
         "lng": -74.487
       },
-      "alt": ["A green distance sign: Wurtsboro 1, Ellenville 12, Monticello 13."]
+      "alt": ["A green distance sign: Wurtsboro 1, Ellenville 12, Monticello 13."],
+      "uploads": ["uploads/2023/fd1726dfcd.jpg"]
     },
     {
       "post": "2021/08/04/greenbush.html",
@@ -154,7 +157,8 @@
         "lat": 42.591,
         "lng": -73.703
       },
-      "alt": ["A green exit sign seen through a windshield: Exit 11, US 9 and US 20, E Greenbush and Nassau."]
+      "alt": ["A green exit sign seen through a windshield: Exit 11, US 9 and US 20, E Greenbush and Nassau."],
+      "uploads": ["uploads/2023/3e556bfbf6.jpg"]
     },
     {
       "post": "2021/08/05/saratoga.html",
@@ -181,7 +185,8 @@
         "lat": 43.083,
         "lng": -73.785
       },
-      "alt": ["A green sign at a corner by a Dunkin' Donuts: Saratoga 14 and Troy 24 ahead, Argyle 10 to the right."]
+      "alt": ["A green sign at a corner by a Dunkin' Donuts: Saratoga 14 and Troy 24 ahead, Argyle 10 to the right."],
+      "uploads": ["uploads/2023/3cb329c817.jpg"]
     },
     {
       "post": "2023/10/19/sqrt.html",
@@ -208,7 +213,8 @@
         "lat": 37.384,
         "lng": -93.151
       },
-      "alt": ["A green sign beside the highway: Springfield 13 ahead, Brighton 4 and Fair Grove 11 to the left."]
+      "alt": ["A green sign beside the highway: Springfield 13 ahead, Brighton 4 and Fair Grove 11 to the left."],
+      "uploads": ["uploads/2023/c36314a605.jpg"]
     },
     {
       "post": "2023/10/19/sqrt-sqrt.html",
@@ -238,7 +244,8 @@
         "lat": 37.631,
         "lng": -93.577
       },
-      "alt": ["A green sign beside the highway: Bolivar 4 ahead, Missouri 83 3 to the left, Fair Play 6 to the right."]
+      "alt": ["A green sign beside the highway: Bolivar 4 ahead, Missouri 83 3 to the left, Fair Play 6 to the right."],
+      "uploads": ["uploads/2023/56ce8b2bec.jpg"]
     },
     {
       "post": "2023/10/21/genesis.html",
@@ -268,7 +275,8 @@
       "alt": [
         "A green distance sign by a creek: Melrose 3, St Cloud 33, Minneapolis 99.",
         "A selfie at the roadside with the Melrose, St Cloud and Minneapolis sign behind."
-      ]
+      ],
+      "uploads": ["uploads/2023/img-7222.jpeg", "uploads/2023/img-7224.jpeg"]
     },
     {
       "post": "2023/10/22/sqrt.html",
@@ -295,7 +303,8 @@
         "lat": 37.614,
         "lng": -93.41
       },
-      "alt": ["A green sign beside the highway: Collins 10 ahead, Dunnegan 4 and Bolivar 12 to the left."]
+      "alt": ["A green sign beside the highway: Collins 10 ahead, Dunnegan 4 and Bolivar 12 to the left."],
+      "uploads": ["uploads/2023/193f6da5bf.jpg"]
     },
     {
       "post": "2023/10/22/125900.html",
@@ -322,7 +331,8 @@
         "lat": 38.047,
         "lng": -93.704
       },
-      "alt": ["A green sign beside the highway: Osceola 5 ahead, Vista 1 to the left, Gerster 6 to the right."]
+      "alt": ["A green sign beside the highway: Osceola 5 ahead, Vista 1 to the left, Gerster 6 to the right."],
+      "uploads": ["uploads/2023/0492d2d7dd.jpg"]
     },
     {
       "post": "2023/10/22/125959.html",
@@ -349,7 +359,8 @@
         "lat": 38.096,
         "lng": -93.529
       },
-      "alt": ["A green sign in a field: Deepwater 7 ahead, Appleton City 19 to the left, Iconium 12 to the right."]
+      "alt": ["A green sign in a field: Deepwater 7 ahead, Appleton City 19 to the left, Iconium 12 to the right."],
+      "uploads": ["uploads/2023/48b1a5d7fe.jpg"]
     },
     {
       "post": "2023/10/22/153704.html",
@@ -379,7 +390,8 @@
         "lat": 43.153,
         "lng": -93.201
       },
-      "alt": ["A green distance sign: Iowa 105 5, Mason City 36, Des Moines 136."]
+      "alt": ["A green distance sign: Iowa 105 5, Mason City 36, Des Moines 136."],
+      "uploads": ["uploads/2023/f2054552bf.jpg"]
     },
     {
       "post": "2023/10/22/153816.html",
@@ -406,7 +418,8 @@
         "lat": 43.559,
         "lng": -93.421
       },
-      "alt": ["A green exit sign beside the highway: Exit 2, County 5, 1 mile."]
+      "alt": ["A green exit sign beside the highway: Exit 2, County 5, 1 mile."],
+      "uploads": ["uploads/2023/ce1919904e.jpg"]
     },
     {
       "post": "2025/06/19/strategy-here-is-to-cancel.html",
@@ -465,7 +478,8 @@
       },
       "alt": [
         "Overhead signs on I-35W: Express Lane (E-ZPass or HOV 2+ only, 6AM-10AM and 3PM-7PM), 35W South, Exit 11 for 62 East and West, and Exit 12 Diamond Lake Road."
-      ]
+      ],
+      "uploads": ["uploads/2025/c4a04bf7e6.jpg"]
     },
     {
       "post": "2025/08/06/in-vermont-on-the-way.html",
@@ -506,7 +520,8 @@
       },
       "alt": [
         "A green guide sign beside the road: Hinesburg 8, Bristol 25, VT State University 1, Airport 3, Williston 3, Essex Jct 4."
-      ]
+      ],
+      "uploads": ["uploads/2025/90991d546d.jpg"]
     },
     {
       "post": "2025/09/01/tyler-found-this-one-driving.html",
@@ -561,7 +576,8 @@
       },
       "alt": [
         "Overhead signs on I-35W: Express Lane (E-ZPass or HOV 2+ only, 6AM-10AM Mon-Fri), Exit 8 82nd St 1 mile, and Exit 7B 90th St."
-      ]
+      ],
+      "uploads": ["uploads/2025/img-8017.jpg"]
     }
   ]
 }

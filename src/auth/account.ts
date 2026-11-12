@@ -14,6 +14,7 @@ import { moderate, readPhoto } from '../posting/posting.ts';
 import type { Tinylytics } from '../tinylytics.ts';
 import { nowSeconds, type PlayerChanges, type Store } from '../store/store.ts';
 import type { Newsletter, RemoveOutcome } from '../newsletter.ts';
+import type { SignInFront } from '../mail/signin.ts';
 
 export const NAME_MAX = 40;
 export const BIO_MAX = 160;
@@ -198,6 +199,53 @@ export async function removePlayer(
   console.log({ event: 'newsletter', op: 'remove', outcome });
   return outcome;
 }
+
+/**
+ * After a sign-in: a new player joins the newsletter tagged with where they signed in (`app` or
+ * `quiz`), and a player signing in somewhere new for them gets that tag added (Jamie, 2026-11-12).
+ * The tags Buttondown confirms are kept on the player, so a missed one is tried again at their next
+ * sign-in there. Best-effort: logged by outcome only, never in the way of signing in.
+ */
+export async function newsletterAtSignIn(
+  deps: { store: Store; newsletter?: Newsletter },
+  done: { player: Player; isNew: boolean },
+  via: SignInFront
+): Promise<void> {
+  const { player, isNew } = done;
+  if (!player.email || !deps.newsletter || player.newsletterTags?.includes(via)) return;
+  // Tagging reads the subscriber's tags and writes them back, so one sign-in at a time per player.
+  // A busy lease skips it: nothing is recorded, and the next sign-in there tries again.
+  const lease = newsletterLease(player.id);
+  const holder = randomUUID();
+  if (!(await deps.store.lease(lease, holder, 30))) {
+    console.log({ event: 'newsletter', op: 'tag', tag: via, outcome: 'busy' });
+    return;
+  }
+  try {
+    const had = (await deps.store.getPlayer(player.id, true))?.newsletterTags ?? [];
+    if (had.includes(via)) return;
+    let confirmed = false;
+    if (isNew) {
+      const outcome = await deps.newsletter.add(player.email, [via]);
+      console.log({ event: 'newsletter', op: 'add', outcome });
+      confirmed = outcome === 'added';
+    }
+    // Someone already on the list, the new player Buttondown already had included, is tagged.
+    if (!confirmed) {
+      const outcome = await deps.newsletter.tag(player.email, [via]);
+      console.log({ event: 'newsletter', op: 'tag', tag: via, outcome });
+      confirmed = outcome === 'tagged' || outcome === 'already';
+    }
+    if (confirmed) await deps.store.setNewsletterTags(player.id, [...had, via]);
+  } catch (err) {
+    console.error({ event: 'newsletter', op: 'tag', outcome: 'failed', detail: (err as Error).name });
+  } finally {
+    await deps.store.endLease(lease, holder).catch(() => undefined);
+  }
+}
+
+/** The lease a player's newsletter tags are changed under, by the server and `npm run newsletter`. */
+export const newsletterLease = (playerId: string): string => `newsletter:${playerId}`;
 
 async function deleteEverything(
   deps: { store: Store; photos: PhotoStore; tinylytics?: Tinylytics },
