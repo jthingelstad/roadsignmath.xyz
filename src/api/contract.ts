@@ -6,7 +6,7 @@
  * Bump on every change to the surface. tools/export-api-contract.ts refuses a changed surface
  * under a version already in contracts/api-versions.json.
  */
-export const API_VERSION = '1.13.0';
+export const API_VERSION = '1.14.0';
 
 export const LIMITS = {
   /** Signs per page of the feed. */
@@ -131,6 +131,12 @@ const handle: Param = {
   required: true,
   description: 'The player’s handle.',
   schema: { type: 'string' }
+};
+
+/** A player by handle, or by id: the id is their page's address on the site, `/players/<id>`. */
+const handleOrId: Param = {
+  ...handle,
+  description: 'The player’s handle, or their id (the last part of their page’s address, `/players/<id>`).'
 };
 
 export const ROUTES: Route[] = [
@@ -295,7 +301,7 @@ export const ROUTES: Route[] = [
     description:
       'A player’s signs are the ones they found, newest first. Their badges are the ones they earned, in ' +
       'catalog order, worked out from the signs and ways you can see.',
-    params: [handle],
+    params: [handleOrId],
     auth: 'public',
     status: 200,
     response: 'PlayerDetail'

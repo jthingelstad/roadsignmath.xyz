@@ -5,6 +5,7 @@
 
 import { byComplexity } from '../domain/complexity.ts';
 import type { Sign, Way } from '../domain/types.ts';
+import { heartPath } from '../api/views.ts';
 
 export const SORTS = ['latest', 'nearby', 'popular', 'complexity'] as const;
 export type SortKey = (typeof SORTS)[number];
@@ -13,7 +14,7 @@ export type SortKey = (typeof SORTS)[number];
 export const sortOf = (raw: string | undefined): SortKey => SORTS.find((s) => s === raw) ?? 'latest';
 
 /**
- * The signs in a sort. `counts` are hearts by path (`/signs/<slug>`), undefined when they can't
+ * The signs in a sort. `counts` are hearts by heart path (`/signs/<slug>`, `heartPath`), undefined when they can't
  * be read (Popular is then the newest); `ways` are every listed sign's ways, for Complexity.
  */
 export function sortSigns(
@@ -22,7 +23,7 @@ export function sortSigns(
   { counts, ways }: { counts?: Map<string, number>; ways?: Map<string, Pick<Way, 'text'>[]> }
 ): Sign[] {
   if (key === 'popular') {
-    const count = (s: Sign) => counts?.get(`/signs/${s.slug}`) ?? 0;
+    const count = (s: Sign) => counts?.get(heartPath(s)) ?? 0;
     return [...signs].sort((a, b) => count(b) - count(a));
   }
   if (key === 'complexity') return byComplexity(signs, ways ?? new Map());

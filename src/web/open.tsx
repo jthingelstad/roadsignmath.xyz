@@ -8,11 +8,12 @@
 
 import { Hono, type Context } from 'hono';
 import type { Store } from '../store/store.ts';
-import type { Urls } from '../api/views.ts';
+import { playerPath, type Urls } from '../api/views.ts';
 import { loadOpenData, playersFile, signsFile, signsGeoJson } from './data.ts';
 import { DocsPage } from './docs.tsx';
 import { atomFeed, jsonFeed, playerFeed, siteFeed } from './feeds.ts';
 import { llmsFullTxt, llmsTxt } from './llms.ts';
+import { movedTo, playerByKey } from './permalinks.ts';
 
 export const OPEN = { 'Access-Control-Allow-Origin': '*' };
 
@@ -39,23 +40,30 @@ export function createOpenWeb({ store, urls }: { store: Store; urls: Urls }): Ho
     return json(c, jsonFeed(data, siteFeed(data)), 'application/feed+json');
   });
 
-  // A player's feeds: the signs they found. Only players whose page answers have them.
-  const player = async (c: Context) => {
+  // A player's feeds: the signs they found. Only players whose page answers have them. They sit
+  // beside the page, at the player's id; the old address by handle comes here with a 301.
+  const player = async (c: Context, file: string) => {
     const data = await load();
-    const found = data.players.find((p) => p.handle === c.req.param('handle'));
-    return found ? { data, feed: playerFeed(data, found) } : null;
+    const named = playerByKey(data.players, c.req.param('key') ?? '');
+    if (!named) return c.notFound();
+    if (!named.canonical) {
+      // Open to any origin like the feed itself, so a page that fetches the old address follows it.
+      for (const [k, v] of Object.entries(OPEN)) c.header(k, v);
+      return movedTo(c, `${playerPath(named.found)}/${file}`);
+    }
+    return { data, feed: playerFeed(data, named.found) };
   };
-  open.get('/players/:handle/feed.xml', async (c) => {
-    const got = await player(c);
-    if (!got) return c.notFound();
+  open.get('/players/:key/feed.xml', async (c) => {
+    const got = await player(c, 'feed.xml');
+    if (got instanceof Response) return got;
     return c.body(atomFeed(got.data, got.feed), 200, {
       'Content-Type': 'application/atom+xml; charset=utf-8',
       ...OPEN
     });
   });
-  open.get('/players/:handle/feed.json', async (c) => {
-    const got = await player(c);
-    if (!got) return c.notFound();
+  open.get('/players/:key/feed.json', async (c) => {
+    const got = await player(c, 'feed.json');
+    if (got instanceof Response) return got;
     return json(c, jsonFeed(got.data, got.feed), 'application/feed+json');
   });
 

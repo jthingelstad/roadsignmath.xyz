@@ -2,7 +2,7 @@
 // and when), the heart, the separator dot, and the sort chips the app's sorts become on the web.
 
 import type { FC } from 'hono/jsx';
-import type { signSummary } from '../api/views.ts';
+import { heartPath, signPath, type signSummary } from '../api/views.ts';
 import { shortDay } from './layout.tsx';
 import { mathSvg } from './math.ts';
 import type { SortKey } from './sorts.ts';
@@ -37,13 +37,14 @@ export const Facts: FC<{ items: (string | false | null | undefined)[] }> = ({ it
 
 /**
  * Tinylytics' kudos button, filled in by its script with ❤️ and the count. The count is kept at
- * the sign's path, the same one the app's hearts use, so both add up together.
+ * the sign's heart path (its old address by slug, `heartPath`), the same one the app's hearts
+ * use, so both add up together. It is not the page's address: never move it there.
  */
 export const Heart: FC<{ sign: { slug: string; title: string } }> = ({ sign }) => (
   <button
     type="button"
     class="tinylytics_kudos"
-    data-path={`/signs/${sign.slug}`}
+    data-path={heartPath(sign)}
     aria-label={`Heart the ${sign.title} sign`}
   />
 );
@@ -83,7 +84,7 @@ export const Tile: FC<{ sign: Summary; distance?: string; place?: boolean; hidde
       data-lat={sign.place.lat === null ? undefined : String(sign.place.lat)}
       data-lng={sign.place.lng === null ? undefined : String(sign.place.lng)}
     >
-      <a href={`/signs/${sign.slug}`}>
+      <a href={signPath(sign)}>
         <span class="shot">
           {photo && <img src={photo.thumb_url} alt={photo.alt} loading="lazy" />}
           {distance && <span class="dist mono">{distance}</span>}

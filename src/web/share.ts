@@ -7,7 +7,7 @@
 
 import { createHash } from 'node:crypto';
 
-/** Where the cards are drawn: cards.thingelstad.com/rsm/<the page's path>.png. */
+/** Where the cards are drawn: cards.thingelstad.com/rsm/<the card's path>.png (`signCardPath`, `playerCardPath`). */
 export const CARDS = 'https://cards.thingelstad.com/rsm';
 export const CARD_WIDTH = 1200;
 export const CARD_HEIGHT = 630;
@@ -17,6 +17,18 @@ export type Card = { url: string; alt: string };
 /** The first 10 hex of the SHA-256 of what the card shows, as a JSON array. */
 export const cardVersion = (shows: unknown[]): string =>
   createHash('sha256').update(JSON.stringify(shows)).digest('hex').slice(0, 10);
+
+/**
+ * A sign's card path: its old address by slug, not its page's address by id. The card maker
+ * takes only lowercase letters, digits and hyphens after `/rsm/signs/` and fetches
+ * roadsignmath.xyz at the same path, following a 301 on the same site to the page, which names
+ * this card as its og:image. So the cards keep working, and keep their cached drawings, with no
+ * change on cards.thingelstad.com.
+ */
+export const signCardPath = (sign: { slug: string }): string => `/signs/${sign.slug}`;
+
+/** A player's card path: their old address by handle, for the same reasons as a sign's. */
+export const playerCardPath = (player: { handle: string }): string => `/players/${player.handle}`;
 
 /** The card for the page at path ("/" is Home), showing `shows`. */
 export const cardUrl = (path: string, shows: unknown[]): string =>

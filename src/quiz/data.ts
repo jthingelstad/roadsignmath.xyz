@@ -90,9 +90,12 @@ export function stillToTry(data: QuizData, on: Map<string, OnSign>, playerId: st
   );
 }
 
-/** A sign picked at random from those still to try, other than `after` when there is another. */
+/**
+ * A sign picked at random from those still to try, other than `after` (its id, or its slug from a
+ * page drawn before ids) when there is another.
+ */
 export function draw(left: Sign[], after?: string, random: () => number = Math.random): Sign | undefined {
-  const pool = left.length > 1 ? left.filter((s) => s.slug !== after) : left;
+  const pool = left.length > 1 ? left.filter((s) => s.id !== after && s.slug !== after) : left;
   return pool[Math.floor(random() * pool.length)];
 }
 

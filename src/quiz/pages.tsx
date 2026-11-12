@@ -9,7 +9,7 @@ import { texOf } from '../domain/equation.ts';
 import type { Player, Sign, Way } from '../domain/types.ts';
 import { LIMITS } from '../api/contract.ts';
 import { BIO_MAX, NAME_MAX } from '../auth/account.ts';
-import { photoUrl, playerUrl, signUrl, type People } from '../api/views.ts';
+import { photoUrl, playerUrl, signPath, signUrl, type People } from '../api/views.ts';
 import { BRAND_VERSION, LOCKUP_SIZE } from '../web/brand.ts';
 import { BADGE_STYLE, BadgeCards, type BadgeView } from '../web/badges.tsx';
 import { longDay } from '../web/layout.tsx';
@@ -169,7 +169,7 @@ label { font-weight: 800; }
 }
 `;
 
-/** Carries the sign a player came to try through signing in (`to`, a slug Quiz checked). */
+/** Carries the sign a player came to try through signing in (`to`, an id or a slug Quiz checked). */
 const BackTo: FC<{ to?: string }> = ({ to }) => (to ? <input type="hidden" name="to" value={to} /> : null);
 
 /** Quiz's frame: header with the logo and the Quiz tab, the page, and a footer to the site. */
@@ -679,7 +679,7 @@ export const SolvePage: FC<{
             </p>
           )}
         </div>
-        <form id="solve" class="stack work" method="post" action={`/signs/${sign.slug}/solve`}>
+        <form id="solve" class="stack work" method="post" action={`${signPath(sign)}/solve`}>
           {said?.kind === 'reordered' && (
             <div class="callout" role="status">
               <strong>That’s {said.by?.name ? `${firstName(said.by.name)}’s` : 'a'} way, turned around.</strong>
@@ -747,12 +747,12 @@ export const SolvePage: FC<{
                 No ways yet
               </span>
             ) : (
-              <a class="txt" href={`/signs/${sign.slug}/ways`}>
+              <a class="txt" href={`${signPath(sign)}/ways`}>
                 <Eye />
                 Show the ways
               </a>
             )}
-            <a class="txt" href={`/next?after=${encodeURIComponent(sign.slug)}`}>
+            <a class="txt" href={`/next?after=${encodeURIComponent(sign.id)}`}>
               Skip
               <Arrow />
             </a>
@@ -842,10 +842,10 @@ export const WaysPage: FC<{
         <p class="note">
           Looking doesn’t count against you, and nothing is saved. Find a different way and it still goes on the sign.
         </p>
-        <a class="btn" href={`/signs/${sign.slug}`}>
+        <a class="btn" href={signPath(sign)}>
           Keep trying this one
         </a>
-        <a class="btn ghost" href={`/next?after=${encodeURIComponent(sign.slug)}`}>
+        <a class="btn ghost" href={`/next?after=${encodeURIComponent(sign.id)}`}>
           Next sign
         </a>
       </div>
@@ -866,7 +866,7 @@ export const FoundPage: FC<{
   solve: Solve;
   badges: BadgeView[];
 }> = ({ here, player, sign, on, people, blocked, solve, badges }) => {
-  const next = `/next?after=${encodeURIComponent(sign.slug)}`;
+  const next = `/next?after=${encodeURIComponent(sign.id)}`;
   const onSite = signUrl(here, sign);
   const others = on.ways.filter((w) => w.id !== solve.way.id && !blocked.has(w.playerId));
   const me = player.name || 'you';
@@ -906,7 +906,7 @@ export const FoundPage: FC<{
             <WayList here={here} ways={ways} on={on} people={people} blocked={blocked} />
             {ways.length === 1 && <p class="meta">That’s the only way so far. Maybe there’s another one.</p>}
           </section>
-          <a class="btn" href={`/signs/${sign.slug}`}>
+          <a class="btn" href={signPath(sign)}>
             Look for another way
           </a>
           <a class="btn ghost" href={next}>

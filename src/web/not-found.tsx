@@ -4,7 +4,7 @@
 // first, since no page here ends in one. The API's own 404s stay JSON (src/api/app.ts).
 
 import type { Context } from 'hono';
-import { byNewest, isPublic, signSummary, type People, type Urls } from '../api/views.ts';
+import { byNewest, isPublic, signPath, signSummary, type People, type Urls } from '../api/views.ts';
 import { PAGE_CACHE } from '../edge-cache.ts';
 import type { Store } from '../store/store.ts';
 import { Facts, finderNames, type Summary } from './cards.tsx';
@@ -125,7 +125,7 @@ export function notFoundPage({ store, urls }: { store: Store; urls: Urls }) {
                 <ul>
                   {signs.map((s) => (
                     <li>
-                      <a href={`/signs/${s.slug}`}>
+                      <a href={signPath(s)}>
                         {s.photos[0] ? (
                           <img src={s.photos[0].thumb_url} alt="" loading="lazy" />
                         ) : (

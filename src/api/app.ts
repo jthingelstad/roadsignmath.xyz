@@ -54,7 +54,7 @@ import {
   signDetail,
   wayView,
   isPublic,
-  signPath,
+  heartPath,
   signSummary,
   visibleTo,
   type HeartView,
@@ -315,7 +315,7 @@ export function createApi(options: ApiOptions): Hono {
       const [{ signs, people, blocked }, h] = await Promise.all([data(), hearts()]);
       // The signs come newest first, and the sort is stable, so ties (and the unhearted, at 0)
       // stay newest first. Without counts it is the newest.
-      const count = (s: Sign) => h.counts?.get(signPath(s)) ?? 0;
+      const count = (s: Sign) => h.counts?.get(heartPath(s)) ?? 0;
       const popular = [...signs].sort((a, b) => count(b) - count(a)).slice(0, LIMITS.popularMax);
       return c.json({ signs: popular.map((s) => signSummary(urls, people, s, blocked, h)) });
     },
@@ -385,9 +385,13 @@ export function createApi(options: ApiOptions): Hono {
 
     async getPlayer(c, { data, hearts }) {
       const [{ signs, people, blocked }, h] = await Promise.all([data(), hearts()]);
-      const handle = pathParam(c, 'handle');
+      // A handle, or the player's id: their page's address on the site (/players/<id>), which the
+      // App Store app passes here as it is when it opens a link to that page.
+      const key = pathParam(c, 'handle');
       const player =
-        [...people.values()].find((p) => p.handle === handle) ?? fail('not_found', 'No player by that handle');
+        [...people.values()].find((p) => p.handle === key) ??
+        people.get(key) ??
+        fail('not_found', 'No player by that handle');
       const stats = playerStats(player, signs);
       const badges = await badgesOf(player.id, { signs, people, blocked });
       return c.json({

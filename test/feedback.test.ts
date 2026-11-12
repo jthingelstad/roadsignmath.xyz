@@ -93,7 +93,7 @@ test('feedback is emailed with who sent it and from what, and no email address',
     '',
     '—',
     'From: Ada (@ada)',
-    'Page: https://example.test/players/ada',
+    'Page: https://example.test/players/01JAAAAAAAAAAAAAAAAAAAAAAA',
     'Signs: 2',
     'App: 0.9.0 (31) · iOS 26.1',
     lines[8]

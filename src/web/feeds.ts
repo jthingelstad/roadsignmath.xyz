@@ -1,7 +1,8 @@
 // The feeds of new signs: Atom at /feed.xml and JSON Feed 1.1 at /feed.json, and the same pair
-// for each player at /players/<handle>/feed.xml and feed.json (the signs they found). An item is
-// a sign: its page is the item's link and id, posted_at is when it was published and its newest
-// way when it last changed. No tracking pixel: none of the site's pages or files carry one per
+// for each player at /players/<id>/feed.xml and feed.json (the signs they found). An item is
+// a sign: its page (/signs/<id>) is the item's link, and its old address by slug (`feedItemId`) is
+// the item's id, as it has been since the first feed; posted_at is when it was published and its
+// newest way when it last changed. No tracking pixel: none of the site's pages or files carry one per
 // reader.
 //
 // Every item is a short post with no title, the way micro.blog writes its own. Micro.blog reads
@@ -16,8 +17,8 @@
 
 import { STATES } from '../domain/geo.ts';
 import type { Player, Sign } from '../domain/types.ts';
-import { signUrl } from '../api/views.ts';
-import { LICENSE, newestUpdate, playerPageUrl, signRecord, type OpenData } from './data.ts';
+import { feedItemId, playerUrl } from '../api/views.ts';
+import { LICENSE, newestUpdate, signRecord, type OpenData } from './data.ts';
 import { longDay } from './layout.tsx';
 
 /** How many signs a feed carries, newest posted first. */
@@ -28,6 +29,8 @@ export type Feed = {
   description: string;
   /** The page the feed follows. */
   page: string;
+  /** The feed's own id (Atom's `<id>`), which never changes: Home, or a player's old address by handle. */
+  id: string;
   /** Where the feed files sit: `${base}/feed.xml` and `${base}/feed.json`. */
   base: string;
   signs: Sign[];
@@ -38,17 +41,20 @@ export function siteFeed(data: OpenData): Feed {
     title: 'Road Sign Math',
     description: 'New road signs players have found and made true, with the photo, the math and where it was.',
     page: `${data.urls.site}/`,
+    id: `${data.urls.site}/`,
     base: data.urls.site,
     signs: data.signs.slice(0, FEED_SIZE)
   };
 }
 
 export function playerFeed(data: OpenData, player: Player): Feed {
-  const page = playerPageUrl(data.urls, player);
+  const page = playerUrl(data.urls, player);
   return {
     title: `${player.name} · Road Sign Math`,
     description: `Road signs ${player.name} found, newest first.`,
     page,
+    // Atom's feed id was the player's page when it was at their handle; it stays that.
+    id: `${data.urls.site}/players/${player.handle}`,
     base: page,
     signs: data.signs.filter((s) => s.finders.some((f) => f.playerId === player.id)).slice(0, FEED_SIZE)
   };
@@ -119,7 +125,7 @@ export function atomFeed(data: OpenData, feed: Feed): string {
       // Atom asks every entry for a title; an empty one is a post without one, as in the JSON Feed.
       '    <title type="text"></title>',
       `    <link href="${xml(record.url)}" rel="alternate" type="text/html"/>`,
-      `    <id>${xml(record.url)}</id>`,
+      `    <id>${xml(feedItemId(data.urls, sign))}</id>`,
       `    <published>${record.posted_at}</published>`,
       `    <updated>${record.updated_at}</updated>`,
       ...record.finders.map(
@@ -137,7 +143,7 @@ export function atomFeed(data: OpenData, feed: Feed): string {
     `  <subtitle>${xml(feed.description)}</subtitle>`,
     `  <link href="${xml(feed.page)}" rel="alternate" type="text/html"/>`,
     `  <link href="${xml(self)}" rel="self" type="application/atom+xml"/>`,
-    `  <id>${xml(feed.page)}</id>`,
+    `  <id>${xml(feed.id)}</id>`,
     `  <updated>${newestUpdate(data, feed.signs) ?? EMPTY_UPDATED}</updated>`,
     `  <author><name>Road Sign Math</name><uri>${xml(data.urls.site)}/</uri></author>`,
     `  <rights>${xml(`${LICENSE.name}: ${LICENSE.url}`)}</rights>`,
@@ -161,7 +167,7 @@ export function jsonFeed(data: OpenData, feed: Feed) {
     items: feed.signs.map((sign) => {
       const { record, html, text, tags } = itemOf(data, sign);
       return {
-        id: signUrl(data.urls, sign),
+        id: feedItemId(data.urls, sign),
         url: record.url,
         content_html: html,
         content_text: text,

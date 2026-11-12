@@ -119,13 +119,15 @@ test('signs.json has every shown sign, newest first, with every field documented
   assert.deepEqual(file.counts, { signs: 3, players: 2, states: 1, ways: 2 });
   assert.equal(file.updated, '2026-03-01T00:00:00.000Z');
   const newer = file.signs[0];
-  assert.equal(newer.url, `${SITE}/signs/newer-sign`);
+  assert.equal(newer.url, `${SITE}/signs/01JS0000000000000000000002`);
   assert.equal(newer.updated_at, '2026-03-01T00:00:00.000Z');
-  assert.deepEqual(newer.ways[0].by, { handle: 'ben', name: 'Ben', url: `${SITE}/players/ben` });
+  assert.deepEqual(newer.ways[0].by, { handle: 'ben', name: 'Ben', url: `${SITE}/players/01JBBBBBBBBBBBBBBBBBBBBBBB` });
   assert.equal(newer.ways[0].tex, '19 - 12 = 7');
   assert.equal(newer.photos[0].url, `${SITE}/p/ph-01JS0000000000000000000002/large.jpg`);
   assert.equal(newer.photos[0].thumb_url, `${SITE}/p/ph-01JS0000000000000000000002/thumb.jpg`);
-  assert.deepEqual(newer.finders, [{ name: 'Ada', handle: 'ada', url: `${SITE}/players/ada`, role: 'found' }]);
+  assert.deepEqual(newer.finders, [
+    { name: 'Ada', handle: 'ada', url: `${SITE}/players/01JAAAAAAAAAAAAAAAAAAAAAAA`, role: 'found' }
+  ]);
   assert.equal(file.signs[2].place.lat, null);
   const { signs, ...header } = file;
   assertHeader(header, '/signs.json');
@@ -151,7 +153,7 @@ test('players.json has each player with a page and nothing private', async () =>
   assert.deepEqual(a.signs, ['newer-sign', 'older-sign', 'nowhere-sign']);
   assert.equal(b.way_count, 1);
   assert.ok(b.badges.length > 0);
-  assert.equal(a.feed_url, `${SITE}/players/ada/feed.json`);
+  assert.equal(a.feed_url, `${SITE}/players/01JAAAAAAAAAAAAAAAAAAAAAAA/feed.json`);
   const { players, ...header } = file;
   assertHeader(header, '/players.json');
   assert.deepEqual(undocumented(players, PLAYER_FIELDS), []);
@@ -217,7 +219,9 @@ test('the Atom feed is well formed and carries the shown signs with their photos
   assert.equal(entries.length, 3);
   assert.ok(entries[0].includes(`<id>${SITE}/signs/newer-sign</id>`));
   assert.ok(entries[0].includes('<published>2026-02-01T00:00:00.000Z</published>'));
-  assert.ok(entries[0].includes(`<author><name>Ada</name><uri>${SITE}/players/ada</uri></author>`));
+  assert.ok(
+    entries[0].includes(`<author><name>Ada</name><uri>${SITE}/players/01JAAAAAAAAAAAAAAAAAAAAAAA</uri></author>`)
+  );
   // The content is escaped HTML: the photo, the math and the caption (escaped twice over).
   assert.ok(entries[0].includes('&lt;img src=&quot;https://example.test/p/ph-01JS0000000000000000000002/large.jpg'));
   assert.ok(entries[0].includes('19 − 12 = 7'));
@@ -238,7 +242,7 @@ test('a feed item is a short post micro.blog cross-posts whole: name and math, c
   const [newer] = feed.items;
   assert.equal(newer.title, undefined);
   assert.equal(newer.summary, undefined);
-  const url = `${SITE}/signs/newer-sign`;
+  const url = `${SITE}/signs/01JS0000000000000000000002`;
   assert.equal(
     newer.content_text,
     [
@@ -284,7 +288,9 @@ test('the JSON Feed is JSON Feed 1.1 with the same items', async () => {
     assert.ok(Array.isArray(item.authors) && item.authors.length);
   }
   const [newer] = feed.items;
+  // The item's id is the sign's first address, by its slug, for good; only its link moved to the id.
   assert.equal(newer.id, `${SITE}/signs/newer-sign`);
+  assert.equal(newer.url, `${SITE}/signs/01JS0000000000000000000002`);
   assert.equal(newer.image, `${SITE}/p/ph-01JS0000000000000000000002/large.jpg`);
   assert.deepEqual(newer.tags, ['Minnesota', '2026']);
   assert.ok(newer.content_html.includes('Seen on the way &lt;home&gt; &amp; back'));
@@ -292,19 +298,22 @@ test('the JSON Feed is JSON Feed 1.1 with the same items', async () => {
 
 test('each player with a page has feeds of the signs they found; others are 404', async () => {
   const { app } = await setup();
-  const res = await app.request('/players/ada/feed.json');
+  const res = await app.request('/players/01JAAAAAAAAAAAAAAAAAAAAAAA/feed.json');
   assertOpen(res, 'application/feed+json');
   const feed = JSON.parse(await res.text());
   assert.equal(feed.title, 'Ada · Road Sign Math');
-  assert.equal(feed.home_page_url, `${SITE}/players/ada`);
-  assert.equal(feed.feed_url, `${SITE}/players/ada/feed.json`);
+  assert.equal(feed.home_page_url, `${SITE}/players/01JAAAAAAAAAAAAAAAAAAAAAAA`);
+  assert.equal(feed.feed_url, `${SITE}/players/01JAAAAAAAAAAAAAAAAAAAAAAA/feed.json`);
   assert.equal(feed.items.length, 3);
-  const atom = await app.request('/players/ada/feed.xml');
+  const atom = await app.request('/players/01JAAAAAAAAAAAAAAAAAAAAAAA/feed.xml');
   assertOpen(atom, 'application/atom+xml');
   assert.ok(wellFormed(await atom.text()));
   // Ben found no signs: his feed is empty but answers, since his page does.
-  assert.equal(JSON.parse(await (await app.request('/players/ben/feed.json')).text()).items.length, 0);
-  assert.ok(wellFormed(await (await app.request('/players/ben/feed.xml')).text()));
+  assert.equal(
+    JSON.parse(await (await app.request('/players/01JBBBBBBBBBBBBBBBBBBBBBBB/feed.json')).text()).items.length,
+    0
+  );
+  assert.ok(wellFormed(await (await app.request('/players/01JBBBBBBBBBBBBBBBBBBBBBBB/feed.xml')).text()));
   assert.equal((await app.request('/players/nobody/feed.json')).status, 404);
   assert.equal((await app.request('/players/nobody/feed.xml')).status, 404);
 });
@@ -345,7 +354,7 @@ test('llms.txt keeps the llmstxt.org shape and points at the data, feeds and API
   assert.ok(text.includes(`](${SITE}/api/v1/openapi.json)`));
   assert.ok(text.includes('- [Mastodon](https://mastodon.social/@roadsignmath): @roadsignmath@mastodon.social'));
   assert.ok(text.includes('- [Bluesky](https://bsky.app/profile/roadsignmath.xyz): @roadsignmath.xyz'));
-  assert.ok(text.includes(`- [Newer Sign](${SITE}/signs/newer-sign): 19 − 12 = 7.`));
+  assert.ok(text.includes(`- [Newer Sign](${SITE}/signs/01JS0000000000000000000002): 19 − 12 = 7.`));
   assert.ok(text.includes('- [Nowhere Sign]'));
   const full = await app.request('/llms-full.txt');
   assertOpen(full, 'text/plain');
@@ -384,13 +393,13 @@ test('every page names the feeds for readers, and no non-feed JSON as an alterna
   );
   assert.ok(home.includes('<link rel="alternate" type="text/markdown"'));
   assert.ok(!/rel="alternate" type="application\/(geo\+)?json"/.test(home));
-  const player = await (await app.request('/players/ada')).text();
+  const player = await (await app.request('/players/01JAAAAAAAAAAAAAAAAAAAAAAA')).text();
   assert.ok(
     player.includes(
-      '<link rel="alternate" type="application/atom+xml" title="Ada · Road Sign Math" href="/players/ada/feed.xml"/>'
+      '<link rel="alternate" type="application/atom+xml" title="Ada · Road Sign Math" href="/players/01JAAAAAAAAAAAAAAAAAAAAAAA/feed.xml"/>'
     )
   );
-  assert.ok(player.includes('href="/players/ada/feed.json"'));
+  assert.ok(player.includes('href="/players/01JAAAAAAAAAAAAAAAAAAAAAAA/feed.json"'));
 });
 
 test('everything shared is CC BY 4.0: every file, the Atom feed, llms.txt, the data and privacy pages say so', async () => {

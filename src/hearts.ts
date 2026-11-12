@@ -21,7 +21,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { LIMITS } from './api/contract.ts';
 import { fail } from './api/errors.ts';
 import { limit } from './api/input.ts';
-import { isPublic, signPath, type HeartView } from './api/views.ts';
+import { heartPath, isPublic, type HeartView } from './api/views.ts';
 import type { Player, Sign } from './domain/types.ts';
 import { nowSeconds, type Store } from './store/store.ts';
 import { TinylyticsUnavailable, type Kudo, type Tinylytics } from './tinylytics.ts';
@@ -119,7 +119,7 @@ export type HeartState = { hearted: boolean; hearts: number | null };
 
 async function stateOf(deps: HeartDeps, sign: Sign, hearted: boolean): Promise<HeartState> {
   const counts = await deps.counts.counts();
-  return { hearted, hearts: counts ? (counts.get(signPath(sign)) ?? 0) : null };
+  return { hearted, hearts: counts ? (counts.get(heartPath(sign)) ?? 0) : null };
 }
 
 /**
@@ -152,7 +152,7 @@ export async function setHeart(deps: HeartDeps, player: Player, sign: Sign, on: 
       now,
       'Too many hearts today. Try again tomorrow.'
     );
-    const path = signPath(sign);
+    const path = heartPath(sign);
     const started = Date.now();
     if (on) {
       const uid = heartUid(player.id, sign.id);
@@ -245,7 +245,7 @@ export async function sweepSignKudos(deps: Omit<HeartDeps, 'counts'>, signs: Sig
 export async function removeSignKudos(deps: Omit<HeartDeps, 'counts'>, signs: Sign[]): Promise<void> {
   const { tinylytics } = deps;
   if (!tinylytics || !signs.length) return;
-  const paths = new Set(signs.map(signPath));
+  const paths = new Set(signs.map(heartPath));
   let kudos: Kudo[];
   try {
     kudos = await tinylytics.kudos(paths.size === 1 ? [...paths][0] : undefined);
