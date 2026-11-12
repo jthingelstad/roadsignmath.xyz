@@ -341,6 +341,24 @@ test('the census runs once an hour across instances, tries rarely, and never fai
   });
   const res = await app.request('/api/v1/badges');
   assert.equal(res.status, 200);
+
+  // A count that never ends holds the request no longer than the wait.
+  const stuck = new MemoryStore();
+  stuck.allSigns = () => new Promise(() => {});
+  const slow = new Census(
+    stuck,
+    () => now,
+    () => {},
+    20
+  );
+  let answered = false;
+  const handler = slow.middleware();
+  const started = Date.now();
+  await handler({} as never, async () => {
+    answered = true;
+  });
+  assert.ok(answered);
+  assert.ok(Date.now() - started < 1000, 'the request went on without the count');
 });
 
 test('Quiz logs its sends as quiz, and a skip only when the sign left was unsolved', async () => {

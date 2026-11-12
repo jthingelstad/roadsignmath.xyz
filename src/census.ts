@@ -5,8 +5,9 @@
 // There is no scheduler. Whichever request first wins the hour's lease (`LEASE#census`, one
 // conditional write in the table, kept an hour) counts and logs. An instance asks for the lease
 // at most every `CENSUS_RETRY` seconds, so most requests do nothing at all. The count runs beside
-// the request rather than after it, and anything that goes wrong is swallowed: the census never
-// fails a request or changes its answer.
+// the request rather than after it, the request waits for it at most `CENSUS_WAIT_MS` past its own
+// answer, and anything that goes wrong is swallowed: the census never fails a request or changes
+// its answer.
 //
 // Cost, at about 50 players and 180 signs: an instance's lease tries are at most 12 an hour (one
 // write each, refused or not), and the count, once an hour, reads the signs and players
@@ -23,6 +24,11 @@ import { nowSeconds } from './store/store.ts';
 export const CENSUS_EVERY = 3600;
 /** How often one instance asks for the lease. */
 export const CENSUS_RETRY = 300;
+/**
+ * How long a request waits, after its own answer is ready, for a count still running beside it.
+ * The count usually finishes first; a slow or stuck one goes on without the request.
+ */
+export const CENSUS_WAIT_MS = 1000;
 /** Reads in flight at once while counting. */
 const AT_ONCE = 16;
 
@@ -120,7 +126,8 @@ export class Census {
   constructor(
     private readonly store: Store,
     private readonly now: () => number = nowSeconds,
-    private readonly log: (line: CensusLine) => void = (line) => console.info(line)
+    private readonly log: (line: CensusLine) => void = (line) => console.info(line),
+    private readonly waitMs: number = CENSUS_WAIT_MS
   ) {}
 
   /** Takes the hour's lease if it is free and this instance hasn't asked lately, then counts. */
@@ -143,7 +150,14 @@ export class Census {
       try {
         await next();
       } finally {
-        await counting;
+        // Lambda may pause the instance once the answer is out, so the count gets a short while to
+        // finish first; it never holds the answer longer than that.
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const enough = new Promise<void>((done) => {
+          timer = setTimeout(done, this.waitMs);
+        });
+        await Promise.race([counting, enough]);
+        clearTimeout(timer);
       }
     };
   }
