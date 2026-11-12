@@ -57,8 +57,10 @@ export async function startSignIn(
   const email = validEmail(rawEmail) ?? fail('bad_request', 'email must be an email address');
   const now = nowSeconds();
   const later = 'Too many sign-in emails for now. Try again in an hour.';
-  await limit(deps.store, `address:${emailHash(email)}`, LIMITS.address, HOUR, now, later);
+  // The network first: a network over its limit uses up no address's allowance, so it can't
+  // starve the address's owner of their own sign-in emails.
   await limit(deps.store, `network:${network(ip)}`, LIMITS.network, HOUR, now, later);
+  await limit(deps.store, `address:${emailHash(email)}`, LIMITS.address, HOUR, now, later);
   await limit(deps.store, 'total', LIMITS.total, HOUR, now, later);
 
   const token = randomBytes(32).toString('base64url');

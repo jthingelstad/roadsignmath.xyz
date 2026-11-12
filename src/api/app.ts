@@ -25,7 +25,7 @@ import type { PhotoStore } from '../photos.ts';
 import { TinylyticsUnavailable, VIEW_PATH, type Hit, type Tinylytics } from '../tinylytics.ts';
 import type { Newsletter } from '../newsletter.ts';
 import { nowSeconds } from '../store/store.ts';
-import { limit } from './input.ts';
+import { bodyUpTo, limit } from './input.ts';
 import { appSiteAssociation } from '../web/apple.ts';
 import { notFoundPage } from '../web/not-found.tsx';
 import { frontOf } from '../front.ts';
@@ -449,7 +449,7 @@ export function createApi(options: ApiOptions): Hono {
         deps,
         viewer!.player,
         c.req.header('content-type'),
-        () => c.req.arrayBuffer(),
+        () => bodyUpTo(c.req.raw, LIMITS.photoBytes),
         length === undefined ? undefined : Number(length)
       );
       return c.json(await me(player, await data()));
@@ -489,7 +489,7 @@ export function createApi(options: ApiOptions): Hono {
         deps,
         viewer!.player,
         c.req.header('content-type'),
-        () => c.req.arrayBuffer(),
+        () => bodyUpTo(c.req.raw, LIMITS.photoBytes),
         length === undefined ? undefined : Number(length)
       );
       return c.json(upload, 201);
@@ -557,8 +557,9 @@ export function createApi(options: ApiOptions): Hono {
       // A heart given before the sign was hidden, or its poster blocked, can still be taken back.
       const mine = await store.listHearts(viewer!.player.id);
       const sign =
-        (await store.allSigns()).find((s) => (s.id === key || s.slug === key) && mine.some((h) => h.signId === s.id)) ??
-        findSign((await data()).signs, key);
+        (await store.allSigns()).find(
+          (s) => (s.id === key.toUpperCase() || s.slug === key) && mine.some((h) => h.signId === s.id)
+        ) ?? findSign((await data()).signs, key);
       return c.json(await setHeart(heartDeps, viewer!.player, sign, false));
     },
 
@@ -626,6 +627,8 @@ export function createApi(options: ApiOptions): Hono {
   api.use('*', async (c, next) => {
     await next();
     c.header('API-Version', API_VERSION);
+    // The edge keys public reads on Authorization; this tells every cache after it the same.
+    c.header('Vary', 'Authorization', { append: true });
     const personal = c.req.header('authorization') !== undefined;
     if (c.req.method === 'GET' && c.res.status === 200 && !personal) c.header('Cache-Control', 'public, max-age=60');
     else c.header('Cache-Control', 'no-store');
