@@ -59,6 +59,8 @@ const PAGE_WRITES = [
   'putWay',
   'deleteWay',
   'addWay',
+  'addCoFind',
+  'deleteCoFind',
   'putPlayer',
   'updatePlayer',
   'setAvatar',

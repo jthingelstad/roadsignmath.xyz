@@ -158,7 +158,8 @@ export async function removeAvatar(deps: { store: Store; photos: PhotoStore }, p
 
 /**
  * Deletes the player and what they made: the signs they posted (with their photos, every way on
- * them and their hearts), the ways they added to other signs, the hearts they gave, their place
+ * them and their hearts), the ways they added to other signs (with others' credit on them), the
+ * ways they found too, the hearts they gave, their place
  * among a sign's finders, their reports, their profile photo, and everything kept under them (sessions, uploads,
  * blocks) and their email. Photos uploaded and never posted go when the bucket clears uploads.
  * Hearts go first: if Tinylytics can't take them back, nothing else is deleted yet.
@@ -218,9 +219,16 @@ async function deleteEverything(
     await store.deleteDuplicate(sign.id, player.id);
     const ways = await store.listWays(sign.id);
     const theirs = ways.filter((w) => w.playerId === player.id);
+    // Their ways go before the co-finds are read: a co-find is only added while its way is there,
+    // so none can land on one of their ways after this sweep.
+    for (const way of theirs) await store.deleteWay(way);
+    // Their credit on others' ways goes, and so does others' credit on their ways, with the way.
+    const gone = new Set(theirs.map((w) => w.id));
+    for (const coFind of await store.listCoFinds(sign.id)) {
+      if (coFind.playerId === player.id || gone.has(coFind.wayId)) await store.deleteCoFind(coFind);
+    }
     const finders = sign.finders.filter((f) => f.playerId !== player.id);
     if (!theirs.length && finders.length === sign.finders.length) continue;
-    for (const way of theirs) await store.deleteWay(way);
     const left = await store.listWays(sign.id);
     await store.updateSign(sign.id, {
       finders,
@@ -232,6 +240,14 @@ async function deleteEverything(
   const avatar = (await store.getPlayer(player.id, true))?.avatar ?? player.avatar;
   if (avatar) await photos.remove(avatar);
   await store.deletePlayer(player.id);
+  // A solve of theirs that was under way may have credited them after their sign's sweep above.
+  // With the player gone none can be added now, so this consistent sweep leaves none behind.
+  for (const sign of signs) {
+    if (sign.postedBy === player.id) continue;
+    for (const coFind of await store.listCoFinds(sign.id)) {
+      if (coFind.playerId === player.id) await store.deleteCoFind(coFind);
+    }
+  }
   // Other players' hearts made on their signs while those were deleted.
   await sweepSignKudos(deps, theirSigns);
 }

@@ -156,6 +156,7 @@ export class FakeDynamo {
         for (const { verb, request, k, key } of steps) {
           if (verb === 'Put') this.items.set(k, structuredClone(request.Item as Item));
           else if (verb === 'Delete') this.items.delete(k);
+          else if (verb === 'ConditionCheck') continue;
           else if (verb === 'Update') {
             const item = this.items.get(k) ?? { pk: key.pk, sk: key.sk };
             this.update(item, String(request.UpdateExpression), request);

@@ -253,6 +253,20 @@ const CRUMB_STYLE = `
 .crumbs a { font-weight: 800; }
 `;
 
+/** Who also found a way: "Also found by Jamie and Pat" (Jamie, 2026-11-11: "You found it too"). */
+const AlsoFound: FC<{ by: { handle: string; name: string }[] }> = ({ by }) =>
+  by.length === 0 ? null : (
+    <span class="also">
+      Also found by{' '}
+      {by.map((p, i) => (
+        <>
+          {i > 0 && (i === by.length - 1 ? ' and ' : ', ')}
+          <a href={`/players/${p.handle}`}>{p.name}</a>
+        </>
+      ))}
+    </span>
+  );
+
 const Crumbs: FC<{ trail: { name: string; href?: string }[] }> = ({ trail }) => (
   <nav class="crumbs" aria-label="Breadcrumb">
     <ol>
@@ -419,6 +433,8 @@ ${CRUMB_STYLE}
 .credit .count { margin-left: auto; padding-left: 12px; font-size: 14px; color: var(--soft); }
 .caption { margin: 0; font-size: 18px; }
 .unsolved { margin: 0; font-size: 18px; font-weight: 800; }
+.also { display: block; font-size: 14px; color: var(--soft); }
+.also a { font-weight: 800; color: var(--ink2); }
 .ways { display: flex; flex-direction: column; gap: 4px; }
 .ways h2 { margin: 0; font-size: 18px; }
 .ways ul { margin: 0; padding: 0; list-style: none; }
@@ -1147,8 +1163,12 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
     const signs = (await store.allSigns()).filter(isPublic);
     const found = signs.find((s) => s.slug === c.req.param('slug'));
     if (!found) return c.notFound();
-    const [ways, everyone] = await Promise.all([store.listWays(found.id), people()]);
-    const sign = signDetail(urls, everyone, found, ways);
+    const [ways, coFinds, everyone] = await Promise.all([
+      store.listWays(found.id),
+      store.listCoFinds(found.id),
+      people()
+    ]);
+    const sign = signDetail(urls, everyone, found, ways, undefined, coFinds);
     const byHandle = new Map([...everyone.values()].map((p) => [p.handle, p]));
     /** A finder's or a way's player's face: their colour, and their profile photo when they set one. */
     const faceOf = (handle: string | null | undefined) => {
@@ -1269,6 +1289,7 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
                         {sign.ways.length} {sign.ways.length === 1 ? 'way' : 'ways'} so far
                       </span>
                     </p>
+                    <AlsoFound by={firstWay.also_found_by} />
                   </div>
                 ) : (
                   <p class="unsolved">Nobody has solved it yet.</p>
@@ -1301,6 +1322,7 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
                               )}
                               both sides are {w.value}
                             </span>
+                            <AlsoFound by={w.also_found_by} />
                           </span>
                         </li>
                       ))}

@@ -82,6 +82,7 @@ and filtered in memory; at this size that is cheaper and simpler than indexes.
 | `SLUG#<slug>` | `SLUG` | the sign id holding a slug |
 | `SIGN#<signId>` | `MATH#<sha256>` | the way id holding that math on the sign |
 | `SIGN#<signId>` | `SAME#<sha256>` | the way id holding that way in any order |
+| `SIGN#<signId>` | `ALSO#<wayId>#<playerId>` | a player who also found that way |
 | `SIGN#<signId>` | `REPORT#<playerId>` | a player's report of that sign |
 | `SIGN#<signId>` | `DUPLICATE#<playerId>` | a player's word that it is the same as another sign |
 | `PLAYER#<playerId>` | `SESSION#<sha256>` | a signed-in app (expires) |
@@ -97,7 +98,8 @@ The email, handle, slug and math rows are claimed with conditional writes, so tw
 once can't give one address two players, one handle or slug to two, or one sign the same way
 twice. A post takes its uploads the same way, so two posts can't share a photo. A sign changes field by field
 (`updateSign`), so a new way can't undo a report's hide, and a new way counts itself in one
-write with its math and its row (`addWay`, one transaction). Rows that expire carry `expiresAt` (epoch seconds) for the table's TTL, and every read checks
+write with its math and its row (`addWay`, one transaction). A co-find is kept only while its way
+is there (`addCoFind` checks the way's row in the same transaction). Rows that expire carry `expiresAt` (epoch seconds) for the table's TTL, and every read checks
 it too, since TTL deletes late. `test/docs.test.ts` checks this table against
 `src/store/dynamo.ts`.
 
@@ -118,7 +120,8 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
 - A request with an `Authorization` header is never cached, and a bad token is a 401 even on
   a public read.
 - `DELETE /me` removes the player, their profile photo, the signs they posted (with their photos and hearts), their
-  ways, reports (duplicate ones too) and hearts on other signs, and their place in other signs' finders. Their
+  ways, reports (duplicate ones too) and hearts on other signs, their co-finds and every co-find on their ways,
+  and their place in other signs' finders. Their
   hearts' kudos go first: if Tinylytics can't take one back, it is a 503 and nothing is deleted.
   It holds the player's heart lease throughout (a 409 while one of their hearts is changing).
 - **Duplicate reports** (`reportDuplicate` in `src/posting/posting.ts`): `POST /signs/{id}/duplicate`,
@@ -192,9 +195,21 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
   true, and then only as the Reply-To, never in the text. Ten a day per player; mail that
   can't be sent is a 503 (it still counts toward the ten). `npm run dev` writes it to
   `.data/mail/` like the sign-in email.
+- **Solving** (`solveSign` in `src/posting/posting.ts`): `POST /signs/{id}/solve`, signed in, takes
+  a way like `POST /signs/{id}/ways` and never answers a repeat with a 409. A way new to the sign is
+  added (`result: "new_way"`, with `unlocked` like a posted way); the same math as another
+  player's way is a co-find (`result: "also_found"`, with that way and `unlocked: []`): the way
+  stays its first finder's, and the solver is added to its `also_found_by`, once. Co-finds earn no
+  badges. A reordering of a way there earns nothing (Jamie, 2026-11-11: no credit and no "also
+  found by"), so it is the same 409 `REORDERED` as a way; your own way again is a 409 (`YOURS`, no
+  full stop). Both count toward
+  `LIMITS.waysADay`. `via` records `app` or `quiz`. Every way (`GET /signs/{id}` and the sign page)
+  carries `also_found_by`, oldest first, less blocked players and players with no name. A co-find
+  goes with its way and its sign. `POST /signs/{id}/ways` is unchanged for the App Store app.
 - **Activity** (`src/activity.ts`): `GET /me/activity`, signed in, is what's new on your signs
-  for the app's You tab: the ways other players found and the hearts they gave in the last 30
-  days, newest first, at most 100. Your signs are the ones you posted or are a finder of, in
+  for the app's You tab: the ways other players found, the ways already there they found too
+  (`also_found`, with the way; the App Store app leaves out kinds it doesn't know) and the hearts
+  they gave in the last 30 days, newest first, at most 100. Your signs are the ones you posted or are a finder of, in
   any state. Your own ways and hearts and anything by a player you blocked (signs they posted
   included) are left out, and
   so are the website's kudos, which have no player. Showing who hearted is Jamie's design

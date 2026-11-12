@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { sameWayKey } from '../domain/equation.ts';
 import type {
+  CoFind,
   Block,
   DuplicateReport,
   Heart,
@@ -64,6 +65,15 @@ export interface Store {
    * another order (`sameWayKey`), `gone` when the sign was deleted; in each, nothing is written.
    */
   addWay(way: Way): Promise<'added' | 'taken' | 'reordered' | 'gone'>;
+  /** Who also found the ways on a sign, oldest first. */
+  listCoFinds(signId: string): Promise<CoFind[]>;
+  /**
+   * Credits a player with a way already on its sign, once, in one write that checks the way and
+   * the player are still there: `already` when they have it, `gone` when the way or the player was
+   * deleted.
+   */
+  addCoFind(coFind: CoFind, way: Way): Promise<'added' | 'already' | 'gone'>;
+  deleteCoFind(coFind: CoFind): Promise<void>;
   allPlayers(): Promise<Player[]>;
   /** `consistent` reads it strongly consistent, to see a delete or write just made. */
   getPlayer(id: string, consistent?: boolean): Promise<Player | undefined>;

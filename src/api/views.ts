@@ -3,7 +3,7 @@
 
 import { badge, type Badge, type Earned } from '../domain/badges.ts';
 import { texOf } from '../domain/equation.ts';
-import type { Player, Sign, Way } from '../domain/types.ts';
+import type { CoFind, Player, Sign, Way } from '../domain/types.ts';
 
 export type Urls = {
   /** The site's origin, "https://roadsignmath.xyz". */
@@ -97,8 +97,16 @@ export function signSummary(
   };
 }
 
-export function wayView(people: People, way: Way) {
+/**
+ * A way, with who else found it (`coFinds`, the sign's, oldest first) less the players in
+ * `blocked` and any without a name.
+ */
+export function wayView(people: People, way: Way, coFinds: CoFind[] = [], blocked: ReadonlySet<string> = new Set()) {
   const player = people.get(way.playerId);
+  const also = coFinds
+    .filter((c) => c.wayId === way.id && !blocked.has(c.playerId))
+    .map((c) => people.get(c.playerId))
+    .filter((p): p is Player => !!p?.name);
   return {
     id: way.id,
     text: way.text,
@@ -106,18 +114,30 @@ export function wayView(people: People, way: Way) {
     value: way.value,
     numbers: way.numbers,
     by: player ? { handle: player.handle, name: player.name } : null,
-    created_at: way.createdAt
+    created_at: way.createdAt,
+    also_found_by: also.map((p) => ({ handle: p.handle, name: p.name }))
   };
 }
 
-/** One sign's page: the summary and the ways this reader sees, oldest first. */
-export function signDetail(urls: Urls, people: People, sign: Sign, ways: Way[], hearts: HeartView = {}) {
+/**
+ * One sign's page: the summary and the ways this reader sees, oldest first, each with who also
+ * found it (less the players in `blocked`).
+ */
+export function signDetail(
+  urls: Urls,
+  people: People,
+  sign: Sign,
+  ways: Way[],
+  hearts: HeartView = {},
+  coFinds: CoFind[] = [],
+  blocked: ReadonlySet<string> = new Set()
+) {
   const first = ways[0];
   return {
     ...signSummary(urls, people, sign, undefined, hearts),
     first_way: first ? { text: first.text, tex: texOf(first.text) ?? null, value: first.value } : null,
     way_count: ways.length,
-    ways: ways.map((w) => wayView(people, w))
+    ways: ways.map((w) => wayView(people, w, coFinds, blocked))
   };
 }
 

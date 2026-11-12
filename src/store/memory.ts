@@ -1,5 +1,6 @@
 import type {
   Block,
+  CoFind,
   DuplicateReport,
   Heart,
   Login,
@@ -42,6 +43,7 @@ export class MemoryStore implements Store {
   private hearts = new Map<string, Heart>();
   private claims = new Map<string, { signId: string; expiresAt: number }>();
   private wayTexts = new Map<string, string>();
+  private coFinds = new Map<string, CoFind>();
   private leases = new Map<string, { holder: string; expiresAt: number }>();
 
   async allSigns(): Promise<Sign[]> {
@@ -84,6 +86,7 @@ export class MemoryStore implements Store {
     for (const key of this.wayTexts.keys()) if (key.startsWith(`${id}/`)) this.wayTexts.delete(key);
     for (const [key, report] of this.reports) if (report.signId === id) this.reports.delete(key);
     for (const [key, report] of this.duplicates) if (report.signId === id) this.duplicates.delete(key);
+    for (const [key, coFind] of this.coFinds) if (coFind.signId === id) this.coFinds.delete(key);
   }
 
   async listWays(signId: string): Promise<Way[]> {
@@ -124,6 +127,26 @@ export class MemoryStore implements Store {
     sign.wayCount = (sign.wayCount ?? 0) + 1;
     sign.firstWay ??= { text: way.text, value: way.value, playerId: way.playerId };
     return 'added';
+  }
+
+  async listCoFinds(signId: string): Promise<CoFind[]> {
+    return [...this.coFinds.values()]
+      .filter((c) => c.signId === signId)
+      .map(copy)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  async addCoFind(coFind: CoFind, way: Way): Promise<'added' | 'already' | 'gone'> {
+    const key = `${coFind.signId}/${coFind.wayId}/${coFind.playerId}`;
+    if (this.coFinds.has(key)) return 'already';
+    if (!(this.ways.get(way.signId) ?? []).some((w) => w.id === way.id)) return 'gone';
+    if (!this.players.has(coFind.playerId)) return 'gone';
+    this.coFinds.set(key, copy(coFind));
+    return 'added';
+  }
+
+  async deleteCoFind(coFind: CoFind): Promise<void> {
+    this.coFinds.delete(`${coFind.signId}/${coFind.wayId}/${coFind.playerId}`);
   }
 
   async allPlayers(): Promise<Player[]> {

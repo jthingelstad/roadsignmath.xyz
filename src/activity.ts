@@ -1,5 +1,6 @@
-// What's new on your signs (`GET /me/activity`): the ways other players found and the hearts
-// they gave on the signs you posted or are a finder of, in any state, newest first; a sign
+// What's new on your signs (`GET /me/activity`): the ways other players found, the ways already
+// there they found too (`also_found`), and the hearts they gave on the signs you posted or are a
+// finder of, in any state, newest first; a sign
 // posted by a player you blocked isn't listed. Website
 // kudos have no player, so they aren't here. Showing who hearted is Jamie's design (2026-10-31).
 
@@ -12,7 +13,7 @@ import type { Store } from './store/store.ts';
 const DAY = 86400;
 
 type Item = {
-  kind: 'way' | 'heart';
+  kind: 'way' | 'heart' | 'also_found';
   at: string;
   sign: { id: string; slug: string; title: string; photo_thumb_url: string | null };
   player: { handle: string | null; name: string | null; avatar_color: string; avatar_thumb_url: string | null };
@@ -54,10 +55,12 @@ export async function myActivity(store: Store, urls: Urls, me: Player, now: numb
   // Every way on each of your signs, and every other player's hearts, one query each. Players
   // are read whole: fine at this size (a few dozen players and signs); a by-sign heart row
   // would be the next step if it grows.
-  const [ways, hearts] = await Promise.all([
+  const [ways, coFinds, hearts] = await Promise.all([
     Promise.all([...mine.keys()].map((id) => store.listWays(id))),
+    Promise.all([...mine.keys()].map((id) => store.listCoFinds(id))),
     Promise.all(players.filter((p) => others(p.id)).map((p) => store.listHearts(p.id)))
   ]);
+  const wayById = new Map(ways.flat().map((w) => [w.id, w]));
 
   const items: Item[] = [];
   for (const way of ways.flat()) {
@@ -69,6 +72,19 @@ export async function myActivity(store: Store, urls: Urls, me: Player, now: numb
       player: who(people.get(way.playerId)!),
       way: { id: way.id, text: way.text, tex: texOf(way.text) ?? null },
       key: `way:${way.id}`
+    });
+  }
+  // A way found again: the way stays its first finder's, so it shows only when you'd see that way.
+  for (const coFind of coFinds.flat()) {
+    const way = wayById.get(coFind.wayId);
+    if (!way || coFind.createdAt < since || !others(coFind.playerId) || blocked.has(way.playerId)) continue;
+    items.push({
+      kind: 'also_found',
+      at: coFind.createdAt,
+      sign: signRef(mine.get(coFind.signId)!),
+      player: who(people.get(coFind.playerId)!),
+      way: { id: way.id, text: way.text, tex: texOf(way.text) ?? null },
+      key: `also:${way.id}:${coFind.playerId}`
     });
   }
   for (const heart of hearts.flat()) {

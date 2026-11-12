@@ -119,7 +119,13 @@ const SCHEMAS: Record<string, Schema> = {
     value: { type: 'string', description: 'What both sides equal.' },
     numbers: array(str),
     by: nullable(object({ handle: str, name: str })),
-    created_at: { type: 'string', format: 'date-time' }
+    created_at: { type: 'string', format: 'date-time' },
+    also_found_by: {
+      ...array(object({ handle: str, name: str })),
+      description:
+        'Players who found the same way later and were credited on it (`POST /signs/{id}/solve`), oldest ' +
+        'first, less any you blocked.'
+    }
   }),
   SignDetail: {
     allOf: [ref('Sign'), object({ ways: array(ref('Way')) })]
@@ -229,6 +235,19 @@ const SCHEMAS: Record<string, Schema> = {
           ...array(ref('EarnedBadge')),
           description: 'Badges this post or way earned you just now, or a higher step of one.'
         }
+      })
+    ]
+  },
+  Solved: {
+    allOf: [
+      ref('SignAndBadges'),
+      object({
+        result: {
+          type: 'string',
+          enum: ['new_way', 'also_found'],
+          description: 'new_way: your way went on the sign. also_found: it was there, and you found it too.'
+        },
+        way: { ...ref('Way'), description: 'The way you made, or the one you found too.' }
       })
     ]
   },
@@ -396,7 +415,11 @@ const SCHEMAS: Record<string, Schema> = {
   },
   FeedbackSent: object({ sent: { type: 'boolean', const: true } }),
   Activity: object({
-    kind: { type: 'string', enum: ['way', 'heart'] },
+    kind: {
+      type: 'string',
+      enum: ['way', 'heart', 'also_found'],
+      description: 'also_found: a player found a way already on your sign, and was credited on it.'
+    },
     at: { type: 'string', format: 'date-time', description: 'When the way was found or the heart given.' },
     sign: object({
       id: str,
@@ -417,7 +440,7 @@ const SCHEMAS: Record<string, Schema> = {
         avatar_color: { type: 'string', pattern: '^#[0-9A-F]{6}$' },
         avatar_thumb_url: nullable({ type: 'string', format: 'uri' })
       },
-      'Who found the way or gave the heart. Handle and name are null until they give a name.'
+      'Who found the way, found it too, or gave the heart. Handle and name are null until they give a name.'
     ),
     way: nullable(
       object(
@@ -429,7 +452,7 @@ const SCHEMAS: Record<string, Schema> = {
             description: 'LaTeX for drawing the math; null only if it no longer parses.'
           })
         },
-        'The way, for a way; null for a heart.'
+        'The way, for a way or one found too; null for a heart.'
       )
     )
   }),

@@ -10,6 +10,7 @@
 //   SLUG#<slug>         SLUG                        the sign id holding a slug
 //   SIGN#<signId>       MATH#<sha256>               the way id holding that math on the sign
 //   SIGN#<signId>       SAME#<sha256>               the way id holding that way in any order
+//   SIGN#<signId>       ALSO#<wayId>#<playerId>     a player who also found that way
 //   SIGN#<signId>       REPORT#<playerId>           a player's report of that sign
 //   SIGN#<signId>       DUPLICATE#<playerId>        a player's word that it is the same as another sign
 //   PLAYER#<playerId>   SESSION#<sha256>            a signed-in app (expires)
@@ -38,6 +39,7 @@ import {
 } from '@aws-sdk/lib-dynamodb';
 import type {
   Block,
+  CoFind,
   DuplicateReport,
   Heart,
   Login,
@@ -64,6 +66,7 @@ export const KEY_PREFIXES = [
   'WAY#',
   'MATH#',
   'SAME#',
+  'ALSO#',
   'PLAYERS',
   'PLAYER#',
   'EMAIL#',
@@ -206,6 +209,9 @@ export class DynamoStore implements Store {
   async deleteSign(id: string): Promise<void> {
     const sign = await this.getSign(id);
     await this.deletePartition(`SIGN#${id}`);
+    // A co-find added while the partition went, before its way did, isn't in that read. Its way is
+    // gone now, so none can be added after this consistent sweep.
+    for (const coFind of await this.listCoFinds(id)) await this.deleteCoFind(coFind);
     if (sign) await this.unclaim(`SLUG#${sign.slug}`, 'SLUG', 'signId', id);
     await this.delete('SIGNS', `SIGN#${id}`);
   }
@@ -291,6 +297,62 @@ export class DynamoStore implements Store {
       if (reasons[3]?.Code === 'ConditionalCheckFailed') return 'gone';
       throw err;
     }
+  }
+
+  async listCoFinds(signId: string): Promise<CoFind[]> {
+    const items = await this.query({
+      KeyConditionExpression: 'pk = :pk AND begins_with(sk, :sk)',
+      ExpressionAttributeValues: { ':pk': `SIGN#${signId}`, ':sk': 'ALSO#' },
+      // Read right after one is added, so the answer shows it.
+      ConsistentRead: true
+    });
+    return items.map((i) => strip<CoFind>(i)).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  async addCoFind(coFind: CoFind, way: Way): Promise<'added' | 'already' | 'gone'> {
+    const pk = `SIGN#${coFind.signId}`;
+    try {
+      await this.client.send(
+        new TransactWriteCommand({
+          TransactItems: [
+            {
+              Put: {
+                TableName: this.table,
+                Item: { ...coFind, pk, sk: `ALSO#${coFind.wayId}#${coFind.playerId}`, kind: 'also' },
+                ConditionExpression: 'attribute_not_exists(pk)'
+              }
+            },
+            {
+              // The way is still there, so a co-find never outlives it.
+              ConditionCheck: {
+                TableName: this.table,
+                Key: { pk, sk: `WAY#${way.createdAt}#${way.id}` },
+                ConditionExpression: 'attribute_exists(pk)'
+              }
+            },
+            {
+              // And so is the player: once their account is deleted, nothing credits them.
+              ConditionCheck: {
+                TableName: this.table,
+                Key: { pk: 'PLAYERS', sk: `PLAYER#${coFind.playerId}` },
+                ConditionExpression: 'attribute_exists(pk)'
+              }
+            }
+          ]
+        })
+      );
+      return 'added';
+    } catch (err) {
+      if ((err as Error).name !== 'TransactionCanceledException') throw err;
+      const reasons = (err as { CancellationReasons?: { Code?: string }[] }).CancellationReasons ?? [];
+      if (reasons[0]?.Code === 'ConditionalCheckFailed') return 'already';
+      if (reasons.slice(1).some((r) => r.Code === 'ConditionalCheckFailed')) return 'gone';
+      throw err;
+    }
+  }
+
+  async deleteCoFind(coFind: CoFind): Promise<void> {
+    await this.delete(`SIGN#${coFind.signId}`, `ALSO#${coFind.wayId}#${coFind.playerId}`);
   }
 
   async allPlayers(): Promise<Player[]> {
