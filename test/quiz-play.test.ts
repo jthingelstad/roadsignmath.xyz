@@ -906,6 +906,26 @@ test('the logo and the profile keep the sign in progress; Skip and Next still dr
   assert.ok(page.html.includes(`href="/next?after=${S1}"`), 'Skip draws another');
 });
 
+test('editing the profile keeps the sign in progress', async () => {
+  const t = await setup();
+  const profile = await t.quiz('/profile?at=seven-twelve', { as: 'ben' });
+  assert.ok(profile.html.includes('action="/profile?at=seven-twelve"'));
+  assert.ok(profile.html.includes('action="/profile/photo?at=seven-twelve"'));
+  assert.ok(profile.html.includes('href="/profile/delete?at=seven-twelve"'));
+  const saved = await t.quiz('/profile?at=seven-twelve', { as: 'ben', form: { name: 'Ben', bio: 'On the road.' } });
+  assert.equal(saved.location, '/profile?done=saved&at=seven-twelve');
+  const blank = await t.quiz('/profile?at=seven-twelve', { as: 'ben', form: { name: ' ', bio: '' } });
+  assert.ok(blank.html.includes('<a class="txt" href="/signs/seven-twelve"'), 'a refused edit keeps it too');
+  const asking = await t.quiz('/profile/delete?at=seven-twelve', { as: 'ben' });
+  assert.ok(asking.html.includes('action="/profile/delete?at=seven-twelve"'));
+  assert.ok(asking.html.includes('href="/profile?at=seven-twelve"'), 'Keep it goes back with the sign');
+  const bad = await t.quiz(`/profile?at=${encodeURIComponent('//evil.example')}`, {
+    as: 'ben',
+    form: { name: 'Ben', bio: '' }
+  });
+  assert.equal(bad.location, '/profile?done=saved', 'an unchecked sign is dropped');
+});
+
 test('a sign taken down mid-play says so plainly and offers another', async () => {
   const t = await setup();
   assert.equal((await t.quiz('/signs/seven-twelve', { as: 'ben' })).res.status, 200);

@@ -52,6 +52,7 @@ import {
   ShareCard,
   SolvedPage,
   WaysPage,
+  withAt,
   type Here,
   type ProfileDone,
   type ProfileTrouble,
@@ -505,7 +506,7 @@ export function createQuiz(options: QuizOptions): Hono {
       const message = sentence((err as ApiError).message);
       return profilePage(c, viewer.player, { trouble: { part: 'about', message }, typed }, status);
     }
-    return go(c, '/profile?done=saved');
+    return go(c, withAt('/profile?done=saved', playingAt(c)));
   });
 
   quiz.post('/profile/photo', async (c) => {
@@ -525,14 +526,14 @@ export function createQuiz(options: QuizOptions): Hono {
       const message = sentence((err as ApiError).message);
       return profilePage(c, viewer.player, { trouble: { part: 'photo', message } }, status);
     }
-    return go(c, '/profile?done=photo');
+    return go(c, withAt('/profile?done=photo', playingAt(c)));
   });
 
   quiz.get('/profile/photo/remove', async (c) => {
     const viewer = await playing(c);
     if (viewer instanceof Response) return viewer;
-    if (!viewer.player.avatar) return go(c, '/profile');
-    return page(c, <RemovePhotoPage here={here} player={viewer.player} />);
+    if (!viewer.player.avatar) return go(c, withAt('/profile', playingAt(c)));
+    return page(c, <RemovePhotoPage here={here} player={viewer.player} at={playingAt(c)} />);
   });
 
   quiz.post('/profile/photo/remove', async (c) => {
@@ -544,18 +545,23 @@ export function createQuiz(options: QuizOptions): Hono {
       const status = trouble(err, ['conflict']);
       return page(
         c,
-        <RemovePhotoPage here={here} player={viewer.player} error={sentence((err as ApiError).message)} />,
+        <RemovePhotoPage
+          here={here}
+          player={viewer.player}
+          error={sentence((err as ApiError).message)}
+          at={playingAt(c)}
+        />,
         status
       );
     }
-    return go(c, '/profile?done=removed');
+    return go(c, withAt('/profile?done=removed', playingAt(c)));
   });
 
   quiz.get('/profile/delete', async (c) => {
     const viewer = await playing(c);
     if (viewer instanceof Response) return viewer;
     const { posted } = await profileOf(viewer.player);
-    return page(c, <DeletePage here={here} player={viewer.player} posted={posted} />);
+    return page(c, <DeletePage here={here} player={viewer.player} posted={posted} at={playingAt(c)} />);
   });
 
   quiz.post('/profile/delete', async (c) => {
@@ -568,7 +574,11 @@ export function createQuiz(options: QuizOptions): Hono {
       const status = trouble(err, ['conflict', 'unavailable']);
       const { posted } = await profileOf(viewer.player);
       const error = sentence((err as ApiError).message);
-      return page(c, <DeletePage here={here} player={viewer.player} posted={posted} error={error} />, status);
+      return page(
+        c,
+        <DeletePage here={here} player={viewer.player} posted={posted} error={error} at={playingAt(c)} />,
+        status
+      );
     }
     forget(c);
     return go(c, '/deleted');

@@ -271,11 +271,7 @@ export const Frame: FC<
               <span class="qtab">QUIZ</span>
             </a>
             {player ? (
-              <a
-                class="me"
-                href={at ? `/profile?at=${at}` : '/profile'}
-                aria-label={`${player.name || 'You'}: your profile`}
-              >
+              <a class="me" href={withAt('/profile', at)} aria-label={`${player.name || 'You'}: your profile`}>
                 <span class="label">Your profile</span>
                 <Face player={player} size={40} here={here} />
               </a>
@@ -1244,6 +1240,10 @@ const Oops: FC<{ message?: string }> = ({ message }) =>
     </p>
   ) : null;
 
+/** A Quiz path with the sign in play (`?at=`) carried on it, so the page can go back to that sign. */
+export const withAt = (path: string, at?: string): string =>
+  at ? `${path}${path.includes('?') ? '&' : '?'}at=${encodeURIComponent(at)}` : path;
+
 /**
  * Your profile, modelled on the app's You and its Settings: your photo (choose one, or remove
  * it), name and bio, your email (only you see it), your page on the site, the signs you've
@@ -1298,7 +1298,7 @@ export const ProfilePage: FC<{
             </p>
           </div>
           <Oops message={trouble?.part === 'photo' ? trouble.message : undefined} />
-          <form method="post" action="/profile/photo" enctype="multipart/form-data" class="stack">
+          <form method="post" action={withAt('/profile/photo', at)} enctype="multipart/form-data" class="stack">
             <label for="photo">{player.avatar ? 'Choose a new photo' : 'Choose a photo'}</label>
             <input
               id="photo"
@@ -1317,7 +1317,7 @@ export const ProfilePage: FC<{
             </button>
           </form>
           {player.avatar && (
-            <a class="txt bad" href="/profile/photo/remove" style="align-self: flex-start">
+            <a class="txt bad" href={withAt('/profile/photo/remove', at)} style="align-self: flex-start">
               Remove photo
             </a>
           )}
@@ -1328,7 +1328,7 @@ export const ProfilePage: FC<{
             Name and bio
           </h2>
           <Oops message={trouble?.part === 'about' ? trouble.message : undefined} />
-          <form method="post" action="/profile" class="stack">
+          <form method="post" action={withAt('/profile', at)} class="stack">
             <label for="nm">Name</label>
             <input
               id="nm"
@@ -1371,7 +1371,7 @@ export const ProfilePage: FC<{
         </section>
 
         <section class="part" aria-label="Your signs">
-          <a class="txt" href={at ? `/solved?at=${at}` : '/solved'} style="align-self: flex-start">
+          <a class="txt" href={withAt('/solved', at)} style="align-self: flex-start">
             Signs you’ve solved
           </a>
         </section>
@@ -1386,7 +1386,7 @@ export const ProfilePage: FC<{
         </section>
 
         <section class="part" aria-label="Delete my account">
-          <a class="btn danger" href="/profile/delete">
+          <a class="btn danger" href={withAt('/profile/delete', at)}>
             Delete my account
           </a>
           <p class="meta">Deletes your account and everything you posted. It can’t be undone.</p>
@@ -1397,19 +1397,24 @@ export const ProfilePage: FC<{
 };
 
 /** Asks before the profile photo goes (the app asks the same). */
-export const RemovePhotoPage: FC<{ here: Here; player: Player; error?: string }> = ({ here, player, error }) => (
-  <Frame here={here} title="Remove your profile photo?" player={player}>
+export const RemovePhotoPage: FC<{ here: Here; player: Player; error?: string; at?: string }> = ({
+  here,
+  player,
+  error,
+  at
+}) => (
+  <Frame here={here} title="Remove your profile photo?" player={player} at={at}>
     <div class="stack narrow">
       <h1>Remove your profile photo?</h1>
       <Face player={player} size={84} here={here} />
       <p class="lede">Your first letter shows again in its place.</p>
       <Oops message={error} />
-      <form method="post" action="/profile/photo/remove">
+      <form method="post" action={withAt('/profile/photo/remove', at)}>
         <button class="btn danger" type="submit">
           Remove photo
         </button>
       </form>
-      <a class="btn ghost" href="/profile">
+      <a class="btn ghost" href={withAt('/profile', at)}>
         Keep it
       </a>
     </div>
@@ -1428,13 +1433,14 @@ export function deleteWords(posted: number): string {
 }
 
 /** Asks before the account goes, saying what goes with it. */
-export const DeletePage: FC<{ here: Here; player: Player; posted: number; error?: string }> = ({
+export const DeletePage: FC<{ here: Here; player: Player; posted: number; error?: string; at?: string }> = ({
   here,
   player,
   posted,
-  error
+  error,
+  at
 }) => (
-  <Frame here={here} title="Delete your account?" player={player}>
+  <Frame here={here} title="Delete your account?" player={player} at={at}>
     <div class="stack narrow">
       <h1>Delete your account?</h1>
       <p class="lede">{deleteWords(posted)}</p>
@@ -1443,12 +1449,12 @@ export const DeletePage: FC<{ here: Here; player: Player; posted: number; error?
         is gone from the backups within a year.
       </p>
       <Oops message={error} />
-      <form method="post" action="/profile/delete">
+      <form method="post" action={withAt('/profile/delete', at)}>
         <button class="btn danger" type="submit">
           Delete my account
         </button>
       </form>
-      <a class="btn ghost" href="/profile">
+      <a class="btn ghost" href={withAt('/profile', at)}>
         Keep it
       </a>
     </div>
