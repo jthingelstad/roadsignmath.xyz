@@ -6,6 +6,8 @@
 // fields.
 
 import { createHash } from 'node:crypto';
+import type { People } from '../api/views.ts';
+import type { Sign } from '../domain/types.ts';
 
 /** Where the cards are drawn: cards.thingelstad.com/rsm/<the card's path>.png (`signCardPath`, `playerCardPath`). */
 export const CARDS = 'https://cards.thingelstad.com/rsm';
@@ -13,6 +15,12 @@ export const CARD_WIDTH = 1200;
 export const CARD_HEIGHT = 630;
 
 export type Card = { url: string; alt: string };
+
+/**
+ * Home's card for the pages without one of their own (`siteCardOf` in site.tsx). A page that has
+ * already read the signs and players passes them, so they aren't read twice.
+ */
+export type SiteCard = (have?: { signs: Sign[]; everyone: People }) => Promise<Card>;
 
 /** The first 10 hex of the SHA-256 of what the card shows, as a JSON array. */
 export const cardVersion = (shows: unknown[]): string =>

@@ -197,15 +197,18 @@ test('every page names the Mastodon and Bluesky accounts new signs go to, rel=me
 test('every sign has a heart: Tinylytics’ kudos button at the sign’s path', async () => {
   const { app, slug } = await setup();
   const home = await (await app.request('/')).text();
-  const button = (s: string) =>
-    `<button type="button" class="tinylytics_kudos" data-path="/signs/${s}" aria-label="Heart the`;
-  assert.ok(home.includes(button(slug('Newer Sign'))));
-  assert.ok(home.includes(button(slug('Older Sign'))));
+  // A card's heart waits to be seen: HEART_SCRIPT gives it Tinylytics' class as it comes into view.
+  const card = (s: string) => `<button type="button" class="kudo" data-path="/signs/${s}" aria-label="Heart the`;
+  assert.ok(home.includes(card(slug('Newer Sign'))));
+  assert.ok(home.includes(card(slug('Older Sign'))));
+  assert.ok(home.includes('IntersectionObserver'));
+  assert.ok(home.indexOf('rsm:cards') < home.indexOf('tinylytics.app/js/script.js'));
   // Outside the card's link, so a tap hearts the sign instead of opening it.
-  assert.match(home, /<\/a><div class="heart"><button type="button" class="tinylytics_kudos"/);
+  assert.match(home, /<\/a><div class="heart"><button type="button" class="kudo"/);
   const page = await (await app.request(`/signs/${slug('Newer Sign')}`)).text();
-  // The sign's own heart once; the nearby signs' are their own.
-  assert.equal(page.split(button(slug('Newer Sign'))).length, 2);
+  // The sign's own heart is filled at once; the nearby signs' are their own.
+  const own = `<button type="button" class="kudo tinylytics_kudos" data-path="/signs/${slug('Newer Sign')}" aria-label="Heart the`;
+  assert.equal(page.split(own).length, 2);
 });
 
 test('a sign has its own page; a held or unknown one is not found', async () => {
@@ -376,11 +379,16 @@ test('home reads in a phone’s order: the pitch, the map, then who’s playing'
   };
   // However many players there are, the map is never under the list of them.
   assert.ok(at('class="intro"') < at('id="map-panel"'));
-  assert.ok(at('id="map-panel"') < at('class="who"'));
-  assert.ok(at('class="who"') < at('id="signs"'));
+  assert.ok(at('id="map-panel"') < at('class="who who-wide"'));
+  assert.ok(at('class="who who-wide"') < at('id="signs"'));
   // The picture of the map itself comes before the first player.
   assert.ok(at('src="/us-map.svg"') < at('id="who-h"'));
   assert.match(html, /grid-template-areas: "intro" "map" "who"/);
+  // On a phone, who's playing comes after the signs: a second copy, shown only below 940 px.
+  assert.ok(at('id="signs"') < at('class="band who-narrow"'));
+  assert.ok(at('class="band who-narrow"') < at('id="how"'));
+  assert.match(html, /@media \(min-width: 940px\) \{ \.who-narrow \{ display: none; \} \}/);
+  assert.match(html, /@media \(max-width: 939px\) \{ \.who-wide \{ display: none; \} \}/);
 });
 
 test('home lists the first ten players, then a link to all of them, and loads the moving map checked', async () => {

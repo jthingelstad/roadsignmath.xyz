@@ -27,7 +27,19 @@ import {
 } from '../api/views.ts';
 import { BADGE_STYLE, BadgeCards, YearPlates } from './badges.tsx';
 import { BIMI_SVG, BRAND_FILES, HIGHWAY_SVG } from './brand.ts';
-import { CHIP_STYLE, Eq, Facts, finderNames, Heart, Sep, SORT_NOTES, SortChips, Tile } from './cards.tsx';
+import {
+  CHIP_STYLE,
+  Eq,
+  Facts,
+  finderNames,
+  Heart,
+  photoCap,
+  photoSrcset,
+  Sep,
+  SORT_NOTES,
+  SortChips,
+  Tile
+} from './cards.tsx';
 import {
   APP_STORE_URL,
   AppStoreBadge,
@@ -46,7 +58,17 @@ import { mathSvg } from './math.ts';
 import { feedAlternates } from './feeds.ts';
 import { createOldLinks } from './old-links.ts';
 import { createOpenWeb } from './open.tsx';
-import { homeCard, pinValue, playerCard, playerCardPath, signCard, signCardPath } from './share.ts';
+import {
+  homeCard,
+  pinValue,
+  playerCard,
+  playerCardPath,
+  signCard,
+  signCardPath,
+  type Card,
+  type SiteCard
+} from './share.ts';
+import { LICENSE } from './data.ts';
 import { movedTo, playerByKey, signByKey } from './permalinks.ts';
 import { mountAppPage } from './app-page.tsx';
 import { mountIcons } from './icons.ts';
@@ -154,6 +176,38 @@ const ABOUT_STYLE = `
 .eras p { margin: 0; }
 `;
 
+const HOME_DESCRIPTION =
+  'A road trip game: find a road sign whose numbers make a true equation. Every sign players have found, on a map.';
+
+/** Who's playing: players with a name and a shown sign, the most signs first. */
+const playing = (shown: Sign[], everyone: People) =>
+  [...everyone.values()]
+    .filter((p) => p.name)
+    .map((p) => ({ player: p, count: playerStats(p, shown).sign_count }))
+    .filter((p) => p.count > 0)
+    .sort((a, b) => b.count - a.count || a.player.name.localeCompare(b.player.name));
+
+/** Every pin on Home's map, as its share card draws them. */
+const homePins = (shown: Sign[]): [number, number, number][] =>
+  cluster(shown).clusters.map((k): [number, number, number] => [k.x, k.y, k.signs.length]);
+
+/**
+ * Home's share card, which every page without a card of its own shares too (/signs, /players,
+ * /app, /about, /data and the rest): the same address and `v` as Home's, so the card maker draws
+ * it once.
+ */
+export function siteCardOf(signs: Sign[], everyone: People): Card {
+  // In Home's order, so the pins and the card's `v` come out the same.
+  const shown = signs.filter(isPublic).sort(byNewest);
+  const states = new Set(shown.map((s) => s.place.state).filter(Boolean));
+  return homeCard({
+    signCount: shown.length,
+    playerCount: playing(shown, everyone).length,
+    stateCount: states.size,
+    pins: homePins(shown)
+  });
+}
+
 /** Things I've built, where each era of the game has its page. */
 const THINGS_URL = 'https://thingelstad.xyz/things/';
 
@@ -167,6 +221,48 @@ const NOPIN_STYLE = `
 .nopin[hidden], .nopin .np[hidden] { display: none; }
 .nopin .np:not([hidden]) ~ .np:not([hidden])::before { content: '; '; }
 `;
+
+/**
+ * Who's playing: the first players, the most signs first, then a link to everyone. Home draws it
+ * twice, beside the map when the page is wide (`wide`) and after the signs on a phone, so a phone
+ * reaches the signs first; only one is ever displayed, and the other is hidden from everyone.
+ */
+const WhoPlaying: FC<{ players: ReturnType<typeof playing>; wide?: boolean }> = ({ players, wide }) => {
+  if (players.length === 0) return null;
+  const id = wide ? 'who-h' : 'who-h2';
+  const list = (
+    <>
+      <h2 id={id}>Who’s playing</h2>
+      <ul>
+        {players.slice(0, HOME_PLAYERS).map(({ player, count }) => (
+          <li>
+            <a href={playerPath(player)}>
+              <Avatar name={player.name} color={player.avatarColor} photo={player.avatar} />
+              <b>{player.name}</b>
+              <span class="soft">{countSigns(count)}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+      {players.length > HOME_PLAYERS && (
+        <a class="everyone" href="/players">
+          All {players.length} players
+        </a>
+      )}
+    </>
+  );
+  return wide ? (
+    <section class="who who-wide" aria-labelledby={id}>
+      {list}
+    </section>
+  ) : (
+    <section class="band who-narrow" aria-labelledby={id}>
+      <div class="wrap">
+        <div class="who">{list}</div>
+      </div>
+    </section>
+  );
+};
 
 const HOME_STYLE = `
 .hero { background: var(--ground); border-bottom: 1px solid var(--line); scroll-margin-top: 0; }
@@ -187,6 +283,9 @@ const HOME_STYLE = `
 .stats dd { margin: 0; order: 1; font-size: 30px; font-weight: 700; }
 .stats dt { order: 2; font-size: 14px; color: var(--soft); }
 .who { grid-area: who; max-width: 360px; }
+.band.who-narrow > .wrap { padding-top: 0; }
+@media (min-width: 940px) { .who-narrow { display: none; } }
+@media (max-width: 939px) { .who-wide { display: none; } }
 .who h2 { margin: 0 0 4px; font-size: 14px; font-weight: 800; letter-spacing: 0; }
 .who ul { margin: 0; padding: 0; list-style: none; }
 .who a { display: flex; align-items: center; gap: 12px; min-height: 48px; text-decoration: none; color: var(--ink); }
@@ -195,6 +294,12 @@ const HOME_STYLE = `
 .who .everyone { display: inline-block; margin-top: 6px; font-weight: 800; }
 #map-panel { grid-area: map; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
 .years { display: flex; flex-wrap: wrap; gap: 8px; }
+/* On a phone the years sit in one row that scrolls sideways. */
+@media (max-width: 699px) {
+  .years { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px; padding: 0 16px 4px; scrollbar-width: none; }
+  .years::-webkit-scrollbar { display: none; }
+  .years a { flex: none; }
+}
 .years a { display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border-radius: 999px;
   border: 1.5px solid var(--line2); background: var(--card); color: var(--ink); font-weight: 700; font-size: 14px; text-decoration: none; }
 .years a[aria-current] { border-color: var(--chip-on); background: var(--chip-on); color: var(--chip-on-ink); }
@@ -443,7 +548,7 @@ ${CRUMB_STYLE}
   border: 1.5px solid var(--line2); background: var(--card); font: inherit; font-size: 15px; font-weight: 800; color: var(--ink); cursor: pointer; }
 .act:hover { border-color: var(--ink); }
 .act[hidden] { display: none; }
-.acts .tinylytics_kudos { min-height: 44px; padding: 0 16px; background: var(--card); }
+.acts .kudo { min-height: 44px; padding: 0 16px; background: var(--card); }
 .first { display: flex; flex-direction: column; gap: 8px; }
 .first .plate > span { padding: 20px 24px; font-size: clamp(30px, 3.4vw, 42px); }
 .credit { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0; font-size: 15px; color: var(--ink2); }
@@ -531,6 +636,8 @@ const PLAYER_STYLE = `
 .player { background: var(--ground); }
 ${NOPIN_STYLE}
 .player > .wrap { padding-top: 20px; padding-bottom: 56px; display: flex; flex-direction: column; gap: 40px; }
+/* On a phone a player's signs come first, then their years and badges. */
+@media (max-width: 699px) { .player .later { order: 1; } }
 ${CRUMB_STYLE}
 .who-is { display: flex; flex-wrap: wrap; align-items: center; gap: 20px 40px; }
 .who-is > .avatar { box-shadow: 0 0 0 4px var(--page), 0 0 0 5px var(--line); }
@@ -601,6 +708,14 @@ export function createSite({
   const counts = async () => heartCounts?.counts();
   const summary = (everyone: People) => (s: Sign) => signSummary(urls, everyone, s);
   const coFindsOn = (shown: Sign[]) => Promise.all(shown.map((s) => store.listCoFinds(s.id)));
+  /** Home's card, for the pages without one of their own. */
+  const siteCard: SiteCard = async (have) => {
+    const { signs, everyone } = have ?? {
+      signs: await store.allSigns(),
+      everyone: await people()
+    };
+    return siteCardOf(signs, everyone);
+  };
 
   site.use(async (c, next) => {
     await next();
@@ -683,6 +798,7 @@ export function createSite({
         title="About · Road Sign Math"
         description="Road Sign Math is a road trip game Jamie Thingelstad started in 2005 with a sign on I-94: 3 × 33 = 99. Twenty years later it's an iPhone app."
         url={`${urls.site}/about`}
+        card={siteCardOf(signs, everyone)}
         here="about"
         style={ABOUT_STYLE}
       >
@@ -698,7 +814,7 @@ export function createSite({
             {genesis?.photos[0] ? (
               <a class="shot" href={signPath(genesis)}>
                 <img
-                  src={genesis.photos[0].url}
+                  src={genesis.photos[0].thumb_url}
                   alt={genesis.photos[0].alt ?? 'Photo of the I-94 sign'}
                   loading="lazy"
                 />
@@ -801,12 +917,13 @@ export function createSite({
   });
 
   // Privacy: what the game keeps and who sees it, in plain words. Text drafted for Jamie.
-  site.get('/privacy', (c) =>
+  site.get('/privacy', async (c) =>
     c.html(
       <Page
         title="Privacy · Road Sign Math"
         description="What Road Sign Math keeps, what is public, and how to delete your account."
         url={`${urls.site}/privacy`}
+        card={await siteCard()}
       >
         <main id="main" class="wrap" style="padding-top: 32px; padding-bottom: 48px; max-width: 720px">
           <h1>Privacy</h1>
@@ -885,12 +1002,13 @@ export function createSite({
 
   // House rules: what can be posted, in Jamie's words (approved 2026-11-10). Sign-in in the app
   // says that signing in agrees to them.
-  site.get('/rules', (c) =>
+  site.get('/rules', async (c) =>
     c.html(
       <Page
         title="House rules · Road Sign Math"
         description="Road Sign Math is a free game Jamie Thingelstad makes for fun. Play nice."
         url={`${urls.site}/rules`}
+        card={await siteCard()}
       >
         <main id="main" class="wrap" style="padding-top: 32px; padding-bottom: 48px; max-width: 720px">
           <h1>House rules</h1>
@@ -916,12 +1034,13 @@ export function createSite({
   // Help: who makes the game and how to reach him, for the App Store's support link. The paths
   // are the app's own (You, then the gear for Settings) and Quiz's (your profile, from the picture in
   // its header); Delete my account says what /privacy says.
-  site.get('/support', (c) =>
+  site.get('/support', async (c) =>
     c.html(
       <Page
         title="Help · Road Sign Math"
         description="Road Sign Math is made by one person, Jamie Thingelstad, in spare time. How to reach him and how to delete your account."
         url={`${urls.site}/support`}
+        card={await siteCard()}
       >
         <main id="main" class="wrap" style="padding-top: 32px; padding-bottom: 48px; max-width: 720px">
           <h1>Help</h1>
@@ -1006,21 +1125,26 @@ export function createSite({
       const query = q.toString();
       return `/${query ? `?${query}` : ''}#map`;
     };
-    const players = [...everyone.values()]
-      .filter((p) => p.name)
-      .map((p) => ({ player: p, count: playerStats(p, shown).sign_count }))
-      .filter((p) => p.count > 0)
-      .sort((a, b) => b.count - a.count || a.player.name.localeCompare(b.player.name));
+    const players = playing(shown, everyone);
     const states = new Set(shown.map((s) => s.place.state).filter(Boolean));
     const card = summary(everyone);
     // The share card shows every pin, whatever year the page is filtered to.
-    const pins = cluster(shown).clusters.map((k): [number, number, number] => [k.x, k.y, k.signs.length]);
+    const pins = homePins(shown);
     return c.html(
       <Page
         title="Road Sign Math"
-        description="A road trip game: find a road sign whose numbers make a true equation. Every sign players have found, on a map."
+        description={HOME_DESCRIPTION}
         url={`${urls.site}/`}
         card={homeCard({ signCount: shown.length, playerCount: players.length, stateCount: states.size, pins })}
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'WebSite',
+          name: 'Road Sign Math',
+          url: `${urls.site}/`,
+          description: HOME_DESCRIPTION,
+          inLanguage: 'en-US',
+          license: LICENSE.url
+        }}
         here="map"
         style={HOME_STYLE + HOME_MAP_STYLE}
         script={HOME_SCRIPT + HOME_MAP_SCRIPT}
@@ -1104,28 +1228,8 @@ export function createSite({
                 </section>
                 <NoPin signs={unpinned} byYear year={year} />
               </div>
-              {/* After the map in the page so a phone, and a screen reader, reach the map first. */}
-              {players.length > 0 && (
-                <section class="who" aria-labelledby="who-h">
-                  <h2 id="who-h">Who’s playing</h2>
-                  <ul>
-                    {players.slice(0, HOME_PLAYERS).map(({ player, count }) => (
-                      <li>
-                        <a href={playerPath(player)}>
-                          <Avatar name={player.name} color={player.avatarColor} photo={player.avatar} />
-                          <b>{player.name}</b>
-                          <span class="soft">{countSigns(count)}</span>
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                  {players.length > HOME_PLAYERS && (
-                    <a class="everyone" href="/players">
-                      All {players.length} players
-                    </a>
-                  )}
-                </section>
-              )}
+              {/* Side by side, who's playing sits under the pitch; on a phone it comes after the signs (below). */}
+              <WhoPlaying players={players} wide />
             </div>
           </section>
 
@@ -1151,6 +1255,8 @@ export function createSite({
               )}
             </div>
           </section>
+
+          <WhoPlaying players={players} />
 
           <section id="how" class="band" aria-labelledby="how-h">
             <div class="wrap">
@@ -1220,9 +1326,9 @@ export function createSite({
     );
   });
 
-  mountSigns(site, { store, urls, people, counts });
-  mountPlayers(site, { store, urls, people });
-  mountAppPage(site, { urls });
+  mountSigns(site, { store, urls, people, counts, siteCard });
+  mountPlayers(site, { store, urls, people, siteCard });
+  mountAppPage(site, { urls, siteCard });
 
   // A sign's page is at its id; its old address by slug, or its id in another case, comes here.
   site.get('/signs/:key', async (c) => {
@@ -1247,7 +1353,7 @@ export function createSite({
       const player = handle ? byHandle.get(handle) : undefined;
       return { color: player?.avatarColor, photo: player?.avatar };
     };
-    const description = `${sign.title}, ${sign.place.label}${sign.first_way ? `: ${sign.first_way.text}` : ''}`;
+    const description = signDescription(sign);
     // While Quiz is open, a sign with numbers to use can be tried there (Jamie, 2026-11-12).
     const tryInQuiz = quizOpen && urls.quiz && found.numbers.length ? `${urls.quiz}${signPath(found)}` : undefined;
     const { lat, lng } = found.place;
@@ -1289,6 +1395,7 @@ export function createSite({
         description={description}
         url={sign.url}
         card={share}
+        kind="article"
         here="signs"
         style={SIGN_STYLE}
         script={SIGN_SCRIPT}
@@ -1316,8 +1423,17 @@ export function createSite({
             />
             <div class="cols">
               <div class="photos">
-                {sign.photos.map((p) => (
-                  <img src={p.url} alt={p.alt} width={p.width} height={p.height} />
+                {sign.photos.map((p, i) => (
+                  <img
+                    src={p.url}
+                    srcset={photoSrcset(p)}
+                    sizes={photoSrcset(p) && '(min-width: 1280px) 640px, (min-width: 900px) 52vw, calc(100vw - 32px)'}
+                    alt={p.alt}
+                    width={p.width}
+                    height={p.height}
+                    style={photoCap(p)}
+                    loading={i === 0 ? undefined : 'lazy'}
+                  />
                 ))}
               </div>
               <div class="side">
@@ -1338,7 +1454,7 @@ export function createSite({
                   <span>{townOf(sign.place.label)}</span>
                 </p>
                 <div class="acts">
-                  <Heart sign={sign} />
+                  <Heart sign={sign} now />
                   <button type="button" class="act share" data-url={sign.url} data-title={sign.title} hidden>
                     {SHARE_ICON}
                     <span>Share</span>
@@ -1541,11 +1657,28 @@ export function createSite({
   });
 
   // The feeds, the open data files, llms.txt and the /data page that documents them.
-  site.route('/', createOpenWeb({ store, urls }));
+  site.route('/', createOpenWeb({ store, urls, siteCard }));
   // The micro.blog's old addresses, last so no page here is ever shadowed by one.
   site.route('/', createOldLinks({ store, urls }));
 
   return site;
+}
+
+/**
+ * A sign page's description: what the title doesn't say (the title is already the page's title).
+ * The math when it is solved, else the numbers to use, then who found it, where and when.
+ */
+export function signDescription(
+  sign: Pick<Summary, 'first_way' | 'finders' | 'place' | 'found_on'> & {
+    numbers: { value: string }[];
+  }
+): string {
+  const who = sign.finders.map((f) => f.name);
+  const by = who.length ? ` by ${who.length > 1 ? `${who.slice(0, -1).join(', ')} and ${who.at(-1)}` : who[0]}` : '';
+  const found = `A road sign found${by} on ${shortDay(sign.found_on)}. Where: ${sign.place.label}.`;
+  if (sign.first_way) return `${sign.first_way.text}. ${found}`;
+  const numbers = sign.numbers.map((n) => n.value);
+  return `${found} Not solved yet${numbers.length ? `: the numbers are ${numbers.join(', ')}` : ''}.`;
 }
 
 type Found = { sign: Sign; solve: Solve };
@@ -1627,6 +1760,7 @@ const PlayerPage: FC<{
       title={`${player.name} · Road Sign Math`}
       description={`Road signs ${player.name} found${found}.`}
       url={`${urls.site}${base}`}
+      kind="profile"
       card={playerCard({
         path: playerCardPath(player),
         name: player.name,
@@ -1689,7 +1823,7 @@ const PlayerPage: FC<{
             )}
           </div>
           {years.length > 0 && (
-            <section aria-labelledby="years-h">
+            <section class="later" aria-labelledby="years-h">
               <div class="lede">
                 <h2 id="years-h">Years</h2>
                 <p>A badge for every year {player.name} found a sign. They are not easy to find.</p>
@@ -1698,7 +1832,7 @@ const PlayerPage: FC<{
             </section>
           )}
           {others.length > 0 && (
-            <section aria-labelledby="badges-h">
+            <section class="later" aria-labelledby="badges-h">
               <div class="lede">
                 <h2 id="badges-h">Badges</h2>
                 <p>Earned on the road. Some badges are secret until someone finds them.</p>

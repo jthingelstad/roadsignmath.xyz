@@ -48,6 +48,11 @@ export const US_VIEW: [[number, number], [number, number]] = [
 
 export const HOME_MAP_STYLE = `
 .map .lmap { position: absolute; inset: 0; z-index: 0; background: var(--ground); font: inherit; }
+/* Side by side, the moving map runs down to the foot of the column beside it instead of leaving a gap. */
+@media (min-width: 940px) {
+  #map-panel[data-live] { align-self: stretch; }
+  #map-panel[data-live] .map { flex: 1 1 auto; aspect-ratio: auto; min-height: 420px; }
+}
 .lmap .leaflet-control-attribution { font-size: 11px; }
 .lmap .leaflet-popup-content-wrapper { border-radius: 12px; }
 .lmap .leaflet-popup-content { margin: 12px 14px; font-size: 14px; line-height: 1.35; }
@@ -129,7 +134,17 @@ export const HOME_MAP_SCRIPT = `
       holder = document.createElement('div');
       holder.className = 'lmap waiting';
       box.appendChild(holder);
-      map = L.map(holder, { scrollWheelZoom: false, worldCopyJump: true, zoomSnap: 0.5, minZoom: 1 });
+      // A reader who asks for less motion gets a map that jumps instead of gliding.
+      const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+      map = L.map(holder, {
+        scrollWheelZoom: false,
+        worldCopyJump: true,
+        zoomSnap: 0.5,
+        minZoom: 1,
+        zoomAnimation: !still,
+        fadeAnimation: !still,
+        markerZoomAnimation: !still
+      });
       const tiles = L.tileLayer(TILES.url, { attribution: TILES.attribution, maxZoom: 19 }).addTo(map);
       // The picture stays until a tile has drawn: with none in ten seconds, or every one failing, it stays for good.
       const drawn = new Promise((ok, fail) => {
@@ -146,6 +161,7 @@ export const HOME_MAP_SCRIPT = `
         showCoverageOnHover: false,
         maxClusterRadius: 44,
         spiderfyDistanceMultiplier: 1.6,
+        animate: !still,
         iconCreateFunction: (c) => {
           const n = c.getChildCount();
           const size = n < 10 ? 32 : n < 50 ? 38 : 44;
@@ -224,6 +240,9 @@ export const HOME_MAP_SCRIPT = `
       }
       show(new URLSearchParams(location.search).get('year'));
       panel.dataset.live = '';
+      // Live, the map may grow to fill the column beside it (HOME_MAP_STYLE): size it and frame the US again.
+      map.invalidateSize();
+      map.fitBounds(US, { animate: false });
       panel.addEventListener('click', (e) => {
         const chip = e.target.closest && e.target.closest('.years a');
         if (!chip || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
