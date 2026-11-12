@@ -40,6 +40,7 @@ import { HOME_MAP_SCRIPT, HOME_MAP_STYLE } from './home-map.ts';
 import { cluster, clusterName, countSigns, project, type Cluster } from './map.ts';
 import { mathSvg } from './math.ts';
 import { feedAlternates } from './feeds.ts';
+import { createOldLinks } from './old-links.ts';
 import { createOpenWeb } from './open.tsx';
 import { homeCard, pinValue, playerCard, signCard } from './share.ts';
 import { mountAppPage } from './app-page.tsx';
@@ -1506,6 +1507,8 @@ export function createSite({
 
   // The feeds, the open data files, llms.txt and the /data page that documents them.
   site.route('/', createOpenWeb({ store, urls }));
+  // The micro.blog's old addresses, last so no page here is ever shadowed by one.
+  site.route('/', createOldLinks({ store, urls }));
 
   return site;
 }
