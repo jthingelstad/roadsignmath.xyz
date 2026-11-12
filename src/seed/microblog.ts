@@ -20,7 +20,18 @@ export type SeedFile = {
     place: { label: string; state?: string; lat?: number; lng?: number };
     /** One per photo in the post, in order. */
     alt: string[];
+    /** The post's photos as the export names them, in order, "uploads/2023/fd1726dfcd.jpg". */
+    uploads: string[];
   }[];
+};
+
+/**
+ * What a seeded id is made from. A seeded sign's id ends in the hash of its post, so the post's
+ * old address finds it again (src/web/old-links.ts); a photo's id starts with its sign's time.
+ */
+export const seedKeys = {
+  sign: (post: string): string => `sign:${post}`,
+  photo: (post: string, index: number): string => `photo:${post}:${index}`
 };
 
 export type Plan = {
@@ -93,14 +104,17 @@ export function buildPlan(feed: FeedItem[], seed: SeedFile): Plan {
     if (images.length !== s.alt.length) {
       problems.push(`${s.post}: ${images.length} photos but ${s.alt.length} alt texts`);
     }
+    if (images.join('\n') !== s.uploads.join('\n')) {
+      problems.push(`${s.post}: uploads should be ${JSON.stringify(images)}`);
+    }
 
     const time = Date.parse(item.date_published);
     const postedAt = new Date(time).toISOString();
-    const id = ulidFrom(time, `sign:${s.post}`);
+    const id = ulidFrom(time, seedKeys.sign(s.post));
     const slug = uniqueSlug(slugify(s.title), (x) => slugs.has(x));
     slugs.add(slug);
     const signPhotos = images.map((source, i) => {
-      const photoId = ulidFrom(time, `photo:${s.post}:${i}`).toLowerCase();
+      const photoId = ulidFrom(time, seedKeys.photo(s.post, i)).toLowerCase();
       photos.push({ id: photoId, source, signId: id });
       return { id: photoId, width: 0, height: 0, alt: s.alt[i] ?? `Photo of the ${s.title} sign` };
     });

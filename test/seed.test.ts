@@ -19,7 +19,8 @@ const fictional: SeedFile = {
       math: '7 + 12 = 19',
       numbers: [{ value: '7', text: 'Northtown 7' }, { value: '12' }, { value: '19' }],
       place: { label: 'Near Testville, Minnesota', state: 'MN', lat: 44.9, lng: -93.2 },
-      alt: ['A green sign: Northtown 7, Southtown 12, Testville 19.']
+      alt: ['A green sign: Northtown 7, Southtown 12, Testville 19.'],
+      uploads: ['uploads/2026/testville.jpg']
     },
     {
       post: '2026/02/01/two-photos.html',
@@ -28,16 +29,17 @@ const fictional: SeedFile = {
       math: '√(5 − 1) = 2',
       numbers: [{ value: '2', text: 'EXIT 2' }, { value: '5' }, { value: '1' }],
       place: { label: 'Along a highway' },
-      alt: ['The sign.', 'The sign from further back.']
+      alt: ['The sign.', 'The sign from further back.'],
+      uploads: ['uploads/2026/near.jpg', 'uploads/2026/far.jpg']
     }
   ]
 };
 
-/** A stand-in export with one post per seeded sign. */
+/** A stand-in export with one post per seeded sign, showing the photos the seed names. */
 function feedFor(file: SeedFile): FeedItem[] {
   return file.signs.map((s, i) => ({
     url: `https://blog.example/${s.post}`,
-    content_text: s.alt.map((_, j) => `<img src="uploads/${i}-${j}.jpg" alt="">`).join('\n\n'),
+    content_text: s.uploads.map((upload) => `<img src="${upload}" alt="">`).join('\n\n'),
     date_published: `2026-01-${String(10 + i).padStart(2, '0')}T12:00:00-06:00`
   }));
 }
@@ -98,9 +100,19 @@ test('a seed that does not fit the export says why', () => {
         math: '7 + 12 = 19',
         numbers: [{ value: '7' }, { value: '12' }],
         place: { label: 'Testville' },
-        alt: ['x']
+        alt: ['x'],
+        uploads: ['uploads/a.jpg']
       },
-      { post: 'gone.html', title: 'B', finder: 'bob', math: '1 = 1', numbers: [], place: { label: 'X' }, alt: [] }
+      {
+        post: 'gone.html',
+        title: 'B',
+        finder: 'bob',
+        math: '1 = 1',
+        numbers: [],
+        place: { label: 'X' },
+        alt: [],
+        uploads: []
+      }
     ]
   };
   const feed: FeedItem[] = [
@@ -112,6 +124,7 @@ test('a seed that does not fit the export says why', () => {
     (err: Error) =>
       /19 not among the sign's numbers/.test(err.message) &&
       /0 photos but 1 alt texts/.test(err.message) &&
+      /a.html: uploads should be \[\]/.test(err.message) &&
       /gone.html: not in the export/.test(err.message) &&
       /extra.html: in the export but not seeded/.test(err.message)
   );
