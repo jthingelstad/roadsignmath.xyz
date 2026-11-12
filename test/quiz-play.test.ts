@@ -159,6 +159,39 @@ test('sign in by code: the Quiz email, a cookie only Quiz’s pages send, then a
   assert.equal(pat?.name, 'Pat');
 });
 
+test('“Try this one in Quiz”: signing in on the way there lands on that sign, and only a slug is carried', async () => {
+  const t = await setup();
+  const out = await t.quiz('/signs/seven-twelve');
+  assert.equal(out.location, '/signin?to=seven-twelve', 'signed out: sign in first, keeping the sign');
+  const page = await t.quiz('/signin?to=seven-twelve');
+  assert.ok(page.html.includes('<input type="hidden" name="to" value="seven-twelve"/>'));
+  const started = await t.quiz('/signin', { form: { email: 'pat@example.com', to: 'seven-twelve' } });
+  assert.equal(
+    (started.html.match(/name="to" value="seven-twelve"/g) ?? []).length,
+    2,
+    'the code and send-again forms'
+  );
+  assert.ok(started.html.includes('href="/signin?to=seven-twelve"'), 'a different email keeps it too');
+  const code = /code is (\d{6})/.exec(t.mailer.sent[0].subject)![1];
+  const loginId = /name="login" value="([^"]+)"/.exec(started.html)![1];
+  const done = await t.quiz('/signin/code', {
+    form: { login: loginId, email: 'pat@example.com', code, to: 'seven-twelve' }
+  });
+  assert.equal(done.location, '/name?to=seven-twelve', 'a new player gives a name first');
+  const jar = done.res.headers.get('set-cookie')!.split(';')[0];
+  const naming = await t.quiz('/name?to=seven-twelve', { cookie: jar });
+  assert.ok(naming.html.includes('name="to" value="seven-twelve"'));
+  const named = await t.quiz('/name', { cookie: jar, form: { name: 'Pat', to: 'seven-twelve' } });
+  assert.equal(named.location, '/signs/seven-twelve');
+  assert.equal((await t.quiz('/signin?to=seven-twelve', { cookie: jar })).location, '/signs/seven-twelve');
+
+  for (const to of ['//evil.example', 'https://evil.example', '../next', 'Seven', 'a b', '-x', 'x'.repeat(81)]) {
+    assert.equal((await t.quiz(`/signin?to=${encodeURIComponent(to)}`, { cookie: jar })).location, '/next', to);
+    const blank = await t.quiz(`/signin?to=${encodeURIComponent(to)}`);
+    assert.ok(!blank.html.includes('name="to"'), to);
+  }
+});
+
 test('the email’s link opens a page that changes nothing; its button signs in', async () => {
   const t = await setup();
   await t.quiz('/signin', { form: { email: ada.email! } });
@@ -256,7 +289,7 @@ test('a player’s own signs aren’t drawn, a nameless player gives a name firs
   const ada1 = await t.quiz('/next', { as: 'ada' });
   assert.equal(ada1.res.status, 200, 'Ada posted both: none to draw');
   assert.ok(decoded(ada1.html).includes('You’ve done every sign.'));
-  assert.equal((await t.quiz('/signs/seven-twelve', { as: 'pnameless00' })).location, '/name');
+  assert.equal((await t.quiz('/signs/seven-twelve', { as: 'pnameless00' })).location, '/name?to=seven-twelve');
   const ways = decoded((await t.quiz('/signs/seven-twelve/ways', { as: 'ben' })).html);
   assert.ok(ways.includes('The ways on this sign'));
   assert.ok(ways.includes('Found by <b>Ada</b>'));
