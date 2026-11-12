@@ -5,6 +5,8 @@ import { MemoryMailer } from '../src/mail/mailer.ts';
 import { Buttondown, MemoryNewsletter } from '../src/newsletter.ts';
 import { MemoryPhotoStore } from '../src/photos.ts';
 import { MemoryStore } from '../src/store/memory.ts';
+import { isFirstEraPlayer } from '../src/seed/archive.ts';
+import { ulid, ulidFrom } from '../src/domain/ids.ts';
 import { addPlayer } from '../src/store/store.ts';
 import { ada } from './support/fixtures.ts';
 import { ScriptedModerator } from './support/moderator.ts';
@@ -88,7 +90,8 @@ function setup(store = new MemoryStore(), newsletter = new MemoryNewsletter()) {
     photos: new MemoryPhotoStore(),
     moderator: new ScriptedModerator(),
     clientIp: () => '192.0.2.1',
-    newsletter
+    newsletter,
+    quizOpen: true
   });
   const call = async (method: string, path: string, body?: unknown, token?: string) => {
     const headers: Record<string, string> = {};
@@ -108,7 +111,24 @@ function setup(store = new MemoryStore(), newsletter = new MemoryNewsletter()) {
     const code = /code is (\d{6})/.exec(mailer.sent.at(-1)!.subject)![1];
     return (await call('POST', '/auth/verify', { login_id: started.body.login_id, code })).body;
   };
-  return { store, newsletter, call, signIn };
+  const quizSignIn = async (email: string) => {
+    const form = async (path: string, fields: Record<string, string>) =>
+      app.request(path, {
+        method: 'POST',
+        headers: {
+          'X-RSM-Front': 'quiz',
+          'content-type': 'application/x-www-form-urlencoded',
+          origin: 'https://quiz.example.test'
+        },
+        body: new URLSearchParams(fields).toString()
+      });
+    const page = await (await form('/signin', { email })).text();
+    const code = /code is (\d{6})/.exec(mailer.sent.at(-1)!.subject)![1];
+    const login = /name="login" value="([^"]+)"/.exec(page)![1];
+    const done = await form('/signin/code', { login, email, code });
+    assert.equal(done.status, 303);
+  };
+  return { store, newsletter, call, signIn, quizSignIn };
 }
 
 test('a new player joins the newsletter at their first sign-in, and leaves it when they delete their account', async () => {
@@ -136,4 +156,136 @@ test('a new player who once unsubscribed stays unsubscribed', async () => {
   await t.signIn('back.again@example.com');
   assert.equal(newsletter.list.size, 0);
   assert.ok(newsletter.unsubscribed.has('back.again@example.com'));
+});
+
+/** A fetcher that answers each call in turn. */
+function scripted(...answers: [number, unknown?][]) {
+  const calls: Call[] = [];
+  const fetcher = async (url: string, init: RequestInit) => {
+    calls.push({ url, init });
+    const [status, body] = answers[calls.length - 1] ?? [500];
+    return new Response(status === 204 ? null : JSON.stringify(body ?? {}), { status });
+  };
+  return { calls, fetcher };
+}
+
+test('an add can carry tags', async () => {
+  const { calls, fetcher } = fake(201);
+  assert.equal(await new Buttondown(async () => 'k', fetcher).add('new@example.com', ['quiz']), 'added');
+  assert.deepEqual(JSON.parse(calls[0]!.init.body as string), {
+    email_address: 'new@example.com',
+    type: 'regular',
+    tags: ['quiz']
+  });
+});
+
+test('tags Buttondown refuses never keep a player off the list: they are added untagged', async () => {
+  const { calls, fetcher } = scripted([400, { code: 'tag_invalid', detail: 'no tags on this plan' }], [201]);
+  const errors: unknown[] = [];
+  const original = console.error;
+  console.error = (...args: unknown[]) => errors.push(args);
+  try {
+    assert.equal(await new Buttondown(async () => 'k', fetcher).add('new@example.com', ['app']), 'added');
+  } finally {
+    console.error = original;
+  }
+  assert.equal(calls.length, 2);
+  assert.deepEqual(JSON.parse(calls[1]!.init.body as string), { email_address: 'new@example.com', type: 'regular' });
+  assert.ok(!JSON.stringify(errors).includes('new@example.com'));
+  const known = scripted([400, { code: 'email_already_exists' }]);
+  assert.equal(await new Buttondown(async () => 'k', known.fetcher).add('old@example.com', ['app']), 'known');
+  assert.equal(known.calls.length, 1);
+});
+
+test('a tag keeps the subscriber’s tags: it reads them, then writes them back with the new one', async () => {
+  const { calls, fetcher } = scripted([200, { email_address: 'a+b@example.com', tags: ['vip'] }], [200]);
+  assert.equal(await new Buttondown(async () => 'k', fetcher).tag('a+b@example.com', ['quiz']), 'tagged');
+  assert.equal(calls[0]!.url, 'https://api.buttondown.com/v1/subscribers/a%2Bb%40example.com');
+  assert.equal(calls[0]!.init.method, 'GET');
+  assert.equal(calls[1]!.url, 'https://api.buttondown.com/v1/subscribers/a%2Bb%40example.com');
+  assert.equal(calls[1]!.init.method, 'PATCH');
+  assert.deepEqual(JSON.parse(calls[1]!.init.body as string), { tags: ['vip', 'quiz'] }, 'tags only: never its type');
+
+  const already = scripted([200, { tags: ['quiz', 'app'] }]);
+  assert.equal(await new Buttondown(async () => 'k', already.fetcher).tag('a@example.com', ['app']), 'already');
+  assert.equal(already.calls.length, 1, 'nothing written');
+  assert.equal(await new Buttondown(async () => 'k', scripted([404]).fetcher).tag('x@example.com', ['app']), 'gone');
+  assert.equal(await new Buttondown(async () => undefined, scripted().fetcher).tag('x@example.com', ['app']), 'off');
+});
+
+test('a failed tag never throws and never logs the address', async () => {
+  const logged: unknown[] = [];
+  const original = console.error;
+  console.error = (...args: unknown[]) => logged.push(args);
+  try {
+    const refused = scripted([200, { tags: [] }], [400, { code: 'tag_invalid' }]);
+    assert.equal(
+      await new Buttondown(async () => 'k', refused.fetcher).tag('secret.person@example.com', ['app']),
+      'failed'
+    );
+    const odd = scripted([200, { email_address: 'secret.person@example.com' }]);
+    assert.equal(
+      await new Buttondown(async () => 'k', odd.fetcher).tag('secret.person@example.com', ['app']),
+      'failed'
+    );
+  } finally {
+    console.error = original;
+  }
+  assert.ok(logged.length > 0);
+  assert.ok(!JSON.stringify(logged).includes('secret.person'));
+});
+
+test('a new player in the app joins tagged app, and the player row keeps the tag', async () => {
+  const t = setup();
+  await t.signIn('pat@example.com');
+  assert.deepEqual([...t.newsletter.tags.get('pat@example.com')!], ['app']);
+  const id = (await t.store.playerIdForEmail('pat@example.com'))!;
+  assert.deepEqual((await t.store.getPlayer(id))!.newsletterTags, ['app']);
+  assert.deepEqual(
+    (await t.store.sessionsOf(id)).map((s) => s.via),
+    ['app']
+  );
+});
+
+test('a new player in Quiz joins tagged quiz, and an app player who signs in to Quiz gains quiz', async () => {
+  const t = setup();
+  await t.quizSignIn('quinn@example.com');
+  assert.deepEqual([...t.newsletter.tags.get('quinn@example.com')!], ['quiz']);
+
+  await t.signIn('pat@example.com');
+  await t.quizSignIn('pat@example.com');
+  assert.deepEqual([...t.newsletter.tags.get('pat@example.com')!], ['app', 'quiz']);
+  const id = (await t.store.playerIdForEmail('pat@example.com'))!;
+  assert.deepEqual((await t.store.getPlayer(id))!.newsletterTags, ['app', 'quiz']);
+  assert.deepEqual((await t.store.sessionsOf(id)).map((s) => s.via).sort(), ['app', 'quiz']);
+});
+
+test('a player already on the list is tagged at sign-in, once; a missed tag is tried again next time', async () => {
+  const store = new MemoryStore();
+  await addPlayer(store, ada);
+  const newsletter = new MemoryNewsletter();
+  newsletter.list.add(ada.email!);
+  let down = true;
+  const tag = newsletter.tag.bind(newsletter);
+  let tries = 0;
+  newsletter.tag = async (email, tags) => {
+    tries++;
+    return down ? 'failed' : tag(email, tags);
+  };
+  const t = setup(store, newsletter);
+  await t.signIn(ada.email!);
+  assert.equal((await store.getPlayer(ada.id))!.newsletterTags, undefined, 'a missed tag isn’t recorded');
+  down = false;
+  await t.signIn(ada.email!);
+  assert.deepEqual((await store.getPlayer(ada.id))!.newsletterTags, ['app']);
+  assert.deepEqual([...newsletter.tags.get(ada.email!)!], ['app']);
+  await t.signIn(ada.email!);
+  assert.equal(tries, 2, 'a recorded tag is never asked for again');
+  assert.equal(newsletter.list.size, 1, 'no one is added twice');
+});
+
+test('first-era players are the archive’s, by the time in their id', () => {
+  assert.ok(isFirstEraPlayer(ulidFrom(Date.parse('2005-02-13T00:00:00Z'), 'archive-player:Ben Example')));
+  assert.ok(!isFirstEraPlayer(ulid()));
+  assert.ok(!isFirstEraPlayer(ada.id));
 });

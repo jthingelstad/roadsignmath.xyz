@@ -13,7 +13,7 @@ import type { Store } from '../store/store.ts';
 import { API_VERSION, LIMITS, ROUTES } from './contract.ts';
 import { PageChanges, type EdgeCache } from '../edge-cache.ts';
 import { ApiError, fail, STATUS } from './errors.ts';
-import { removeAvatar, removePlayer, setAvatar, updateMe } from '../auth/account.ts';
+import { newsletterAtSignIn, removeAvatar, removePlayer, setAvatar, updateMe } from '../auth/account.ts';
 import { finishSignIn, network, signOut, startSignIn, viewerFor, type Viewer } from '../auth/auth.ts';
 import { myActivity } from '../activity.ts';
 import { sendFeedback } from '../feedback.ts';
@@ -411,12 +411,9 @@ export function createApi(options: ApiOptions): Hono {
 
     async finishSignIn(c) {
       const body = await jsonBody(c);
-      const done = await finishSignIn(store, { loginId: body.login_id, code: body.code, token: body.token });
-      // A new player joins the newsletter (Jamie, 2026-11-07). Never in the way of signing in.
-      if (done.isNew && done.player.email && options.newsletter) {
-        const outcome = await options.newsletter.add(done.player.email);
-        console.log({ event: 'newsletter', op: 'add', outcome });
-      }
+      const done = await finishSignIn(store, { loginId: body.login_id, code: body.code, token: body.token }, 'app');
+      // A new player joins the newsletter (Jamie, 2026-11-07), tagged `app`. Never in the way.
+      await newsletterAtSignIn({ store, newsletter: options.newsletter }, done, 'app');
       // Read as the player just signed in, not the anonymous request: their blocks and held signs.
       const signedIn = await load({ player: done.player });
       return c.json({ token: done.token, new_player: done.isNew, me: await me(done.player, signedIn) });

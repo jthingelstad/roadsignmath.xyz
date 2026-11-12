@@ -412,6 +412,18 @@ export class DynamoStore implements Store {
     );
   }
 
+  async setNewsletterTags(id: string, tags: string[]): Promise<void> {
+    await this.when(
+      new UpdateCommand({
+        TableName: this.table,
+        Key: { pk: 'PLAYERS', sk: `PLAYER#${id}` },
+        UpdateExpression: 'SET newsletterTags = :tags',
+        ConditionExpression: 'attribute_exists(pk)',
+        ExpressionAttributeValues: { ':tags': tags }
+      })
+    );
+  }
+
   async setAvatar(id: string, avatar: string | null): Promise<{ previous?: string } | false> {
     try {
       const out = await this.client.send(
@@ -541,6 +553,14 @@ export class DynamoStore implements Store {
 
   async deleteSession(playerId: string, secretHash: string): Promise<void> {
     await this.delete(`PLAYER#${playerId}`, `SESSION#${secretHash}`);
+  }
+
+  async sessionsOf(playerId: string): Promise<Session[]> {
+    const items = await this.query({
+      KeyConditionExpression: 'pk = :pk AND begins_with(sk, :sk)',
+      ExpressionAttributeValues: { ':pk': `PLAYER#${playerId}`, ':sk': 'SESSION#' }
+    });
+    return items.flatMap((i) => this.live<Session>(i) ?? []);
   }
 
   async bump(key: string, seconds: number, now: number): Promise<number> {

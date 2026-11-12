@@ -14,6 +14,7 @@ import { moderate, readPhoto } from '../posting/posting.ts';
 import type { Tinylytics } from '../tinylytics.ts';
 import { nowSeconds, type PlayerChanges, type Store } from '../store/store.ts';
 import type { Newsletter, RemoveOutcome } from '../newsletter.ts';
+import type { SignInFront } from '../mail/signin.ts';
 
 export const NAME_MAX = 40;
 export const BIO_MAX = 160;
@@ -197,6 +198,39 @@ export async function removePlayer(
   const outcome = await deps.newsletter.remove(email);
   console.log({ event: 'newsletter', op: 'remove', outcome });
   return outcome;
+}
+
+/**
+ * After a sign-in: a new player joins the newsletter tagged with where they signed in (`app` or
+ * `quiz`), and a player signing in somewhere new for them gets that tag added (Jamie, 2026-11-12).
+ * The tags Buttondown confirms are kept on the player, so a missed one is tried again at their next
+ * sign-in there. Best-effort: logged by outcome only, never in the way of signing in.
+ */
+export async function newsletterAtSignIn(
+  deps: { store: Store; newsletter?: Newsletter },
+  done: { player: Player; isNew: boolean },
+  via: SignInFront
+): Promise<void> {
+  const { player, isNew } = done;
+  const had = player.newsletterTags ?? [];
+  if (!player.email || !deps.newsletter || had.includes(via)) return;
+  try {
+    let confirmed = false;
+    if (isNew) {
+      const outcome = await deps.newsletter.add(player.email, [via]);
+      console.log({ event: 'newsletter', op: 'add', outcome });
+      confirmed = outcome === 'added';
+    }
+    // Someone already on the list, the new player Buttondown already had included, is tagged.
+    if (!confirmed) {
+      const outcome = await deps.newsletter.tag(player.email, [via]);
+      console.log({ event: 'newsletter', op: 'tag', tag: via, outcome });
+      confirmed = outcome === 'tagged' || outcome === 'already';
+    }
+    if (confirmed) await deps.store.setNewsletterTags(player.id, [...had, via]);
+  } catch (err) {
+    console.error({ event: 'newsletter', op: 'tag', outcome: 'failed', detail: (err as Error).name });
+  }
 }
 
 async function deleteEverything(

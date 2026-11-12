@@ -126,6 +126,7 @@ test('the privacy page says deleted things leave the backups within a year, and 
   assert.ok(html.includes('Updated 12 November 2026.'));
   assert.ok(html.includes('<h2>Quiz</h2>'));
   assert.ok(html.includes('it sets one cookie, which holds your sign-in and nothing else'));
+  assert.ok(html.replace(/\s+/g, ' ').includes('whether you play in the app, in Quiz or both'));
   assert.ok(!html.slice(html.indexOf('<h2>Quiz</h2>'), html.indexOf('<h2>Reports</h2>')).includes('Buttondown'));
 });
 

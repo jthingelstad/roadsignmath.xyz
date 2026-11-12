@@ -172,6 +172,11 @@ export class MemoryStore implements Store {
     return true;
   }
 
+  async setNewsletterTags(id: string, tags: string[]): Promise<void> {
+    const player = this.players.get(id);
+    if (player) player.newsletterTags = [...tags];
+  }
+
   async setAvatar(id: string, avatar: string | null): Promise<{ previous?: string } | false> {
     const player = this.players.get(id);
     if (!player) return false;
@@ -249,6 +254,11 @@ export class MemoryStore implements Store {
 
   async deleteSession(playerId: string, secretHash: string): Promise<void> {
     this.sessions.delete(`${playerId}/${secretHash}`);
+  }
+
+  async sessionsOf(playerId: string): Promise<Session[]> {
+    const now = nowSeconds();
+    return [...this.sessions.values()].filter((s) => s.playerId === playerId && s.expiresAt > now).map(copy);
   }
 
   async bump(key: string, seconds: number, now: number): Promise<number> {
