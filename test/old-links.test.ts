@@ -82,7 +82,7 @@ test('an old post goes to its sign’s page, and so does its name alone', async 
 test('a renamed sign is still found, at its new address', async () => {
   const { app, store, signs } = await setup();
   await store.putSign({ ...signs.testville, slug: 'testville-junction' });
-  assert.equal(await goes(app, '/2026/01/10/testville.html'), signUrl(urls, signs.testville));
+  assert.equal(await goes(app, '/2026/01/10/testville.html'), 'https://example.test/signs/testville-junction');
 });
 
 test('a name two posts shared, or a time, is not a short address', async () => {

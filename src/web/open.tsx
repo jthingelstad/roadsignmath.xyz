@@ -41,13 +41,13 @@ export function createOpenWeb({ store, urls }: { store: Store; urls: Urls }): Ho
   });
 
   // A player's feeds: the signs they found. Only players whose page answers have them. They sit
-  // beside the page, at the player's id; the old address by handle comes here with a 301.
+  // beside the page, at the player's handle; an id address comes here with a 301.
   const player = async (c: Context, file: string) => {
     const data = await load();
     const named = playerByKey(data.players, c.req.param('key') ?? '');
     if (!named) return c.notFound();
     if (!named.canonical) {
-      // Open to any origin like the feed itself, so a page that fetches the old address follows it.
+      // Open to any origin like the feed itself, so a page that fetches the id address follows it.
       for (const [k, v] of Object.entries(OPEN)) c.header(k, v);
       return movedTo(c, `${playerPath(named.found)}/${file}`);
     }

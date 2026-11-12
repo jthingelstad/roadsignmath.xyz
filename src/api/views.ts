@@ -12,25 +12,25 @@ export type Urls = {
   quiz?: string;
 };
 
-// Pages are addressed by id, exactly as stored (Jamie, 2026-11-12: "anchor them on id's and not
-// names"; "just use ID"). The old addresses by slug and handle go to these with a 301.
+// Pages are addressed by name: a sign by its slug, a player by their handle, neither of which
+// ever changes (src/web/permalinks.ts; an id goes on to these with a 301).
 
-/** A sign's page on the site: `/signs/<id>`. */
-export const signPath = (sign: Pick<Sign, 'id'>): string => `/signs/${sign.id}`;
-export const signUrl = (urls: Urls, sign: Pick<Sign, 'id'>): string => `${urls.site}${signPath(sign)}`;
-/** A player's page on the site: `/players/<id>`. Their feeds are beside it. */
-export const playerPath = (player: Pick<Player, 'id'>): string => `/players/${player.id}`;
-export const playerUrl = (urls: Urls, player: Pick<Player, 'id'>): string => `${urls.site}${playerPath(player)}`;
+/** A sign's page on the site: `/signs/<slug>`. */
+export const signPath = (sign: Pick<Sign, 'slug'>): string => `/signs/${sign.slug}`;
+export const signUrl = (urls: Urls, sign: Pick<Sign, 'slug'>): string => `${urls.site}${signPath(sign)}`;
+/** A player's page on the site: `/players/<handle>`. Their feeds are beside it. */
+export const playerPath = (player: Pick<Player, 'handle'>): string => `/players/${player.handle}`;
+export const playerUrl = (urls: Urls, player: Pick<Player, 'handle'>): string => `${urls.site}${playerPath(player)}`;
 
 /**
- * Where a sign's hearts are counted on Tinylytics: its old address by slug, the path the site's
- * kudos buttons and the app's hearts have always used. Never change it, or every heart count
- * starts again at none.
+ * Where a sign's hearts are counted on Tinylytics: its address by slug, the path the site's kudos
+ * buttons and the app's hearts have always used. Never change it, or every heart count starts
+ * again at none.
  */
 export const heartPath = (sign: Pick<Sign, 'slug'>): string => `/signs/${sign.slug}`;
 
 /**
- * A sign's id in the feeds: its old address by slug, as every item has carried it from the start.
+ * A sign's id in the feeds: its address by slug, as every item has carried it from the start.
  * Never change it, or micro.blog imports every sign again and cross-posts each one once more.
  */
 export const feedItemId = (urls: Urls, sign: Pick<Sign, 'slug'>): string => `${urls.site}/signs/${sign.slug}`;

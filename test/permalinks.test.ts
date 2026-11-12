@@ -1,7 +1,8 @@
-// Pages addressed by id (Jamie, 2026-11-12: "anchor them on id's and not names"; "just use ID"):
-// the new addresses, the old ones by slug and handle going there with a 301 that keeps the query,
-// and what must not move with them: feed item ids, heart keys, share card paths and the API's
-// player lookup by handle. Fictional players and signs on the memory store.
+// Pages addressed by name, a sign by its slug and a player by their handle, with the id
+// addresses of 12 November 2026 (and an id in any case) going there with a 301 that keeps the
+// query (Jamie: "Approved: make the name addresses canonical again for signs and players, with id
+// links redirecting to them"). Also what never moves: feed item ids, heart keys, share card paths,
+// and the API's player lookup by id. Fictional players and signs on the memory store.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -62,42 +63,40 @@ const meta = (html: string, property: string) =>
   new RegExp(`<meta (?:property|name)="${property}" content="([^"]*)"`).exec(html)?.[1];
 const canonical = (html: string) => /<link rel="canonical" href="([^"]*)"/.exec(html)?.[1];
 
-test('a sign’s page and a player’s page answer at their ids, and name that address as theirs', async () => {
+test('a sign’s page and a player’s page answer at their names, and name that address as theirs', async () => {
   const { get } = await setup();
-  const exit = await get(`/signs/${EXIT}`);
+  const exit = await get('/signs/exit-seven');
   assert.equal(exit.res.status, 200);
-  assert.equal(canonical(exit.text), `${SITE}/signs/${EXIT}`);
-  assert.equal(meta(exit.text, 'og:url'), `${SITE}/signs/${EXIT}`);
-  assert.match(meta(exit.text, 'apple-itunes-app') ?? '', new RegExp(`app-argument=${SITE}/signs/${EXIT}$`));
-  assert.ok(exit.text.includes(`href="/players/${ada.id}"`), 'its finder, by id');
-  assert.ok(!exit.text.includes('href="/players/ada"'));
-  assert.ok(exit.text.includes(`href="${QUIZ}/signs/${EXIT}"`), 'Try this one in Quiz, by id');
+  assert.equal(canonical(exit.text), `${SITE}/signs/exit-seven`);
+  assert.equal(meta(exit.text, 'og:url'), `${SITE}/signs/exit-seven`);
+  assert.match(meta(exit.text, 'apple-itunes-app') ?? '', new RegExp(`app-argument=${SITE}/signs/exit-seven$`));
+  assert.ok(exit.text.includes('href="/players/ada"'), 'its finder, by handle');
+  assert.ok(exit.text.includes(`href="${QUIZ}/signs/exit-seven"`), 'Try this one in Quiz, by slug');
 
-  const player = await get(`/players/${ada.id}`);
+  const player = await get('/players/ada');
   assert.equal(player.res.status, 200);
-  assert.equal(canonical(player.text), `${SITE}/players/${ada.id}`);
-  assert.equal(meta(player.text, 'og:url'), `${SITE}/players/${ada.id}`);
-  assert.ok(player.text.includes(`href="/signs/${EXIT}"`), 'their signs, by id');
-  assert.ok(!player.text.includes('href="/signs/exit-seven"'));
-  assert.ok(player.text.includes(`href="/players/${ada.id}?view=map"`), 'the map view, by id');
-  assert.ok(player.text.includes(`href="/players/${ada.id}/feed.xml"`), 'their feed, by id');
+  assert.equal(canonical(player.text), `${SITE}/players/ada`);
+  assert.equal(meta(player.text, 'og:url'), `${SITE}/players/ada`);
+  assert.ok(player.text.includes('href="/signs/exit-seven"'), 'their signs, by slug');
+  assert.ok(player.text.includes('href="/players/ada?view=map"'), 'the map view');
+  assert.ok(player.text.includes('href="/players/ada/feed.xml"'), 'their feed');
 
   const home = await get('/');
-  assert.ok(home.text.includes(`href="/signs/${EXIT}"`) && home.text.includes(`href="/players/${ben.id}"`));
-  assert.ok(!/href="\/(signs|players)\/[a-z]/.test(home.text), 'no page linked by slug or handle');
+  assert.ok(home.text.includes('href="/signs/exit-seven"') && home.text.includes('href="/players/ben"'));
+  assert.ok(!/href="\/(signs|players)\/01J/.test(home.text), 'no page linked by id');
 });
 
-test('an old address by slug or handle, or an id in another case, goes to the id’s with the query kept', async () => {
+test('an id address, in any case, goes to the name’s with the query kept', async () => {
   const { get } = await setup();
   for (const [from, to] of [
-    ['/signs/exit-seven', `/signs/${EXIT}`],
-    ['/signs/mile-twelve?sort=latest', `/signs/${MILE}?sort=latest`],
-    [`/signs/${EXIT.toLowerCase()}`, `/signs/${EXIT}`],
-    ['/players/ada', `/players/${ada.id}`],
-    ['/players/ada?view=map', `/players/${ada.id}?view=map`],
-    [`/players/${ben.id.toLowerCase()}?view=map`, `/players/${ben.id}?view=map`],
-    ['/players/ada/feed.xml', `/players/${ada.id}/feed.xml`],
-    ['/players/ben/feed.json?x=1', `/players/${ben.id}/feed.json?x=1`]
+    [`/signs/${EXIT}`, '/signs/exit-seven'],
+    [`/signs/${MILE}?sort=latest`, '/signs/mile-twelve?sort=latest'],
+    [`/signs/${EXIT.toLowerCase()}`, '/signs/exit-seven'],
+    [`/players/${ada.id}`, '/players/ada'],
+    [`/players/${ada.id}?view=map`, '/players/ada?view=map'],
+    [`/players/${ben.id.toLowerCase()}?view=map`, '/players/ben?view=map'],
+    [`/players/${ada.id}/feed.xml`, '/players/ada/feed.xml'],
+    [`/players/${ben.id}/feed.json?x=1`, '/players/ben/feed.json?x=1']
   ]) {
     const { res, location } = await get(from);
     assert.equal(res.status, 301, from);
@@ -105,7 +104,7 @@ test('an old address by slug or handle, or an id in another case, goes to the id
     assert.equal(res.headers.get('cache-control'), PAGE_CACHE, from);
   }
   // The feeds' move is open to any origin, like the feeds.
-  const feed = await get('/players/ada/feed.json');
+  const feed = await get(`/players/${ada.id}/feed.json`);
   assert.equal(feed.res.headers.get('access-control-allow-origin'), '*');
 });
 
@@ -127,75 +126,62 @@ test('a key that names nothing, a held sign or a player with no page stays a 404
   }
 });
 
-test('the open files, lists and sitemap still answer beside the id addresses, and name the ids', async () => {
+test('the open files, sitemap and llms.txt name the name addresses; players.json keeps each id', async () => {
   const { get } = await setup();
-  for (const path of ['/signs', '/players', '/signs.json', '/signs.geojson', '/players.json', '/feed.json']) {
-    assert.equal((await get(path)).res.status, 200, path);
-  }
   const signs = JSON.parse((await get('/signs.json')).text);
   assert.deepEqual(
     signs.signs.map((s: { url: string }) => s.url),
-    [`${SITE}/signs/${MILE}`, `${SITE}/signs/${EXIT}`]
+    [`${SITE}/signs/mile-twelve`, `${SITE}/signs/exit-seven`]
   );
   const players = JSON.parse((await get('/players.json')).text);
   const adaRecord = players.players.find((p: { handle: string }) => p.handle === 'ada');
   assert.equal(adaRecord.id, ada.id);
-  assert.equal(adaRecord.url, `${SITE}/players/${ada.id}`);
-  assert.equal(adaRecord.feed_url, `${SITE}/players/${ada.id}/feed.json`);
+  assert.equal(adaRecord.url, `${SITE}/players/ada`);
+  assert.equal(adaRecord.feed_url, `${SITE}/players/ada/feed.json`);
   const geo = JSON.parse((await get('/signs.geojson')).text);
-  assert.ok(geo.features.every((f: { properties: { url: string } }) => /\/signs\/01JS/.test(f.properties.url)));
+  assert.ok(geo.features.every((f: { properties: { url: string } }) => /\/signs\/[a-z]/.test(f.properties.url)));
 
   const sitemap = (await get('/sitemap.xml')).text;
-  assert.ok(sitemap.includes(`<loc>${SITE}/signs/${EXIT}</loc>`));
-  assert.ok(sitemap.includes(`<loc>${SITE}/players/${ada.id}</loc>`));
-  assert.ok(!sitemap.includes('/signs/exit-seven') && !sitemap.includes('/players/ada<'));
+  assert.ok(sitemap.includes(`<loc>${SITE}/signs/exit-seven</loc>`));
+  assert.ok(sitemap.includes(`<loc>${SITE}/players/ada</loc>`));
+  assert.ok(!sitemap.includes(`/signs/${EXIT}`) && !sitemap.includes(`/players/${ada.id}`));
   const llms = (await get('/llms.txt')).text;
-  assert.ok(llms.includes(`${SITE}/signs/${EXIT}`) && !llms.includes(`${SITE}/signs/exit-seven`));
+  assert.ok(llms.includes(`${SITE}/signs/exit-seven`) && !llms.includes(`${SITE}/signs/${EXIT}`));
 });
 
-test('the API finds a player by their id as well as by their handle, with the same answer', async () => {
+test('the API finds a player by handle or by id in any case, and names the name addresses', async () => {
   const { get } = await setup();
   const byHandle = await get('/api/v1/players/ada');
   const byId = await get(`/api/v1/players/${ada.id}`);
   assert.equal(byHandle.res.status, 200);
   assert.equal(byId.res.status, 200);
   assert.deepEqual(JSON.parse(byId.text), JSON.parse(byHandle.text));
-  assert.equal(JSON.parse(byId.text).handle, 'ada');
-  assert.equal(JSON.parse(byId.text).url, `${SITE}/players/${ada.id}`);
-  // A sign by slug or id answers as before, its url now the id's.
-  assert.equal(JSON.parse((await get('/api/v1/signs/exit-seven')).text).url, `${SITE}/signs/${EXIT}`);
-  // An id in another case answers as the site's pages do, where links in any case land.
+  assert.equal(JSON.parse(byId.text).url, `${SITE}/players/ada`);
   const lower = await get(`/api/v1/players/${ada.id.toLowerCase()}`);
   assert.equal(lower.res.status, 200);
   assert.deepEqual(JSON.parse(lower.text), JSON.parse(byHandle.text));
-  const sign = await get(`/api/v1/signs/${EXIT.toLowerCase()}`);
-  assert.equal(sign.res.status, 200);
-  assert.equal(JSON.parse(sign.text).url, `${SITE}/signs/${EXIT}`);
+  // A sign by slug, id or id in another case.
+  for (const key of ['exit-seven', EXIT, EXIT.toLowerCase()]) {
+    const one = await get(`/api/v1/signs/${key}`);
+    assert.equal(one.res.status, 200, key);
+    assert.equal(JSON.parse(one.text).url, `${SITE}/signs/exit-seven`, key);
+  }
   for (const path of ['/api/v1/players/nobody', '/api/v1/players/01JZZZZZZZZZZZZZZZZZZZZZZZ']) {
     assert.equal((await get(path)).res.status, 404, path);
   }
 });
 
-test('a feed item keeps its id, the sign’s address by slug, while its link moves to the id', async () => {
+test('a feed item’s id and link are the sign’s address by slug, as they have always been', async () => {
   const { get } = await setup();
   const json = JSON.parse((await get('/feed.json')).text);
   const exit = json.items.find((i: { id: string }) => i.id.endsWith('/exit-seven'));
   assert.equal(exit.id, `${SITE}/signs/exit-seven`);
-  assert.equal(exit.url, `${SITE}/signs/${EXIT}`);
+  assert.equal(exit.url, `${SITE}/signs/exit-seven`);
   const atom = (await get('/feed.xml')).text;
-  const entry = [...atom.matchAll(/<entry>([\s\S]*?)<\/entry>/g)].map((m) => m[1]).find((e) => e.includes(EXIT))!;
-  assert.ok(entry.includes(`<id>${SITE}/signs/exit-seven</id>`));
-  assert.ok(entry.includes(`<link href="${SITE}/signs/${EXIT}" rel="alternate" type="text/html"/>`));
-  // The feeds' own ids stay too: Home, and a player's address by handle.
   assert.ok(atom.includes(`  <id>${SITE}/</id>`));
-  const players = (await get(`/players/${ada.id}/feed.xml`)).text;
+  const players = (await get('/players/ada/feed.xml')).text;
   assert.ok(players.includes(`  <id>${SITE}/players/ada</id>`));
-  assert.ok(players.includes(`<link href="${SITE}/players/${ada.id}" rel="alternate" type="text/html"/>`));
-  const playerJson = JSON.parse((await get(`/players/${ada.id}/feed.json`)).text);
-  assert.deepEqual(
-    playerJson.items.map((i: { id: string }) => i.id),
-    [`${SITE}/signs/exit-seven`]
-  );
+  assert.ok(players.includes(`<link href="${SITE}/players/ada" rel="alternate" type="text/html"/>`));
 });
 
 test('a heart stays keyed by the sign’s slug: on the page, in the API and in Popular', async () => {
@@ -205,35 +191,29 @@ test('a heart stays keyed by the sign’s slug: on the page, in the API and in P
     { path: '/signs/exit-seven', uid: 'web-2' },
     { path: `/signs/${MILE}`, uid: 'web-3' }
   );
-  const page = (await get(`/signs/${EXIT}`)).text;
+  const page = (await get('/signs/exit-seven')).text;
   assert.ok(page.includes('data-path="/signs/exit-seven"'));
-  assert.ok(!page.includes(`data-path="/signs/${EXIT}"`));
   const api = JSON.parse((await get(`/api/v1/signs/${EXIT}`)).text);
   assert.equal(api.hearts, 2, 'the kudos at the slug count');
   const mile = JSON.parse((await get(`/api/v1/signs/${MILE}`)).text);
   assert.equal(mile.hearts, 0, 'a kudo at the id is not the sign’s heart');
   const popular = JSON.parse((await get('/api/v1/signs/popular')).text);
   assert.equal(popular.signs[0].id, EXIT);
-  const site = (await (await app.request('/signs?sort=popular')).text()).indexOf(`href="/signs/${EXIT}"`);
-  const other = (await (await app.request('/signs?sort=popular')).text()).indexOf(`href="/signs/${MILE}"`);
-  assert.ok(site >= 0 && site < other, 'the site’s Popular reads the same counts');
+  const list = await (await app.request('/signs?sort=popular')).text();
+  const site = list.indexOf('href="/signs/exit-seven"');
+  assert.ok(site >= 0 && site < list.indexOf('href="/signs/mile-twelve"'), 'the site’s Popular reads the same counts');
 });
 
-test('share cards keep their slug and handle paths, and the page the card maker reaches by them names it', async () => {
+test('share cards are at the slug and handle paths, and the page names one u-url, its own', async () => {
   const { get } = await setup();
   const card = (html: string) => meta(html, 'og:image');
-  const exit = await get(`/signs/${EXIT}`);
+  const exit = await get('/signs/exit-seven');
   assert.match(
     card(exit.text) ?? '',
     /^https:\/\/cards\.thingelstad\.com\/rsm\/signs\/exit-seven\.png\?v=[0-9a-f]{10}$/
   );
-  // The card maker fetches the page by the card's path, and follows the 301 on the same origin.
-  const old = await get('/signs/exit-seven');
-  assert.equal(old.location, `/signs/${EXIT}`);
-  const player = await get(`/players/${ada.id}`);
+  const player = await get('/players/ada');
   assert.match(card(player.text) ?? '', /^https:\/\/cards\.thingelstad\.com\/rsm\/players\/ada\.png\?v=[0-9a-f]{10}$/);
-  assert.equal((await get('/players/ada')).location, `/players/${ada.id}`);
-  // It picks the h-card whose u-url is the address it fetched: both are there.
   const urls = [...player.text.matchAll(/<data hidden="" class="u-url" value="([^"]*)"/g)].map((m) => m[1]);
-  assert.deepEqual(urls, [`${SITE}/players/${ada.id}`, `${SITE}/players/ada`]);
+  assert.deepEqual(urls, [`${SITE}/players/ada`]);
 });

@@ -1,7 +1,10 @@
-// Pages are addressed by id (Jamie, 2026-11-12: "anchor them on id's and not names"; "just use
-// ID"): a sign at /signs/<id> and a player at /players/<id>, the id exactly as stored. The
-// addresses from before, by slug and by handle, and an id typed in another case, go to the id's
-// address with a 301 that keeps the query string. A key that names nothing is the usual 404.
+// Pages are addressed by name: a sign at /signs/<slug> and a player at /players/<handle>. A
+// sign's slug comes from its title when it is posted and a handle from a player's first name,
+// and neither ever changes, so these addresses last. From 12 to 13 November 2026 the pages were
+// addressed by id (/signs/<id>, /players/<id>); Jamie then chose the names again ("Approved: make
+// the name addresses canonical again for signs and players, with id links redirecting to them").
+// An id, in any case, goes to the name's address with a 301 that keeps the query string, so the
+// links shared in those days still land. A key that names nothing is the usual 404.
 //
 // The site's sign and player pages and a player's feeds use these, and so do Quiz's sign pages.
 
@@ -9,26 +12,26 @@ import type { Context } from 'hono';
 import type { Player, Sign } from '../domain/types.ts';
 import { PAGE_CACHE } from '../edge-cache.ts';
 
-/** What a key in an address found, and whether the key was already the id. */
+/** What a key in an address found, and whether the key was already the name. */
 export type Found<T> = { found: T; canonical: boolean };
 
-/** The sign a key names: its id as stored, else the slug it had, else its id in another case. */
+/** The sign a key names: its slug, else its id in any case. */
 export function signByKey(signs: readonly Sign[], key: string): Found<Sign> | undefined {
-  const exact = signs.find((s) => s.id === key);
-  if (exact) return { found: exact, canonical: true };
+  const named = signs.find((s) => s.slug === key);
+  if (named) return { found: named, canonical: true };
   const upper = key.toUpperCase();
-  const other = signs.find((s) => s.slug === key) ?? signs.find((s) => s.id === upper);
-  return other && { found: other, canonical: false };
+  const byId = signs.find((s) => s.id === upper);
+  return byId && { found: byId, canonical: false };
 }
 
-/** The player a key names: their id as stored, else their handle, else their id in another case. */
+/** The player a key names: their handle, else their id in any case. */
 export function playerByKey(players: Iterable<Player>, key: string): Found<Player> | undefined {
   const all = [...players];
-  const exact = all.find((p) => p.id === key);
-  if (exact) return { found: exact, canonical: true };
+  const named = all.find((p) => p.handle === key);
+  if (named) return { found: named, canonical: true };
   const upper = key.toUpperCase();
-  const other = all.find((p) => p.handle === key) ?? all.find((p) => p.id === upper);
-  return other && { found: other, canonical: false };
+  const byId = all.find((p) => p.id === upper);
+  return byId && { found: byId, canonical: false };
 }
 
 /** The request's query string, "?view=map", or "" when it has none. */

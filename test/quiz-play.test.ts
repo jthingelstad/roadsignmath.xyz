@@ -174,57 +174,60 @@ test('sign in by code: the Quiz email, a cookie only Quiz’s pages send, then a
   assert.equal(named.location, '/next');
   const next = await t.quiz('/next', { cookie: jar });
   assert.equal(next.res.status, 303);
-  assert.ok([`/signs/${S1}`, `/signs/${S2}`].includes(next.location!), next.location ?? 'no location');
+  assert.ok(
+    [`/signs/seven-twelve`, `/signs/unsolved-junction`].includes(next.location!),
+    next.location ?? 'no location'
+  );
   const pat = await t.store.getPlayer(/rsm_([0-9A-Z]{26})_/.exec(jar)![1]);
   assert.equal(pat?.name, 'Pat');
 });
 
-test('“Try this one in Quiz”: signing in on the way there lands on that sign, carried by its id', async () => {
+test('“Try this one in Quiz”: signing in on the way there lands on that sign, carried by its slug', async () => {
   const t = await setup();
-  const out = await t.quiz(`/signs/${S1}`);
-  assert.equal(out.location, `/signin?to=${S1}`, 'signed out: sign in first, keeping the sign');
+  const out = await t.quiz(`/signs/seven-twelve`);
+  assert.equal(out.location, `/signin?to=seven-twelve`, 'signed out: sign in first, keeping the sign');
   for (const tail of ['/ways', `/found?way=way-${S1}`]) {
     assert.equal(
-      (await t.quiz(`/signs/${S1}${tail}`)).location,
-      `/signin?to=${S1}`,
+      (await t.quiz(`/signs/seven-twelve${tail}`)).location,
+      `/signin?to=seven-twelve`,
       `${tail}: signed out, sign in first, keeping the sign`
     );
   }
-  const page = await t.quiz(`/signin?to=${S1}`);
-  assert.ok(page.html.includes(`<input type="hidden" name="to" value="${S1}"/>`));
-  const started = await t.quiz('/signin', { form: { email: 'pat@example.com', to: S1 } });
-  assert.equal(started.html.split(`name="to" value="${S1}"`).length - 1, 2, 'the code and send-again forms');
-  assert.ok(started.html.includes(`href="/signin?to=${S1}"`), 'a different email keeps it too');
+  const page = await t.quiz(`/signin?to=seven-twelve`);
+  assert.ok(page.html.includes(`<input type="hidden" name="to" value="seven-twelve"/>`));
+  const started = await t.quiz('/signin', { form: { email: 'pat@example.com', to: 'seven-twelve' } });
+  assert.equal(started.html.split(`name="to" value="seven-twelve"`).length - 1, 2, 'the code and send-again forms');
+  assert.ok(started.html.includes(`href="/signin?to=seven-twelve"`), 'a different email keeps it too');
   const code = /code is (\d{6})/.exec(t.mailer.sent[0].subject)![1];
   const loginId = /name="login" value="([^"]+)"/.exec(started.html)![1];
   const done = await t.quiz('/signin/code', {
-    form: { login: loginId, email: 'pat@example.com', code, to: S1 }
+    form: { login: loginId, email: 'pat@example.com', code, to: 'seven-twelve' }
   });
-  assert.equal(done.location, `/name?to=${S1}`, 'a new player gives a name first');
+  assert.equal(done.location, `/name?to=seven-twelve`, 'a new player gives a name first');
   const jar = done.res.headers.get('set-cookie')!.split(';')[0];
-  const naming = await t.quiz(`/name?to=${S1}`, { cookie: jar });
-  assert.ok(naming.html.includes(`name="to" value="${S1}"`));
-  const named = await t.quiz('/name', { cookie: jar, form: { name: 'Pat', to: S1 } });
-  assert.equal(named.location, `/signs/${S1}`);
-  assert.equal((await t.quiz(`/signin?to=${S1}`, { cookie: jar })).location, `/signs/${S1}`);
+  const naming = await t.quiz(`/name?to=seven-twelve`, { cookie: jar });
+  assert.ok(naming.html.includes(`name="to" value="seven-twelve"`));
+  const named = await t.quiz('/name', { cookie: jar, form: { name: 'Pat', to: 'seven-twelve' } });
+  assert.equal(named.location, `/signs/seven-twelve`);
+  assert.equal((await t.quiz(`/signin?to=seven-twelve`, { cookie: jar })).location, `/signs/seven-twelve`);
 
   // By the email's link instead of the code: the link carries the sign too.
-  const linked = await t.quiz('/signin', { form: { email: ada.email!, to: S2 } });
+  const linked = await t.quiz('/signin', { form: { email: ada.email!, to: 'unsolved-junction' } });
   assert.equal(linked.res.status, 200);
   const link = /(https:\/\/quiz\.example\.test\/signin\?[^\s]+)/.exec(t.mailer.sent.at(-1)!.text)![1];
-  assert.ok(link.endsWith(`&to=${S2}`), link);
+  assert.ok(link.endsWith(`&to=unsolved-junction`), link);
   const opened = await t.quiz(new URL(link).pathname + new URL(link).search);
-  assert.ok(opened.html.includes(`name="to" value="${S2}"`));
+  assert.ok(opened.html.includes(`name="to" value="unsolved-junction"`));
   const loginId2 = /name="login" value="([^"]+)"/.exec(opened.html)![1];
   const token = /name="token" value="([^"]+)"/.exec(opened.html)![1];
-  const viaLink = await t.quiz('/signin/link', { form: { login: loginId2, token, to: S2 } });
-  assert.equal(viaLink.location, `/signs/${S2}`, 'Ada has a name: straight to the sign');
+  const viaLink = await t.quiz('/signin/link', { form: { login: loginId2, token, to: 'unsolved-junction' } });
+  assert.equal(viaLink.location, `/signs/unsolved-junction`, 'Ada has a name: straight to the sign');
 
-  // A slug, as a link from before the ids carried it, still lands on the sign, by way of its old
-  // address.
-  assert.equal((await t.quiz('/signin?to=seven-twelve', { cookie: jar })).location, '/signs/seven-twelve');
-  assert.equal((await t.quiz('/signs/seven-twelve', { cookie: jar })).location, `/signs/${S1}`);
-  assert.ok((await t.quiz('/signin?to=seven-twelve')).html.includes('name="to" value="seven-twelve"'));
+  // An id, as the links of 12 November 2026 carried it, still lands on the sign, by way of the
+  // id's address.
+  assert.equal((await t.quiz(`/signin?to=${S1}`, { cookie: jar })).location, `/signs/${S1}`);
+  assert.equal((await t.quiz(`/signs/${S1}`, { cookie: jar })).location, '/signs/seven-twelve');
+  assert.ok((await t.quiz(`/signin?to=${S1}`)).html.includes(`name="to" value="${S1}"`));
 
   for (const to of ['//evil.example', 'https://evil.example', '../next', 'Seven', 'a b', '-x', 'x'.repeat(81)]) {
     assert.equal((await t.quiz(`/signin?to=${encodeURIComponent(to)}`, { cookie: jar })).location, '/next', to);
@@ -251,39 +254,39 @@ test('the email’s link opens a page that changes nothing; its button signs in'
   assert.ok(again.html.includes('That link has ended'));
 });
 
-test('a sign’s old addresses by slug, and its id in another case, go to its id’s with the query kept', async () => {
+test('a sign’s id address, in any case, goes to its slug’s with the query kept', async () => {
   const t = await setup();
   for (const [from, to] of [
-    ['/signs/seven-twelve', `/signs/${S1}`],
-    [`/signs/${S1.toLowerCase()}`, `/signs/${S1}`],
-    ['/signs/seven-twelve/ways', `/signs/${S1}/ways`],
-    [`/signs/seven-twelve/found?way=way-${S1}`, `/signs/${S1}/found?way=way-${S1}`],
-    ['/signs/unsolved-junction?x=1', `/signs/${S2}?x=1`]
+    [`/signs/${S1}`, '/signs/seven-twelve'],
+    [`/signs/${S1.toLowerCase()}`, '/signs/seven-twelve'],
+    [`/signs/${S1}/ways`, '/signs/seven-twelve/ways'],
+    [`/signs/${S1}/found?way=way-${S1}`, `/signs/seven-twelve/found?way=way-${S1}`],
+    [`/signs/${S2}?x=1`, '/signs/unsolved-junction?x=1']
   ]) {
     const moved = await t.quiz(from, { as: 'ben' });
     assert.equal(moved.res.status, 301, from);
     assert.equal(moved.location, to, from);
     assert.equal(moved.res.headers.get('cache-control'), 'no-store', from);
   }
-  // Signed out, an old address still goes to the id's first.
-  assert.equal((await t.quiz('/signs/seven-twelve')).location, `/signs/${S1}`);
+  // Signed out, an id address still goes to the slug's first.
+  assert.equal((await t.quiz(`/signs/${S1}`)).location, '/signs/seven-twelve');
   // A slug or id that names no shown sign stays a 404.
   for (const path of ['/signs/nowhere', '/signs/01JS0000000000000000000099', '/signs/nowhere/ways']) {
     assert.equal((await t.quiz(path, { as: 'ben' })).res.status, 404, path);
   }
-  // Quiz's pages link signs by id: the ways link, the form, and Skip after this sign.
-  const page = await t.quiz(`/signs/${S1}`, { as: 'ben' });
-  assert.ok(page.html.includes(`action="/signs/${S1}/solve"`));
-  assert.ok(page.html.includes(`href="/signs/${S1}/ways"`));
+  // Quiz's pages link signs by slug: the ways link and the form. Skip names the sign by its id.
+  const page = await t.quiz('/signs/seven-twelve', { as: 'ben' });
+  assert.ok(page.html.includes('action="/signs/seven-twelve/solve"'));
+  assert.ok(page.html.includes('href="/signs/seven-twelve/ways"'));
   assert.ok(page.html.includes(`/next?after=${S1}`));
-  assert.ok(!page.html.includes('href="/signs/seven-twelve'));
+  assert.ok(!page.html.includes(`href="/signs/${S1}`));
 });
 
 test('solving: reordered, found too, a new way, your own again, the first way, and bad math', async () => {
   const t = await setup();
   const solve = (slug: string, text: string) => t.quiz(`/signs/${slug}/solve`, { as: 'ben', form: { text } });
 
-  const page = await t.quiz(`/signs/${S1}`, { as: 'ben' });
+  const page = await t.quiz(`/signs/seven-twelve`, { as: 'ben' });
   assert.equal(page.res.status, 200);
   for (const id of [
     'id="solve"',
@@ -305,7 +308,7 @@ test('solving: reordered, found too, a new way, your own again, the first way, a
 
   const too = await solve(S1, '7 + 12 = 19');
   assert.equal(too.res.status, 303);
-  assert.equal(too.location, `/signs/${S1}/found?way=way-${S1}`);
+  assert.equal(too.location, `/signs/seven-twelve/found?way=way-${S1}`);
   const tooPage = decoded((await t.quiz(too.location!, { as: 'ben' })).html);
   assert.ok(tooPage.includes('You found it too.'));
   assert.ok(tooPage.includes('Same as Ada'));
@@ -332,7 +335,7 @@ test('solving: reordered, found too, a new way, your own again, the first way, a
   assert.ok(bad.html.includes('class="oops"'));
   assert.ok(bad.html.includes('value="7 + 12 = 20"'), 'what was tried stays in the field');
 
-  const unsolved = decoded((await t.quiz(`/signs/${S2}`, { as: 'ben' })).html);
+  const unsolved = decoded((await t.quiz(`/signs/unsolved-junction`, { as: 'ben' })).html);
   assert.ok(unsolved.includes('Nobody’s found the math yet'));
   assert.ok(unsolved.includes('Ada posted this one without the math.'));
   const first = await solve(S2, '7 + 12 = 19');
@@ -346,7 +349,7 @@ test('solving: reordered, found too, a new way, your own again, the first way, a
   assert.ok(solved.includes('Signs you’ve solved'));
   assert.ok(solved.includes('First way'));
   assert.ok(solved.includes('New way'), 'Seven Twelve shows its newest solve, the new way');
-  assert.ok(solved.includes(`${SITE}/players/${ben.id}`), 'Ben’s ways give him a page: linked');
+  assert.ok(solved.includes(`${SITE}/players/ben`), 'Ben’s ways give him a page: linked');
   assert.ok(solved.includes('public page on roadsignmath.xyz'));
 
   const done = await t.quiz('/next', { as: 'ben' });
@@ -359,8 +362,8 @@ test('a player’s own signs aren’t drawn, a nameless player gives a name firs
   const ada1 = await t.quiz('/next', { as: 'ada' });
   assert.equal(ada1.res.status, 200, 'Ada posted both: none to draw');
   assert.ok(decoded(ada1.html).includes('You’ve done every sign.'));
-  assert.equal((await t.quiz(`/signs/${S1}`, { as: 'pnameless00' })).location, `/name?to=${S1}`);
-  const ways = decoded((await t.quiz(`/signs/${S1}/ways`, { as: 'ben' })).html);
+  assert.equal((await t.quiz(`/signs/seven-twelve`, { as: 'pnameless00' })).location, `/name?to=seven-twelve`);
+  const ways = decoded((await t.quiz(`/signs/seven-twelve/ways`, { as: 'ben' })).html);
   assert.ok(ways.includes('The ways on this sign'));
   assert.ok(ways.includes('Found by <b>Ada</b>'));
   assert.ok(ways.includes('Looking doesn’t count against you'));
@@ -419,8 +422,8 @@ test('a way found too stays off the solved list once its author is blocked', asy
   await t.store.putWay(
     way(S1, { id: 'way-cy', playerId: cy.id, text: '19 − 12 = 7', createdAt: '2026-01-12T00:00:00.000Z' })
   );
-  const too = await t.quiz(`/signs/${S1}/solve`, { form: { text: '19 − 12 = 7' }, as: 'ben' });
-  assert.equal(too.location, `/signs/${S1}/found?way=way-cy`);
+  const too = await t.quiz(`/signs/seven-twelve/solve`, { form: { text: '19 − 12 = 7' }, as: 'ben' });
+  assert.equal(too.location, `/signs/seven-twelve/found?way=way-cy`);
   const before = decoded((await t.quiz('/solved', { as: 'ben' })).html);
   assert.ok(before.includes('Seven Twelve') && before.includes('19 − 12 = 7'));
   await t.store.putBlock({ playerId: ben.id, blockedId: cy.id, createdAt: '2026-01-13T00:00:00.000Z' });
@@ -428,7 +431,7 @@ test('a way found too stays off the solved list once its author is blocked', asy
   assert.ok(!after.includes('19 − 12 = 7'), 'Cy’s way is hidden from Ben');
   assert.ok(!after.includes('Seven Twelve'), 'and Ben solved it only by finding that way too');
   const next = await t.quiz('/next', { as: 'ben' });
-  assert.equal(next.location, `/signs/${S2}`, 'it isn’t drawn for him again either');
+  assert.equal(next.location, `/signs/unsolved-junction`, 'it isn’t drawn for him again either');
 });
 
 /** Just enough DOM for the keypad: elements that keep their text, classes and listeners. */
@@ -573,7 +576,7 @@ test('a player’s profile photo shows in Quiz’s header and beside their ways;
   const mine = await t.quiz('/solved', { as: 'ada' });
   assert.ok(mine.html.includes(`<a class="me" href="/profile"`), 'the header leads to the profile');
   assert.ok(mine.html.includes(`<img src="${SITE}/p/av-ada/thumb.jpg" alt=""/>`), 'her photo, from the site');
-  const ways = await t.quiz(`/signs/${S1}/ways`, { as: 'ben' });
+  const ways = await t.quiz(`/signs/seven-twelve/ways`, { as: 'ben' });
   assert.ok(ways.html.includes(`${SITE}/p/av-ada/thumb.jpg`), 'Ada’s face beside her way');
   const header = /<header[\s\S]*?<\/header>/.exec(ways.html)![0];
   assert.ok(!header.includes('/p/'), 'Ben has no photo');
@@ -592,7 +595,7 @@ test('the profile: name, bio, email only she sees, her page, and edits that keep
   assert.ok(text.includes('Your profile'));
   assert.ok(html.includes('value="Ada"') && html.includes('value="Counts everything."'));
   assert.ok(text.includes('ada@example.com') && text.includes('Only you see your email.'));
-  assert.ok(html.includes(`href="${SITE}/players/${ada.id}"`), 'her page on the site');
+  assert.ok(html.includes(`href="${SITE}/players/ada"`), 'her page on the site');
   assert.ok(html.includes('action="/profile/photo"') && html.includes('enctype="multipart/form-data"'));
   assert.ok(html.includes('action="/signout"') && html.includes('href="/profile/delete"'));
   assert.ok(!html.includes('href="/profile/photo/remove"'), 'no photo, nothing to remove');

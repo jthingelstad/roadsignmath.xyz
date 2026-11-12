@@ -73,8 +73,8 @@ type QuizOptions = ApiOptions & { clientIp: (c: Context) => string };
 const backTo = (to: string | undefined): string | undefined =>
   to && (isUlid(to) || (/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(to) && to.length <= 80)) ? to : undefined;
 const withTo = (path: string, to: string | undefined) => (to ? `${path}?to=${to}` : path);
-// `to` is a sign's id, or an old slug, whose address goes on to the id's.
-const onward = (to: string | undefined) => (to ? signPath({ id: to }) : '/next');
+// `to` is a sign's slug, or an id from a link of 12 November 2026, whose address goes on to the slug's.
+const onward = (to: string | undefined) => (to ? `/signs/${to}` : '/next');
 
 export function createQuiz(options: QuizOptions): Hono {
   const quiz = new Hono();
@@ -256,7 +256,7 @@ export function createQuiz(options: QuizOptions): Hono {
     return c.redirect(`${signPath(named.found)}${rest}${queryOf(c)}`, 301);
   }
 
-  /** A shown sign the player sees, by id (or a slug, from a page drawn before ids), with its ways
+  /** A shown sign the player sees, by slug (or an id, from a link of 12 November 2026), with its ways
    * and co-finds, or a not-found page. */
   async function signFor(c: Context, player: Player) {
     const data = await loadQuiz(store, player);
