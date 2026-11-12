@@ -521,3 +521,51 @@ test('DynamoStore adds a co-find in one transaction that checks its way and play
   await store.deleteCoFind(coFind);
   assert.equal(await store.addCoFind(coFind, w), 'gone', 'nothing credits a deleted player');
 });
+
+test('DynamoStore: a SAME row written before the identities still holds its way, and deleting the way frees it', async () => {
+  const { PutCommand, GetCommand } = await import('@aws-sdk/lib-dynamodb');
+  const { orderOnlyKey } = await import('../src/domain/equation.ts');
+  const { addWay, solveSign, REORDERED } = await import('../src/posting/posting.ts');
+  const { wayHash, sameWayHash } = await import('../src/store/store.ts');
+  const fake = new FakeDynamo('test-table');
+  const store = new DynamoStore('test-table', fake);
+  const s = sign({
+    id: 'S1',
+    title: 'One',
+    numbers: ['2', '3', '5'].map((value) => ({ value, text: value })),
+    firstWay: { text: '2! + 3 = 5', value: '5', playerId: ada.id }
+  });
+  await store.putSign(s);
+  await addPlayer(store, ada);
+  await addPlayer(store, ben);
+  // The way as it was written before 2026-11-12: its row, its math, and its SAME row under the old key.
+  const old = way('S1', { id: 'w-old', text: '2! + 3 = 5', value: '5', numbers: ['2', '3', '5'] });
+  await store.putWay(old);
+  assert.ok(await store.claimWay('S1', old.text, old.id));
+  const oldHash = wayHash(orderOnlyKey(old.text)!);
+  assert.notEqual(oldHash, sameWayHash(old.text), 'the old key and today’s differ for this way');
+  await fake.send(
+    new PutCommand({
+      TableName: 'test-table',
+      Item: { pk: 'SIGN#S1', sk: `SAME#${oldHash}`, kind: 'same', wayId: old.id }
+    })
+  );
+  const deps = { store } as unknown as Parameters<typeof addWay>[0];
+  // Its twin is refused, by addWay and by solving alike, without writing anything.
+  await assert.rejects(addWay(deps, ben, s, { text: '3 + 2 = 5' }), { code: 'conflict', message: REORDERED });
+  await assert.rejects(solveSign(deps, ben, s, { text: '5 = 2 + 3' }, 'app'), { code: 'conflict', message: REORDERED });
+  assert.deepEqual(
+    (await store.listWays('S1')).map((w) => w.id),
+    ['w-old']
+  );
+  // Deleting the way frees its old row as well as today's.
+  await store.deleteWay(old);
+  const row = await fake.send(
+    new GetCommand({ TableName: 'test-table', Key: { pk: 'SIGN#S1', sk: `SAME#${oldHash}` } })
+  );
+  assert.equal(row.Item, undefined);
+  assert.equal(
+    await store.addWay(way('S1', { id: 'w-new', text: '2 + 3 = 5', value: '5', numbers: ['2', '3', '5'] })),
+    'added'
+  );
+});

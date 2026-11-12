@@ -54,6 +54,7 @@ import {
   emailHash,
   nowSeconds,
   sameWayHash,
+  sameWayHashes,
   wayHash,
   type PlayerChanges,
   type SignChanges,
@@ -243,7 +244,8 @@ export class DynamoStore implements Store {
   async deleteWay(way: Way): Promise<void> {
     await this.delete(`SIGN#${way.signId}`, `WAY#${way.createdAt}#${way.id}`);
     await this.unclaim(`SIGN#${way.signId}`, `MATH#${wayHash(way.text)}`, 'wayId', way.id);
-    await this.unclaim(`SIGN#${way.signId}`, `SAME#${sameWayHash(way.text)}`, 'wayId', way.id);
+    for (const hash of sameWayHashes(way.text))
+      await this.unclaim(`SIGN#${way.signId}`, `SAME#${hash}`, 'wayId', way.id);
   }
 
   async addWay(way: Way): Promise<'added' | 'taken' | 'reordered' | 'gone'> {
