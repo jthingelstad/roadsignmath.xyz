@@ -10,6 +10,7 @@ import { earnedBadges } from '../domain/badges.ts';
 import { texOf } from '../domain/equation.ts';
 import { miles, STATES } from '../domain/geo.ts';
 import type { CoFind, Player, Sign, Way } from '../domain/types.ts';
+import type { Store } from '../store/store.ts';
 import {
   byNewest,
   earnedBadgeView,
@@ -76,6 +77,7 @@ import { mountPlayers, playingDays, sinceWords } from './players.tsx';
 import { credits, solveOf, type Solve } from '../quiz/data.ts';
 import { QUIZ_OPEN } from '../quiz/quiz.tsx';
 import { SITE_SIGNIN_OPEN } from './account.tsx';
+import { reportPath } from './report.tsx';
 import { mountSigns } from './signs.tsx';
 import { sortOf } from './sorts.ts';
 import { PAGE_CACHE, POPULAR_CACHE } from '../edge-cache.ts';
@@ -633,6 +635,14 @@ if (share && navigator.share) {
   share.hidden = false;
   share.addEventListener('click', () => navigator.share({ title: share.dataset.title, url: share.dataset.url }).catch(() => {}));
 }`;
+
+/** The report links under a sign or a player, while the site's sign-in is open. */
+const REPORT_LINKS_STYLE = `
+.reports { display: flex; flex-wrap: wrap; gap: 4px 20px; margin: 0; font-size: 14px; }
+.reports a { display: inline-flex; align-items: center; min-height: 44px; color: var(--soft); }
+/* Last on a player's page, after the sections a phone moves down. */
+@media (max-width: 699px) { .player .reports { order: 2; } }
+`;
 
 const PLAYER_STYLE = `
 .player { background: var(--ground); }
@@ -1476,7 +1486,7 @@ export function createSite({
         card={share}
         kind="article"
         here="signs"
-        style={SIGN_STYLE}
+        style={webPosting ? SIGN_STYLE + REPORT_LINKS_STYLE : SIGN_STYLE}
         script={SIGN_SCRIPT}
       >
         <main id="main" class="sign h-entry">
@@ -1628,6 +1638,13 @@ export function createSite({
                     )}
                   </div>
                 </div>
+                {webPosting && (
+                  // Plain links, the same for every reader, so the page stays cached (src/web/report.tsx).
+                  <p class="reports">
+                    <a href={reportPath('sign', sign.slug)}>Report this sign</a>
+                    <a href={reportPath('duplicate', sign.slug)}>Report a duplicate</a>
+                  </p>
+                )}
               </div>
               <section class="spot" aria-labelledby="where-h">
                 <div class="head">
@@ -1701,17 +1718,10 @@ export function createSite({
     const named = playerByKey(everyone.values(), c.req.param('key'));
     const player = named?.found;
     const shown = signs.filter(isPublic).sort(byNewest);
-    if (!named || !player?.name) return c.notFound();
-    const stats = playerStats(player, shown);
-    const lists = await Promise.all(shown.map((s) => store.listWays(s.id)));
-    const ways = new Map<string, Way[]>(shown.map((s, i) => [s.id, lists[i]]));
-    const badges = earnedBadges(player.id, shown, ways).map((e) => earnedBadgeView(urls, e));
-    // A player with no signs of their own shows the ways they found on other players' signs:
-    // their own, and the ones they found too (one row a sign, the most recent).
-    const coFinds = stats.sign_count ? [] : await coFindsOn(shown);
-    const solved = stats.sign_count ? [] : waysFound(player, shown, lists, coFinds);
-    // A player with nothing on the map yet has no page.
-    if (!stats.sign_count && !badges.length && !solved.length) return c.notFound();
+    const parts = player ? await playerPageParts(store, player, shown) : undefined;
+    if (!named || !player || !parts) return c.notFound();
+    const { stats, ways, coFinds, solved } = parts;
+    const badges = parts.earned.map((e) => earnedBadgeView(urls, e));
     if (!named.canonical) return movedTo(c, playerPath(player));
     // Every way they found too counts, not only the one a sign that shows.
     const foundToo = coFinds.flat().filter((f) => f.playerId === player.id);
@@ -1730,6 +1740,7 @@ export function createSite({
         summary={summary(everyone)}
         solved={solved}
         quiz={quiz}
+        reports={webPosting}
       />
     );
   });
@@ -1760,6 +1771,27 @@ export function signDescription(
 }
 
 type Found = { sign: Sign; solve: Solve };
+
+/**
+ * What a player's page is made of, from the shown signs (newest first), or undefined when the
+ * player has no page: no name yet, or nothing on the map (no sign, no badge, no way found). The
+ * page and the website's Report this player (src/web/report.tsx) both ask here, so the form is a
+ * 404 exactly when the page is.
+ */
+export async function playerPageParts(store: Store, player: Player, shown: Sign[]) {
+  if (!player.name) return undefined;
+  const stats = playerStats(player, shown);
+  const lists = await Promise.all(shown.map((s) => store.listWays(s.id)));
+  const ways = new Map<string, Way[]>(shown.map((s, i) => [s.id, lists[i]]));
+  const earned = earnedBadges(player.id, shown, ways);
+  // A player with no signs of their own shows the ways they found on other players' signs:
+  // their own, and the ones they found too (one row a sign, the most recent).
+  const coFinds = stats.sign_count ? [] : await Promise.all(shown.map((s) => store.listCoFinds(s.id)));
+  const solved = stats.sign_count ? [] : waysFound(player, shown, lists, coFinds);
+  // A player with nothing on the map yet has no page.
+  if (!stats.sign_count && !earned.length && !solved.length) return undefined;
+  return { stats, ways, earned, coFinds, solved };
+}
 
 // A way found later is dated by its day in US Central, the game's home, as its badges are.
 const CENTRAL_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' });
@@ -1826,7 +1858,9 @@ const PlayerPage: FC<{
   solved: Found[];
   /** Quiz's address, while Quiz is open. */
   quiz?: string;
-}> = ({ urls, player, everyone, stats, badges, since, view, summary, solved, quiz }) => {
+  /** Whether to link Report this player (while `SITE_SIGNIN_OPEN`; src/web/report.tsx). */
+  reports?: boolean;
+}> = ({ urls, player, everyone, stats, badges, since, view, summary, solved, quiz, reports }) => {
   const { clusters, unpinned } = cluster(stats.signs);
   // The years are their own row, above the rest (Jamie, 2026-11-07).
   const years = badges.filter((b) => b.shelf === 'years');
@@ -1857,7 +1891,7 @@ const PlayerPage: FC<{
       }
       here="players"
       quiz={quiz}
-      style={PLAYER_STYLE}
+      style={reports ? PLAYER_STYLE + REPORT_LINKS_STYLE : PLAYER_STYLE}
     >
       <main id="main" class="player">
         <div class="wrap">
@@ -1994,6 +2028,11 @@ const PlayerPage: FC<{
                 </div>
               )}
             </section>
+          )}
+          {reports && (
+            <p class="reports">
+              <a href={reportPath('player', player.handle)}>Report this player</a>
+            </p>
           )}
         </div>
       </main>

@@ -637,7 +637,9 @@ export async function reportSign(
   sign: Sign,
   body: Record<string, unknown>,
   /** Told of each new report once it is saved (src/reports.ts emails it); never in the way. */
-  told?: (report: Report, sign: Sign) => Promise<unknown>
+  told?: (report: Report, sign: Sign) => Promise<unknown>,
+  /** Where it was reported from, for the product line: the app or the website (src/web/report.tsx). */
+  front: 'app' | 'site' = 'app'
 ): Promise<Report> {
   if (sign.postedBy === player.id) fail('bad_request', 'You can’t report your own sign');
   only(body, 'The report', ['reason']);
@@ -658,8 +660,8 @@ export async function reportSign(
   } finally {
     await store.endLease(lease, player.id).catch(() => undefined);
   }
-  // Reports come from the app today (POST /signs/{id}/report); the outcome is the moderator's verdict.
-  product({ action: 'report', front: 'app', outcome: report.outcome });
+  // The outcome is the moderator's verdict.
+  product({ action: 'report', front, outcome: report.outcome });
   if (told) await told(report, fresh).catch(() => undefined);
   return report;
 }
@@ -746,7 +748,9 @@ export async function reportDuplicate(
   player: Player,
   sign: Sign,
   other: Sign,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  /** Where it was reported from, for the product line: the app or the website (src/web/report.tsx). */
+  front: 'app' | 'site' = 'app'
 ): Promise<DuplicateReport> {
   only(body, 'The duplicate report', ['same_as', 'note']);
   if (other.id === sign.id) fail('bad_request', 'A sign can’t be a duplicate of itself');
@@ -761,7 +765,7 @@ export async function reportDuplicate(
     createdAt: isoNow(now)
   };
   await store.putDuplicate(report);
-  product({ action: 'duplicate', front: 'app' });
+  product({ action: 'duplicate', front });
   return report;
 }
 
@@ -777,7 +781,9 @@ export async function reportPlayer(
   key: string,
   body: Record<string, unknown>,
   /** Told of a new report once it is kept; never in the way. */
-  told?: (report: PlayerReport, reported: Player) => Promise<unknown>
+  told?: (report: PlayerReport, reported: Player) => Promise<unknown>,
+  /** Where it was reported from, for the product line: the app or the website (src/web/report.tsx). */
+  front: 'app' | 'site' = 'app'
 ): Promise<PlayerReport> {
   only(body, 'The report', ['reason']);
   const reported = await playerByHandle(store, key);
@@ -790,7 +796,7 @@ export async function reportPlayer(
   const report: PlayerReport = { playerId: reported.id, reporterId: reporter.id, reason, createdAt: isoNow(now) };
   // Two at once: the first kept is the report, and only it is sent.
   if (!(await store.putPlayerReport(report))) return (await store.getPlayerReport(reported.id, reporter.id)) ?? report;
-  product({ action: 'player-report', front: 'app' });
+  product({ action: 'player-report', front });
   if (told) await told(report, reported).catch(() => undefined);
   return report;
 }
