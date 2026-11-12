@@ -7,8 +7,9 @@ import { Hono, type Context } from 'hono';
 import type { FC } from 'hono/jsx';
 import type { ApiOptions } from '../api/app.ts';
 import { earnedBadges } from '../domain/badges.ts';
+import { texOf } from '../domain/equation.ts';
 import { miles, STATES } from '../domain/geo.ts';
-import type { Player, Sign, Way } from '../domain/types.ts';
+import type { CoFind, Player, Sign, Way } from '../domain/types.ts';
 import {
   byNewest,
   earnedBadgeView,
@@ -44,6 +45,8 @@ import { homeCard, pinValue, playerCard, signCard } from './share.ts';
 import { mountAppPage } from './app-page.tsx';
 import { mountIcons } from './icons.ts';
 import { mountPlayers, playingSince } from './players.tsx';
+import { credits, solveOf, type Solve } from '../quiz/data.ts';
+import { QUIZ_OPEN } from '../quiz/quiz.tsx';
 import { mountSigns } from './signs.tsx';
 import { sortOf } from './sorts.ts';
 import { PAGE_CACHE, POPULAR_CACHE } from '../edge-cache.ts';
@@ -543,6 +546,23 @@ ${BADGE_STYLE}
 .squares .tag span { display: block; border: 1.5px solid #fff; border-radius: 6px; padding: 4px 6px 2px; color: #fff; font-size: 13px;
   font-weight: 800; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .squares strong { font-size: 17px; line-height: 1.25; }
+.quizzer { margin: 0; color: var(--ink2); }
+.qtab { display: inline-block; background: #F2B300; color: #18201C !important; font-weight: 900; font-size: 11px; letter-spacing: .1em;
+  padding: 3px 6px 1px; border-radius: 5px; border: 1.5px solid #18201C; line-height: 1.2; text-decoration: none;
+  vertical-align: 2px; margin-left: 2px; white-space: nowrap; }
+.found { margin: 0; padding: 0; list-style: none; border-bottom: 1px solid var(--rule); }
+.found li { display: grid; grid-template-columns: 120px minmax(0, 1fr) minmax(0, 1.1fr); gap: 20px; align-items: center; padding: 16px 0;
+  border-top: 1px solid var(--rule); }
+.found .shot { display: block; width: 120px; height: 84px; border-radius: 10px; overflow: hidden; background: var(--photo); }
+.found .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.found .what { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.found .title { font-weight: 900; font-size: 18px; color: var(--ink); text-decoration: none; }
+.found .soft { font-size: 14px; }
+.found .how { font-size: 14px; font-weight: 700; color: var(--ink2); display: flex; align-items: center; gap: 8px; }
+.found .pill { display: inline-flex; font-size: 12px; font-weight: 900; letter-spacing: .04em; padding: 4px 9px 2px; border-radius: 999px;
+  background: #F2B300; color: #18201C; text-transform: uppercase; }
+@media (max-width: 699px) { .found li { grid-template-columns: 88px minmax(0, 1fr); gap: 12px 14px; }
+  .found .shot { width: 88px; height: 66px; } .found .plate { grid-column: 1 / -1; } }
 .squares .soft { font-size: 14px; }
 @media (max-width: 599px) { .squares .tag { left: 4px; right: 4px; bottom: 4px; } .squares .tag span { font-size: 11px; padding: 3px 4px 1px; } .squares strong { font-size: 15px; } .squares .soft { font-size: 13px; } }
 `;
@@ -551,12 +571,19 @@ ${BADGE_STYLE}
  * The pages, mounted beside the API. Every page is public: CloudFront keeps it a day (Popular six
  * hours) and is cleared when a page changes; browsers keep it a minute.
  */
-export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store' | 'urls' | 'heartCounts'>): Hono {
+export function createSite({
+  store,
+  urls,
+  heartCounts,
+  quizOpen = QUIZ_OPEN
+}: Pick<ApiOptions, 'store' | 'urls' | 'heartCounts' | 'quizOpen'>): Hono {
   const site = new Hono();
   const people = async (): Promise<People> => new Map((await store.allPlayers()).map((p) => [p.id, p]));
   /** Hearts by path for Popular; undefined without Tinylytics or when they can't be read. */
   const counts = async () => heartCounts?.counts();
   const summary = (everyone: People) => (s: Sign) => signSummary(urls, everyone, s);
+  const coFindsOn = (shown: Sign[]) => Promise.all(shown.map((s) => store.listCoFinds(s.id)));
+
   site.use(async (c, next) => {
     await next();
     if (c.res.headers.get('Cache-Control')) return;
@@ -588,7 +615,7 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
   site.get('/sitemap.xml', async (c) => {
     const [signs, everyone] = await Promise.all([store.allSigns(), people()]);
     const shown = signs.filter(isPublic);
-    const lists = await Promise.all(shown.map((s) => store.listWays(s.id)));
+    const [lists, coFinds] = await Promise.all([Promise.all(shown.map((s) => store.listWays(s.id))), coFindsOn(shown)]);
     const ways = new Map<string, Way[]>(shown.map((s, i) => [s.id, lists[i]]));
     // A sign changes when it is posted and when a way is added; that is its lastmod.
     const changed = (s: Sign) => [s.postedAt, ...(ways.get(s.id) ?? []).map((w) => w.createdAt)].sort().at(-1)!;
@@ -603,9 +630,15 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
       [`${urls.site}/support`, undefined],
       [`${urls.site}/data`, undefined],
       ...shown.map((s): [string, string] => [`${urls.site}/signs/${s.slug}`, changed(s)]),
-      // The same test as the player's page: a name, and a sign or a badge on the map.
+      // The same test as the player's page: a name, and a sign, a badge or a way found.
       ...[...everyone.values()]
-        .filter((p) => p.name && (playerStats(p, shown).sign_count || earnedBadges(p.id, shown, ways).length))
+        .filter(
+          (p) =>
+            p.name &&
+            (playerStats(p, shown).sign_count ||
+              earnedBadges(p.id, shown, ways).length ||
+              waysFound(p, shown, lists, coFinds).length)
+        )
         .map((p): [string, undefined] => [`${urls.site}/players/${p.handle}`, undefined])
     ];
     const xml =
@@ -1413,8 +1446,17 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
     const lists = await Promise.all(shown.map((s) => store.listWays(s.id)));
     const ways = new Map<string, Way[]>(shown.map((s, i) => [s.id, lists[i]]));
     const badges = earnedBadges(player.id, shown, ways).map((e) => earnedBadgeView(urls, e));
+    // A player with no signs of their own shows the ways they found on other players' signs:
+    // their own, and the ones they found too (one row a sign, the most recent).
+    const coFinds = stats.sign_count ? [] : await coFindsOn(shown);
+    const solved = stats.sign_count ? [] : waysFound(player, shown, lists, coFinds);
     // A player with nothing on the map yet has no page.
-    if (!stats.sign_count && !badges.length) return c.notFound();
+    if (!stats.sign_count && !badges.length && !solved.length) return c.notFound();
+    // Every way they found too counts, not only the one a sign that shows.
+    const foundToo = coFinds.flat().filter((f) => f.playerId === player.id);
+    const since = [playingSince(player, shown, ways), ...foundToo.map((f) => centralDay(f.createdAt))]
+      .filter((d): d is string => !!d)
+      .sort()[0];
     const view = c.req.query('view') === 'map' ? 'map' : 'signs';
     return c.html(
       <PlayerPage
@@ -1423,9 +1465,11 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
         everyone={everyone}
         stats={stats}
         badges={badges}
-        since={playingSince(player, shown, ways)}
+        since={since ?? null}
         view={view}
         summary={summary(everyone)}
+        solved={solved}
+        quiz={quizOpen ? urls.quiz : undefined}
       />
     );
   });
@@ -1436,6 +1480,60 @@ export function createSite({ store, urls, heartCounts }: Pick<ApiOptions, 'store
   return site;
 }
 
+type Found = { sign: Sign; solve: Solve };
+
+// A way found later is dated by its day in US Central, the game's home, as its badges are.
+const CENTRAL_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' });
+const centralDay = (at: string): string => CENTRAL_DAY.format(new Date(at));
+
+/**
+ * The signs a player solved without being credited on them (one row a sign: the way they found
+ * there most recently, their own or one they found too), the most recent first. `lists` and
+ * `coFinds` are each shown sign's, in the same order.
+ */
+function waysFound(player: Player, shown: Sign[], lists: Way[][], coFinds: CoFind[][]): Found[] {
+  return shown
+    .flatMap((sign, i) => {
+      if (credits(sign, player.id)) return [];
+      const solve = solveOf(sign, { ways: lists[i], coFinds: coFinds[i] }, player.id);
+      return solve ? [{ sign, solve }] : [];
+    })
+    .sort((a, b) => b.solve.at.localeCompare(a.solve.at));
+}
+
+/** One way a player found on someone else's sign: the sign, how they found it, and the math. */
+const FoundRow: FC<{ sign: Summary; solve: Solve; everyone: People }> = ({ sign, solve, everyone }) => {
+  const day = shortDay(centralDay(solve.at));
+  const owner = everyone.get(solve.way.playerId)?.name;
+  return (
+    <li>
+      <a class="shot" href={`/signs/${sign.slug}`} tabindex={-1} aria-hidden="true">
+        {sign.photos[0] && <img src={sign.photos[0].thumb_url} alt="" loading="lazy" />}
+      </a>
+      <div class="what">
+        <a class="title" href={`/signs/${sign.slug}`}>
+          {sign.title}
+        </a>
+        <span class="soft">
+          <Facts items={[`Found by ${finderNames(sign)}`, sign.place.label]} />
+        </span>
+        <span class="how">
+          {solve.kind === 'first' ? (
+            <>
+              <span class="pill">First way</span> {day}
+            </>
+          ) : solve.kind === 'too' ? (
+            <Facts items={[owner ? `Also found ${owner}’s way` : 'Also found a way already there', day]} />
+          ) : (
+            <Facts items={['A new way', day]} />
+          )}
+        </span>
+      </div>
+      <Plate way={{ text: solve.way.text, tex: texOf(solve.way.text) ?? null }} />
+    </li>
+  );
+};
+
 const PlayerPage: FC<{
   urls: Urls;
   player: Player;
@@ -1445,7 +1543,10 @@ const PlayerPage: FC<{
   since: string | null;
   view: 'signs' | 'map';
   summary: (s: Sign) => Summary;
-}> = ({ urls, player, stats, badges, since, view, summary }) => {
+  solved: Found[];
+  /** Quiz's address, while Quiz is open. */
+  quiz?: string;
+}> = ({ urls, player, everyone, stats, badges, since, view, summary, solved, quiz }) => {
   const { clusters, unpinned } = cluster(stats.signs);
   // The years are their own row, above the rest (Jamie, 2026-11-07).
   const years = badges.filter((b) => b.shelf === 'years');
@@ -1467,7 +1568,12 @@ const PlayerPage: FC<{
         stateCount: stats.states.length,
         firstYear: stats.first_year
       })}
-      feeds={feedAlternates({ title: `${player.name} · Road Sign Math`, base: `${urls.site}${base}` }, urls.site)}
+      // Their feeds are of their signs, and answer once they have a sign or a badge (src/web/data.ts).
+      feeds={
+        stats.sign_count || badges.length
+          ? feedAlternates({ title: `${player.name} · Road Sign Math`, base: `${urls.site}${base}` }, urls.site)
+          : undefined
+      }
       here="players"
       style={PLAYER_STYLE}
     >
@@ -1486,6 +1592,14 @@ const PlayerPage: FC<{
               <h1 class="p-name">{player.name}</h1>
               {player.bio && <p class="bio p-note">{player.bio}</p>}
               {since && <p class="since">Playing since {since.slice(0, 4)}</p>}
+              {quiz && solved.length > 0 && (
+                <p class="quizzer">
+                  Finds the math in other players’ signs with{' '}
+                  <a class="qtab" href={`${quiz}/`}>
+                    QUIZ
+                  </a>
+                </p>
+              )}
             </div>
             {stats.sign_count > 0 && (
               <>
@@ -1522,6 +1636,19 @@ const PlayerPage: FC<{
                 <p>Earned on the road. Some badges are secret until someone finds them.</p>
               </div>
               <BadgeCards badges={others} />
+            </section>
+          )}
+          {solved.length > 0 && (
+            <section aria-labelledby="ways-h">
+              <div class="lede">
+                <h2 id="ways-h">Ways found</h2>
+                <p>On signs other players spotted. {player.name} hasn’t posted a sign of their own yet.</p>
+              </div>
+              <ul class="found" aria-label={`Ways ${player.name} found`}>
+                {solved.map(({ sign, solve }) => (
+                  <FoundRow sign={summary(sign)} solve={solve} everyone={everyone} />
+                ))}
+              </ul>
             </section>
           )}
           {stats.sign_count > 0 && (

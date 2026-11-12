@@ -623,3 +623,87 @@ test('a sign’s numbers say where each one was read, and the page steps to the 
   const first = await (await app.request('/signs/older-sign')).text();
   assert.ok(first.includes('<strong>This is the first sign</strong><a href="/signs">See every sign</a>'));
 });
+
+test('a player with no signs has a page of the ways they found on other players’ signs', async () => {
+  const { store } = await setup();
+  const cy = { ...ben, id: '01JCCCCCCCCCCCCCCCCCCCCCCC', handle: 'cy', name: 'Cy' };
+  const dee = { ...ben, id: '01JDDDDDDDDDDDDDDDDDDDDDDD', handle: 'dee', name: 'Dee' };
+  for (const p of [ben, cy, dee]) await addPlayer(store, p);
+  // Ben found Ada's way on Newer Sign too, on a Central evening that is already the next day in
+  // UTC; Cy found the first way on Older Sign, posted unsolved.
+  const adas = (await store.listWays('01JS0000000000000000000002'))[0];
+  await store.addCoFind(
+    {
+      signId: adas.signId,
+      wayId: adas.id,
+      playerId: ben.id,
+      createdAt: '2026-02-04T03:00:00.000Z',
+      via: 'quiz'
+    },
+    adas
+  );
+  // Before that, in 2025, Ben found another of Ada's ways on the same sign too: the row shows
+  // the newer one, and Ben has been playing since 2025.
+  const second = way('01JS0000000000000000000002', {
+    id: 'way-ada-2',
+    playerId: adas.playerId,
+    text: '6 × 3 = 18',
+    value: '18',
+    createdAt: '2025-12-01T15:00:00.000Z'
+  });
+  await store.addWay(second);
+  await store.addCoFind(
+    { signId: second.signId, wayId: second.id, playerId: ben.id, createdAt: '2025-12-20T15:00:00.000Z', via: 'quiz' },
+    second
+  );
+  await store.addWay(
+    way('01JS0000000000000000000001', {
+      id: 'way-cy',
+      playerId: cy.id,
+      text: '19 − 12 = 7',
+      value: '7',
+      createdAt: '2026-02-04T15:00:00.000Z'
+    })
+  );
+  const make = (quizOpen: boolean) =>
+    createApp({
+      store,
+      urls: { site: 'https://example.test', quiz: 'https://quiz.example.test' },
+      mailer: new MemoryMailer(),
+      photos: new MemoryPhotoStore(),
+      moderator: new ScriptedModerator(),
+      quizOpen
+    });
+  const app = make(false);
+
+  const res = await app.request('/players/ben');
+  assert.equal(res.status, 200, 'no sign and no badge, but a way found');
+  const html = await res.text();
+  assert.ok(html.includes('<h2 id="ways-h">Ways found</h2>'));
+  assert.ok(html.includes('Ben hasn’t posted a sign of their own yet.'));
+  assert.ok(html.includes('<a class="title" href="/signs/newer-sign">Newer Sign</a>'));
+  assert.ok(html.includes(`Found by Ada${SEP}Testville, Minnesota`));
+  assert.ok(html.includes(`Also found Ada’s way${SEP}Feb 3, 2026`), 'its day in US Central');
+  assert.ok(html.includes('aria-label="18 ÷ 6 = 3"'), 'the way on its plate');
+  assert.ok(html.includes('Playing since 2025'), 'from the earliest way found too, not the row shown');
+  assert.ok(!html.includes('/players/ben/feed'), 'no feeds until a sign or a badge');
+  assert.ok(!html.includes('<dl class="stats">'), 'no sign or state counts');
+  assert.ok(!html.includes('Finds the math'), 'Quiz isn’t named while it’s closed');
+
+  const cyPage = await (await app.request('/players/cy')).text();
+  assert.ok(cyPage.includes('<span class="pill">First way</span> Feb 4, 2026'));
+  assert.ok(cyPage.includes('Tag Team'), 'and the badge it earned');
+  assert.equal((await app.request('/players/dee')).status, 404, 'nothing found: still no page');
+
+  const map = await (await app.request('/sitemap.xml')).text();
+  assert.ok(map.includes('<loc>https://example.test/players/ben</loc>'));
+  assert.ok(!map.includes('/players/dee'));
+
+  const open = await (await make(true).request('/players/ben')).text();
+  assert.ok(open.includes('Finds the math in other players’ signs with'));
+  assert.ok(open.includes('<a class="qtab" href="https://quiz.example.test/">QUIZ</a>'));
+  assert.ok(
+    !(await (await make(true).request('/players/ada')).text()).includes('Finds the math'),
+    'only without signs'
+  );
+});
