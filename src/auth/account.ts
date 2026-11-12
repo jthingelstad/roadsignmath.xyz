@@ -112,7 +112,7 @@ export async function setAvatar(
     'Too many photos today. Try again tomorrow.'
   );
   const sized = await avatarRenditions(bytes).catch(() => fail('bad_request', 'That photo couldn’t be read'));
-  const verdict = await moderate(() => moderator.reviewAvatar(sized.large));
+  const verdict = await moderate(store, 'avatar', () => moderator.reviewAvatar(sized.large));
   if (verdict.verdict !== 'ok') product({ action: 'photo-refused' });
   if (verdict.verdict !== 'ok') fail('refused', verdict.reason || 'That photo can’t be your profile photo.');
   const id = ulid().toLowerCase();

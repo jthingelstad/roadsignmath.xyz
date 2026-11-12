@@ -62,8 +62,11 @@ export const PRODUCT_FIELDS = {
 
 /** The kinds of failure the Operator counts, and the outcomes each logs. */
 export const FAILURES = {
-  /** The moderator couldn't be asked (the post, report or photo answered 503), or wouldn't look. */
-  moderator: ['unavailable', 'refused'],
+  /**
+   * The moderator couldn't be asked (the post, report or photo answered 503), wouldn't look, or the
+   * day's ceiling across all players was reached (`ceiling`: answered 503 the same way).
+   */
+  moderator: ['unavailable', 'refused', 'ceiling'],
   /** A sign-in email that didn't go: the start answers its error and no code reached the player. */
   'signin-mail': ['unsent']
 } as const;

@@ -21,6 +21,8 @@ import { whatSwapped } from '../src/quiz/swapped.ts';
 import { SESSION_IDLE } from '../src/auth/auth.ts';
 import { quizOrigin } from '../src/quiz/quiz.tsx';
 import { MemoryStore } from '../src/store/memory.ts';
+import { LIMITS } from '../src/api/contract.ts';
+import { MODERATOR_CALLS } from '../src/posting/posting.ts';
 import { addPlayer, nowSeconds } from '../src/store/store.ts';
 import { ada, ben, sign, way } from './support/fixtures.ts';
 import { ScriptedModerator } from './support/moderator.ts';
@@ -698,6 +700,14 @@ test('a profile photo: set through the moderator, refused in its words, replaced
   const removed = await t.quiz('/profile/photo/remove', { as: 'ben', form: {} });
   assert.equal(removed.location, '/profile?done=removed');
   assert.equal((await t.store.getPlayer(ben.id))!.avatar, undefined);
+  // Past the day's ceiling on moderator calls across all players: the same 503, nothing changed.
+  for (let i = 0; i < LIMITS.moderatorCallsADay; i++) await t.store.bump(MODERATOR_CALLS, 86400, nowSeconds());
+  const asked = t.moderator.avatars.length;
+  const ceiling = await t.quiz('/profile/photo', { as: 'ben', upload: await upload(await jpeg('#b01c33')) });
+  assert.equal(ceiling.res.status, 503);
+  assert.ok(decoded(ceiling.html).includes('Our moderator is busy today. Try again tomorrow.'));
+  assert.equal(t.moderator.avatars.length, asked, 'the moderator wasn’t asked');
+  assert.equal((await t.store.getPlayer(ben.id))!.avatar, undefined, 'nor did the ceiling');
   assert.equal(await t.photos.get(second, 'large', 'shown'), undefined);
   assert.equal((await t.quiz('/profile/photo/remove', { as: 'ben' })).location, '/profile', 'none left to remove');
 });
