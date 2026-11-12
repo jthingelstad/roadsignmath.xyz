@@ -20,7 +20,8 @@ export type ProductLine =
   | { action: 'signin-finish'; front: Front; outcome: 'new' | 'returning' }
   | { action: 'sign'; front: Front; outcome: 'shown' | 'held'; photos: number; numbers: number; solved: boolean }
   | { action: 'way'; front: Front; outcome: 'new' | 'found-too' }
-  | { action: 'skip'; front: Front }
+  | { action: 'skip'; front: Front; guest?: boolean }
+  | { action: 'signin-ask'; front: Front }
   | { action: 'heart'; front: Front; outcome: 'given' | 'taken-back' }
   | { action: 'report'; front: Front; outcome: 'hidden' | 'kept' }
   | { action: 'duplicate'; front: Front }
@@ -41,6 +42,8 @@ const FRONTS = ['app', 'quiz', 'site'] as const;
 /**
  * Every field a `product` line may carry and what it may hold: a list of words, `count` (a whole
  * number from 0 to 1,000), or `flag` (true or false). `first` is a player's first name given.
+ * `guest` marks a Quiz skip by someone not signed in, and `signin-ask` is a signed-out Send in
+ * Quiz that asked them to sign in (their math kept with the sign-in, never logged).
  */
 export const PRODUCT_FIELDS = {
   event: ['product'],
@@ -50,6 +53,7 @@ export const PRODUCT_FIELDS = {
     'sign',
     'way',
     'skip',
+    'signin-ask',
     'heart',
     'report',
     'duplicate',
@@ -67,7 +71,8 @@ export const PRODUCT_FIELDS = {
   photos: 'count',
   numbers: 'count',
   solved: 'flag',
-  first: 'flag'
+  first: 'flag',
+  guest: 'flag'
 } as const satisfies Record<string, readonly string[] | 'count' | 'flag'>;
 
 /** The kinds of failure the Operator counts, and the outcomes each logs. */

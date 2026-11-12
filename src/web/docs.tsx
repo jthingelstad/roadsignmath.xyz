@@ -201,7 +201,7 @@ function example(data: OpenData): string | null {
   );
 }
 
-export const DocsPage: FC<{ data: OpenData; card?: Card }> = ({ data, card }) => {
+export const DocsPage: FC<{ data: OpenData; card?: Card; quiz?: string }> = ({ data, card, quiz }) => {
   const site = data.urls.site;
   const sample = example(data);
   const reads = ROUTES.filter((r) => r.method === 'get' && r.auth === 'public');
@@ -216,6 +216,7 @@ for (const sign of signs) {
       description="Follow new signs in a feed reader, or build something with every sign: open JSON, GeoJSON, feeds, the API and llms.txt."
       url={`${site}/data`}
       card={card}
+      quiz={quiz}
       style={DOCS_STYLE}
     >
       <main id="main" class="wrap docs">

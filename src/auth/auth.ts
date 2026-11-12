@@ -51,7 +51,7 @@ export type SignInLink = (loginId: string, token: string) => string;
 
 /** Sends the link and code. The answer is the same whether or not the address has an account. */
 export async function startSignIn(
-  deps: { store: Store; mailer: Mailer; link: SignInLink; front?: SignInFront },
+  deps: { store: Store; mailer: Mailer; link: SignInLink; front?: SignInFront; carry?: Login['carry'] },
   rawEmail: unknown,
   ip: string
 ): Promise<{ loginId: string; expiresIn: number }> {
@@ -72,6 +72,7 @@ export async function startSignIn(
     tokenHash: sha256(token),
     codeHash: sha256(code),
     attempts: 0,
+    ...(deps.carry && { carry: deps.carry }),
     createdAt: new Date(now * 1000).toISOString(),
     expiresAt: now + LOGIN_TTL
   };

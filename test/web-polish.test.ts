@@ -164,7 +164,8 @@ test('motion is only for readers who haven’t asked for less', async () => {
   assert.ok(home.includes('zoomAnimation: !still'));
 });
 
-test('Home says every sign posted from the app shows up there, and keeps Quiz out of the header', async () => {
+test('Home says every sign posted from the app shows up there; with no address for Quiz, the header leaves it out', async () => {
+  // While Quiz is open and has an address, the header links it (test/quiz-links.test.ts).
   const { html } = await setup();
   const home = await html('/');
   assert.ok(home.includes('Every sign posted from the app shows up here.'));

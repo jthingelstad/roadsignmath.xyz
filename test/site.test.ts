@@ -51,17 +51,14 @@ test('the home page lists shown signs, newest first, and is cached', async () =>
   );
 });
 
-test('home’s app section links the App Store, and the TestFlight beta second', async () => {
+test('home’s app section links the App Store; the TestFlight beta is on /app only', async () => {
   const { app } = await setup();
   const html = await (await app.request('/')).text();
   assert.match(
     html,
     /<a class="appstore" href="https:\/\/apps\.apple\.com\/us\/app\/road-sign-math\/id6829058896" data-tinylytics-event="app\.store" data-tinylytics-event-value="home">/
   );
-  assert.match(
-    html,
-    /<a href="https:\/\/testflight\.apple\.com\/join\/Httdw7ZY" data-tinylytics-event="beta\.join" data-tinylytics-event-value="home">Try the beta<\/a>/
-  );
+  assert.ok(!html.includes('testflight.apple.com'), 'Try the beta is on /app only (Jamie, 2026-11-12)');
   // Tinylytics counts clicks on the way to the app.
   assert.match(
     html,

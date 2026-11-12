@@ -21,7 +21,18 @@ export const OPEN = { 'Access-Control-Allow-Origin': '*' };
 const json = (c: Context, body: unknown, type: string) =>
   c.body(`${JSON.stringify(body, null, 2)}\n`, 200, { 'Content-Type': `${type}; charset=utf-8`, ...OPEN });
 
-export function createOpenWeb({ store, urls, siteCard }: { store: Store; urls: Urls; siteCard?: SiteCard }): Hono {
+export function createOpenWeb({
+  store,
+  urls,
+  siteCard,
+  quiz
+}: {
+  store: Store;
+  urls: Urls;
+  siteCard?: SiteCard;
+  /** Quiz's address while it is open: the header, llms.txt and llms-full.txt name it. */
+  quiz?: string;
+}): Hono {
   const open = new Hono();
   const load = () => loadOpenData(store, urls);
 
@@ -69,13 +80,15 @@ export function createOpenWeb({ store, urls, siteCard }: { store: Store; urls: U
   });
 
   open.get('/llms.txt', async (c) =>
-    c.body(llmsTxt(await load()), 200, { 'Content-Type': 'text/plain; charset=utf-8', ...OPEN })
+    c.body(llmsTxt(await load(), quiz), 200, { 'Content-Type': 'text/plain; charset=utf-8', ...OPEN })
   );
   open.get('/llms-full.txt', async (c) =>
-    c.body(llmsFullTxt(await load()), 200, { 'Content-Type': 'text/plain; charset=utf-8', ...OPEN })
+    c.body(llmsFullTxt(await load(), quiz), 200, { 'Content-Type': 'text/plain; charset=utf-8', ...OPEN })
   );
 
-  open.get('/data', async (c) => c.html(<DocsPage data={await load()} card={siteCard && (await siteCard())} />));
+  open.get('/data', async (c) =>
+    c.html(<DocsPage data={await load()} card={siteCard && (await siteCard())} quiz={quiz} />)
+  );
 
   return open;
 }

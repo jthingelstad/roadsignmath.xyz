@@ -304,7 +304,7 @@ async function finders(store: Store, poster: Player, input: PostInput): Promise<
  * ways already on signs stay as they are; every way sent from now on, a co-find's included, uses
  * them all.
  */
-function checkWay(raw: string, numbers: SignNumber[]): { text: string; value: string; numbers: string[] } {
+export function checkWay(raw: string, numbers: SignNumber[]): { text: string; value: string; numbers: string[] } {
   const result = check(raw);
   if (!result.ok) return fail('bad_request', result.message);
   const onSign = numbers.map((n) => n.value);

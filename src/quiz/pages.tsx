@@ -100,6 +100,8 @@ a.btn { color: #fff; }
 .plate > div.empty { font: 800 17px Overpass, system-ui, sans-serif; color: #E3EFE9; }
 .plate svg { max-width: 100%; height: auto; color: #fff; }
 .plate.big > div { min-height: 96px; }
+a.plate.try { display: block; text-decoration: none; }
+a.plate.try:hover > div { border-style: dashed; }
 .plate.mini { border-radius: 10px; padding: 3px; display: inline-block; }
 .plate.mini > div { border-width: 1.5px; border-radius: 8px; padding: 6px 10px; min-height: 0; font-size: 18px; }
 .tabbed { display: flex; flex-direction: column; align-items: center; }
@@ -196,6 +198,9 @@ label { font-weight: 800; }
 /** Carries the sign a player came to try through signing in (`to`, an id or a slug Quiz checked). */
 const BackTo: FC<{ to?: string }> = ({ to }) => (to ? <input type="hidden" name="to" value={to} /> : null);
 
+/** Carries the math a signed-out player built on the sign through signing in (checked by Quiz). */
+const Carry: FC<{ math?: string }> = ({ math }) => (math ? <input type="hidden" name="math" value={math} /> : null);
+
 /** Quiz's frame: header with the logo and the Quiz tab, the page, and a footer to the site. */
 export const Frame: FC<
   PropsWithChildren<{
@@ -276,7 +281,7 @@ export const Frame: FC<
                 <Face player={player} size={40} here={here} />
               </a>
             ) : (
-              <a class="signin" href="/signin">
+              <a class="signin" href={at ? `/signin?to=${at}` : '/signin'}>
                 Sign in
               </a>
             )}
@@ -512,10 +517,12 @@ export const HomePage: FC<{ here: Here; sample?: Sign; more: Sign[] }> = ({ here
             Every sign here was spotted on a real road trip. You get the photo and its numbers. The math is yours to
             find.
           </p>
-          <a class="btn" href="/signin" style="max-width: 320px">
-            Sign in to play
+          <a class="btn" href="/next" style="max-width: 320px">
+            Play a sign
           </a>
-          <p class="meta">Same account as the Road Sign Math app. No password: we email you a code and a link.</p>
+          <p class="meta">
+            No account needed to try. When you send your math, sign in with the same account as the Road Sign Math app.
+          </p>
         </div>
         {sample && (
           <article class="card" aria-label="A sample sign" style="overflow: hidden">
@@ -537,9 +544,9 @@ export const HomePage: FC<{ here: Here; sample?: Sign; more: Sign[] }> = ({ here
                 </p>
               </div>
               <Tiles sign={sample} />
-              <div class="plate">
+              <a class="plate try" href={signPath(sample)} aria-label={`Solve ${sample.title}`}>
                 <div class="empty">? = ?</div>
-              </div>
+              </a>
             </div>
           </article>
         )}
@@ -583,15 +590,22 @@ export const HomePage: FC<{ here: Here; sample?: Sign; more: Sign[] }> = ({ here
   </Frame>
 );
 
-export const SignInPage: FC<{ here: Here; error?: string; email?: string; to?: string }> = ({
+export const SignInPage: FC<{ here: Here; error?: string; email?: string; to?: string; math?: string }> = ({
   here,
   error,
   email,
-  to
+  to,
+  math
 }) => (
   <Frame here={here} title="Sign in">
     <div class="stack narrow">
-      <h1>Sign in to play</h1>
+      <h1>{math ? 'Sign in to send it' : 'Sign in to play'}</h1>
+      {math && (
+        <div class="stack" style="gap: 8px; align-items: flex-start">
+          <MathPlate text={math} mini />
+          <p class="meta">Your math is kept while you sign in. You can send it right after.</p>
+        </div>
+      )}
       <p class="lede">One account for Quiz and the Road Sign Math app. Already play in the app? Use the same email.</p>
       {error && (
         <p class="oops" role="alert">
@@ -600,6 +614,7 @@ export const SignInPage: FC<{ here: Here; error?: string; email?: string; to?: s
       )}
       <form method="post" action="/signin" class="stack">
         <BackTo to={to} />
+        <Carry math={math} />
         <label for="em">Email</label>
         <input id="em" class="field" type="email" name="email" autocomplete="email" required value={email ?? ''} />
         <button class="btn" type="submit">
@@ -624,7 +639,9 @@ export const CodePage: FC<{
   error?: string;
   sent?: boolean;
   to?: string;
-}> = ({ here, loginId, email, error, sent, to }) => (
+  /** The math carried with this sign-in, shown so they know it is kept. */
+  math?: string;
+}> = ({ here, loginId, email, error, sent, to, math }) => (
   <Frame here={here} title="Check your email">
     <div class="stack narrow">
       <h1>Check your email</h1>
@@ -636,6 +653,12 @@ export const CodePage: FC<{
         <p class="note" role="status">
           We sent another one. Use the code in the newest email.
         </p>
+      )}
+      {math && (
+        <div class="stack" style="gap: 8px; align-items: flex-start">
+          <MathPlate text={math} mini />
+          <p class="meta">Your math is kept. It’s back on the sign once you’re in.</p>
+        </div>
       )}
       {error && (
         <p class="oops" role="alert">
@@ -708,11 +731,12 @@ export const LinkPage: FC<{ here: Here; loginId: string; token: string; to?: str
   </Frame>
 );
 
-export const NamePage: FC<{ here: Here; player: Player; error?: string; to?: string }> = ({
+export const NamePage: FC<{ here: Here; player: Player; error?: string; to?: string; math?: string }> = ({
   here,
   player,
   error,
-  to
+  to,
+  math
 }) => (
   <Frame here={here} title="Your name" player={player}>
     <div class="stack narrow">
@@ -725,6 +749,7 @@ export const NamePage: FC<{ here: Here; player: Player; error?: string; to?: str
       )}
       <form method="post" action="/name" class="stack">
         <BackTo to={to} />
+        <Carry math={math} />
         <label for="nm">Your name</label>
         <input id="nm" class="field" type="text" name="name" autocomplete="given-name" maxlength={40} required />
         <p class="meta">It also makes your page’s address on roadsignmath.xyz, for good.</p>
@@ -748,12 +773,15 @@ export type Said =
 
 export const SolvePage: FC<{
   here: Here;
-  player: Player;
+  /** Signed out, anyone may build the math; Send asks them to sign in. */
+  player?: Player;
   sign: Sign;
   on: OnSign;
   people: People;
   said?: Said;
-}> = ({ here, player, sign, on, people, said }) => {
+  /** Math carried through signing in, back on the keypad for one tap of Send. */
+  carried?: string;
+}> = ({ here, player, sign, on, people, said, carried }) => {
   const poster = people.get(sign.postedBy);
   const unsolved = on.ways.length === 0;
   const theirs = said?.kind === 'reordered' && said.by?.name ? `${firstName(said.by.name)}’s` : 'a';
@@ -766,13 +794,17 @@ export const SolvePage: FC<{
         : said?.kind === 'error'
           ? said.message.replace(/([^.!?])$/, '$1.')
           : undefined;
+  // Carried math is drawn as the answer to a POST: put the sign's own address back in the bar.
+  const back = carried
+    ? `\nhistory.replaceState && history.replaceState(null, '', ${JSON.stringify(signPath(sign))});`
+    : '';
   return (
     <Frame
       here={here}
       title={sign.title}
       player={player}
       at={sign.slug}
-      script={CHECKER_JS + '\n' + KEYPAD_JS + '\n' + PHOTOS_JS}
+      script={CHECKER_JS + '\n' + KEYPAD_JS + '\n' + PHOTOS_JS + back}
     >
       <div class="solve">
         <div class="stack">
@@ -808,9 +840,21 @@ export const SolvePage: FC<{
             </div>
           )}
           {said?.kind === 'error' && <p class="oops">{said.message.replace(/([^.!?])$/, '$1.')}</p>}
+          {carried && (
+            <p class="note" role="status">
+              You’re in. Your math is back: tap Send to put it on the sign.
+            </p>
+          )}
           <div id="typed" class="stack">
             <label for="text">Your math</label>
-            <input id="text" class="field" name="text" autocomplete="off" required value={said?.tried ?? ''} />
+            <input
+              id="text"
+              class="field"
+              name="text"
+              autocomplete="off"
+              required
+              value={said?.tried ?? carried ?? ''}
+            />
             <p class="meta">Use the sign’s numbers and the operators + − × ÷ ^ √ ! ( ) =.</p>
           </div>
           <div id="pad" class="stack" hidden>
@@ -841,6 +885,7 @@ export const SolvePage: FC<{
           <button id="send" class="btn" type="submit">
             Send
           </button>
+          {!player && <p class="meta">You’ll sign in to send. Your math is kept.</p>}
           <div class="row">
             {unsolved ? (
               <span class="txt" aria-disabled="true" style="color: var(--soft)">
@@ -1109,7 +1154,7 @@ export const FoundPage: FC<{
 // ---------------------------------------------------------------------------------------------
 // The end, and the signs you've solved
 
-export const AllDonePage: FC<{ here: Here; player: Player }> = ({ here, player }) => (
+export const AllDonePage: FC<{ here: Here; player?: Player }> = ({ here, player }) => (
   <Frame here={here} title="Every sign done" player={player}>
     <div class="stack narrow">
       <div

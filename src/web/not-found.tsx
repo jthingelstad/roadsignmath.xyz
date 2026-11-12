@@ -6,6 +6,7 @@
 import type { Context } from 'hono';
 import { byNewest, isPublic, signPath, signSummary, type People, type Urls } from '../api/views.ts';
 import { PAGE_CACHE } from '../edge-cache.ts';
+import { QUIZ_OPEN } from '../quiz/quiz.tsx';
 import type { Store } from '../store/store.ts';
 import { Facts, finderNames, type Summary } from './cards.tsx';
 import { Page, Plate, shortDay } from './layout.tsx';
@@ -67,7 +68,8 @@ async function newest(store: Store, urls: Urls): Promise<Summary[] | null> {
  * The answer for an address no route took. A GET for one ending in a slash goes to the same
  * address without it (and its query), unless that would leave the site (`//host`).
  */
-export function notFoundPage({ store, urls }: { store: Store; urls: Urls }) {
+export function notFoundPage({ store, urls, quizOpen = QUIZ_OPEN }: { store: Store; urls: Urls; quizOpen?: boolean }) {
+  const quiz = quizOpen && urls.quiz ? urls.quiz : undefined;
   return async (c: Context): Promise<Response> => {
     const url = new URL(c.req.url);
     const trimmed = url.pathname.replace(/\/+$/, '');
@@ -91,6 +93,7 @@ export function notFoundPage({ store, urls }: { store: Store; urls: Urls }) {
       <Page
         title="Not found · Road Sign Math"
         description="There's no page at this address. Find your way back to the map, or see every sign."
+        quiz={quiz}
         style={LOST_STYLE}
       >
         <main id="main" class="lost">

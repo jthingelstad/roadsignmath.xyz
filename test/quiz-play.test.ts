@@ -130,12 +130,15 @@ test('signed out, home says how it works; every answer is private and uncached',
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('cache-control'), 'no-store');
   assert.ok(html.includes('Find the math in a road sign.'));
-  assert.ok(html.includes('Sign in to play'));
+  assert.ok(html.includes('href="/next"'), 'the main action deals a sign, signed out too');
+  assert.ok(html.includes('Play a sign'));
+  assert.match(html, /<a class="plate try" href="\/signs\/[a-z-]+"/, 'the sample plate is a link to its sign');
   assert.ok(html.includes(`${SITE}/p/ph-${S1}/large.jpg`), 'photos come from the site');
   assert.ok(!html.includes('Coming soon'));
   const next = await t.quiz('/next');
   assert.equal(next.res.status, 303);
-  assert.equal(next.location, '/signin');
+  assert.ok(['/signs/seven-twelve', '/signs/unsolved-junction'].includes(next.location!), next.location ?? '');
+  assert.equal(next.res.headers.get('set-cookie'), null, 'no cookie before sign-in');
 });
 
 test('sign in by code: the Quiz email, a cookie only Quiz’s pages send, then a name', async () => {
@@ -208,12 +211,13 @@ test('sign in by code: the Quiz email, a cookie only Quiz’s pages send, then a
 test('“Try this one in Quiz”: signing in on the way there lands on that sign, carried by its slug', async () => {
   const t = await setup();
   const out = await t.quiz(`/signs/seven-twelve`);
-  assert.equal(out.location, `/signin?to=seven-twelve`, 'signed out: sign in first, keeping the sign');
+  assert.equal(out.res.status, 200, 'signed out: the sign and the keypad');
+  assert.ok(out.html.includes('href="/signin?to=seven-twelve"'), 'the header’s Sign in keeps the sign');
   for (const tail of ['/ways', `/found?way=way-${S1}`]) {
     assert.equal(
       (await t.quiz(`/signs/seven-twelve${tail}`)).location,
       `/signin?to=seven-twelve`,
-      `${tail}: signed out, sign in first, keeping the sign`
+      `${tail}: still signed in only; sign in first, keeping the sign`
     );
   }
   const page = await t.quiz(`/signin?to=seven-twelve`);
@@ -257,6 +261,174 @@ test('“Try this one in Quiz”: signing in on the way there lands on that sign
     const blank = await t.quiz(`/signin?to=${encodeURIComponent(to)}`);
     assert.ok(!blank.html.includes('name="to"'), to);
   }
+});
+
+test('signed out: build the math, Send asks for sign-in, and the math comes back after the code and a name', async () => {
+  const t = await setup();
+  const before = (await t.store.allPlayers()).length;
+  const page = await t.quiz('/signs/unsolved-junction');
+  assert.equal(page.res.status, 200);
+  assert.equal(page.res.headers.get('set-cookie'), null, 'no cookie before sign-in');
+  for (const id of ['id="solve"', 'id="pad"', 'id="send"', 'action="/signs/unsolved-junction/solve"']) {
+    assert.ok(page.html.includes(id), id);
+  }
+  assert.ok(decoded(page.html).includes('You’ll sign in to send. Your math is kept.'));
+
+  // Send, signed out: checked as any way is, then the sign-in page carrying the math. Nothing kept.
+  const asked = await t.quiz('/signs/unsolved-junction/solve', { form: { text: '19 − 12 = 7' } });
+  assert.equal(asked.res.status, 200);
+  assert.equal(asked.res.headers.get('set-cookie'), null);
+  assert.ok(decoded(asked.html).includes('Sign in to send it'));
+  assert.ok(asked.html.includes('name="to" value="unsolved-junction"'));
+  assert.ok(decoded(asked.html).includes('name="math" value="19 − 12 = 7"'));
+  assert.equal((await t.store.listWays(S2)).length, 0, 'nothing sent');
+  assert.equal((await t.store.allPlayers()).length, before, 'no player data written');
+
+  const sent = await t.quiz('/signin', {
+    form: { email: 'pat@example.com', to: 'unsolved-junction', math: '19 − 12 = 7' }
+  });
+  assert.equal(sent.res.status, 303);
+  assert.ok(!decodeURIComponent(sent.location!).includes('19'), 'the math never goes in an address');
+  const mailText = t.mailer.sent[0].text + t.mailer.sent[0].subject;
+  assert.ok(!mailText.includes('19 − 12'), 'nor in the email');
+  const codePage = await t.quiz(sent.location!);
+  assert.ok(decoded(codePage.html).includes('Your math is kept.'), 'the code page shows it is kept');
+  const loginId = /name="login" value="([^"]+)"/.exec(codePage.html)![1];
+  const code = /code is (\d{6})/.exec(t.mailer.sent[0].subject)![1];
+
+  // A wrong code keeps the sign-in, and the math with it.
+  const wrong = await t.quiz('/signin/code', {
+    form: { login: loginId, code: code === '000000' ? '111111' : '000000', to: 'unsolved-junction' }
+  });
+  assert.equal(wrong.res.status, 303);
+  assert.ok(decoded((await t.quiz(wrong.location!)).html).includes('Your math is kept.'));
+
+  // The right code: a new player gives a name first, the math carried on in the form.
+  const done = await t.quiz('/signin/code', { form: { login: loginId, code, to: 'unsolved-junction' } });
+  assert.equal(done.res.status, 200, 'drawn in answer to the POST, so the math stays out of the address');
+  assert.ok(decoded(done.html).includes('What should we call you?'));
+  assert.ok(decoded(done.html).includes('name="math" value="19 − 12 = 7"'));
+  const jar = done.res.headers.get('set-cookie')!.split(';')[0];
+
+  // A name that won't do keeps the math too.
+  const blank = await t.quiz('/name', {
+    cookie: jar,
+    form: { name: ' ', to: 'unsolved-junction', math: '19 − 12 = 7' }
+  });
+  assert.equal(blank.res.status, 400);
+  assert.ok(decoded(blank.html).includes('name="math" value="19 − 12 = 7"'));
+
+  const named = await t.quiz('/name', {
+    cookie: jar,
+    form: { name: 'Pat', to: 'unsolved-junction', math: '19 − 12 = 7' }
+  });
+  assert.equal(named.res.status, 200);
+  const landed = decoded(named.html);
+  assert.ok(landed.includes('Your math is back: tap Send'));
+  assert.ok(landed.includes('value="19 − 12 = 7"'), 'in the field the keypad reads, and the no-script form');
+  assert.ok(landed.includes(`history.replaceState(null, '', "/signs/unsolved-junction")`));
+  assert.equal((await t.store.listWays(S2)).length, 0, 'still nothing sent for them');
+
+  // One tap of Send, as a signed-in player.
+  const solved = await t.quiz('/signs/unsolved-junction/solve', { cookie: jar, form: { text: '19 − 12 = 7' } });
+  assert.equal(solved.res.status, 303);
+  assert.match(solved.location!, /^\/signs\/unsolved-junction\/found\?way=/);
+  assert.equal((await t.store.listWays(S2)).length, 1);
+});
+
+test('a player with a name signing in by the link lands on the sign with the math back', async () => {
+  const t = await setup();
+  await t.quiz('/signin', { form: { email: ada.email!, to: 'seven-twelve', math: '19 − 7 = 12' } });
+  const link = /(https:\/\/quiz\.example\.test\/signin\?[^\s]+)/.exec(t.mailer.sent[0].text)![1];
+  assert.ok(!link.includes('math') && !link.includes('19'), 'the link carries the sign, never the math');
+  const opened = await t.quiz(new URL(link).pathname + new URL(link).search);
+  const loginId = /name="login" value="([^"]+)"/.exec(opened.html)![1];
+  const token = /name="token" value="([^"]+)"/.exec(opened.html)![1];
+  const done = await t.quiz('/signin/link', { form: { login: loginId, token, to: 'seven-twelve' } });
+  assert.equal(done.res.status, 200);
+  assert.ok(decoded(done.html).includes('value="19 − 7 = 12"'));
+
+  // Send the email again keeps it; a sign-in for another sign leaves it behind.
+  const first = await t.quiz('/signin', {
+    form: { email: 'sam@example.com', to: 'seven-twelve', math: '19 − 7 = 12' }
+  });
+  const samLogin = /l=([0-9A-Z]{26})/.exec(first.location!)![1];
+  const resent = await t.quiz('/signin', { form: { login: samLogin, again: '1', to: 'seven-twelve' } });
+  assert.match(resent.location!, /&said=sent$/);
+  const newLogin = /l=([0-9A-Z]{26})/.exec(resent.location!)![1];
+  assert.ok(decoded((await t.quiz(resent.location!)).html).includes('Your math is kept.'), 'send again keeps it');
+  const code = /code is (\d{6})/.exec(t.mailer.sent.at(-1)!.subject)![1];
+  const elsewhere = await t.quiz('/signin/code', { form: { login: newLogin, code, to: 'unsolved-junction' } });
+  assert.equal(elsewhere.res.status, 303, 'not the sign the math was for: the usual way on');
+  assert.equal(elsewhere.location, '/name?to=unsolved-junction');
+});
+
+test('carried math is checked: too long, untrue or tampered math is never carried', async () => {
+  const t = await setup();
+  const long = '1+'.repeat(LIMITS.wayMax) + '1 = 7';
+  const tooLong = await t.quiz('/signs/seven-twelve/solve', { form: { text: long } });
+  assert.equal(tooLong.res.status, 400);
+  assert.ok(decoded(tooLong.html).includes('That math is too long to send.'));
+  assert.ok(!tooLong.html.includes('name="math"'));
+  const untrue = await t.quiz('/signs/seven-twelve/solve', { form: { text: '7 + 12 = 20' } });
+  assert.equal(untrue.res.status, 400, 'the same check as any way, said on the sign');
+  assert.ok(!untrue.html.includes('name="math"'));
+  assert.ok(untrue.html.includes('value="7 + 12 = 20"'), 'kept on the sign to change');
+
+  // Posted straight to /signin, math that doesn't fit the sign is dropped, and the sign-in goes on.
+  for (const math of [long, '7 + 12 = 20', '1 + 1 = 2', '<script>x</script>']) {
+    const before = t.mailer.sent.length;
+    const sent = await t.quiz('/signin', { form: { email: 'pat@example.com', to: 'seven-twelve', math } });
+    assert.equal(sent.res.status, 303, math);
+    assert.equal(t.mailer.sent.length, before + 1);
+    const codePage = await t.quiz(sent.location!);
+    assert.ok(!decoded(codePage.html).includes('Your math is kept.'), math);
+  }
+  // The name page re-checks what comes back in its form.
+  const sent = await t.quiz('/signin', { form: { email: 'sam@example.com', to: 'seven-twelve', math: '19 − 7 = 12' } });
+  const loginId = /l=([0-9A-Z]{26})/.exec(sent.location!)![1];
+  const code = /code is (\d{6})/.exec(t.mailer.sent.at(-1)!.subject)![1];
+  const done = await t.quiz('/signin/code', { form: { login: loginId, code, to: 'seven-twelve' } });
+  const jar = done.res.headers.get('set-cookie')!.split(';')[0];
+  const tampered = await t.quiz('/name', { cookie: jar, form: { name: 'Sam', to: 'seven-twelve', math: '1 + 1 = 2' } });
+  assert.equal(tampered.res.status, 303, 'math the sign doesn’t take is dropped');
+  assert.equal(tampered.location, '/signs/seven-twelve');
+});
+
+test('every signed-out POST must come from Quiz’s own pages', async () => {
+  const t = await setup();
+  for (const origin of ['https://evil.example', null]) {
+    const send = await t.quiz('/signs/seven-twelve/solve', { form: { text: '19 − 7 = 12' }, origin });
+    assert.equal(send.res.status, 400, String(origin));
+    assert.ok(!send.html.includes('name="math"'));
+    const signin = await t.quiz('/signin', {
+      form: { email: 'pat@example.com', to: 'seven-twelve', math: '19 − 7 = 12' },
+      origin
+    });
+    assert.equal(signin.res.status, 400, String(origin));
+  }
+  assert.equal(t.mailer.sent.length, 0);
+});
+
+test('without scripts, a signed-out player sends the typed math the same way', async () => {
+  const t = await setup();
+  const page = await t.quiz('/signs/seven-twelve');
+  assert.match(page.html, /<form id="solve"[^>]*method="post" action="\/signs\/seven-twelve\/solve"/);
+  assert.match(page.html, /<input id="text" class="field" name="text"/);
+  const asked = await t.quiz('/signs/seven-twelve/solve', { form: { text: ' 19 − 7 = 12 ' } });
+  assert.equal(asked.res.status, 200);
+  assert.ok(decoded(asked.html).includes('name="math" value="19 − 7 = 12"'), 'trimmed, as a way is');
+  assert.ok(!asked.html.includes('<script>document'), 'the sign-in page needs no script');
+});
+
+test('signed out, Next deals any shown sign with numbers, and the end needs no account', async () => {
+  const t = await setup();
+  const seen = new Set<string>();
+  for (let i = 0; i < 20; i++) seen.add((await t.quiz('/next')).location!);
+  assert.deepEqual([...seen].sort(), ['/signs/seven-twelve', '/signs/unsolved-junction']);
+  assert.equal((await t.quiz('/next', { as: 'pnameless00' })).location, '/name', 'a nameless player names first');
+  assert.equal((await t.quiz('/signs/seven-twelve', { as: 'pnameless00' })).location, '/name?to=seven-twelve');
+  for (const path of ['/solved', '/profile']) assert.equal((await t.quiz(path)).location, '/signin', path);
 });
 
 test('the email’s link opens a page that changes nothing; its button signs in', async () => {
@@ -396,12 +568,12 @@ test('a player’s own signs aren’t drawn, a nameless player gives a name firs
 
 test('a bad cookie is cleared and sends you to sign in; signing out ends the session', async () => {
   const t = await setup();
-  const stale = await t.quiz('/next', { cookie: 'rsm_quiz=rsm_01JBBBBBBBBBBBBBBBBBBBBBBB_nope' });
+  const stale = await t.quiz('/solved', { cookie: 'rsm_quiz=rsm_01JBBBBBBBBBBBBBBBBBBBBBBB_nope' });
   assert.equal(stale.location, '/signin');
   assert.match(stale.res.headers.get('set-cookie')!, /rsm_quiz=;.*Max-Age=0/);
   const out = await t.quiz('/signout', { as: 'ben', form: {} });
   assert.equal(out.location, '/');
-  assert.equal((await t.quiz('/next', { as: 'ben' })).location, '/signin');
+  assert.equal((await t.quiz('/solved', { as: 'ben' })).location, '/signin');
 });
 
 test('draw leaves out the sign just skipped when another is left', () => {
@@ -789,7 +961,7 @@ test('Delete my account: asked first, then everything goes, the newsletter too, 
   assert.deepEqual(await t.store.allSigns(), [], 'her signs went with her');
   assert.ok(!t.newsletter.list.has(ada.email!), 'she left the newsletter');
   assert.ok(decoded((await t.quiz('/deleted')).html).includes('Your account is deleted'));
-  assert.equal((await t.quiz('/next', { as: 'ada' })).location, '/signin', 'her session is gone');
+  assert.equal((await t.quiz('/solved', { as: 'ada' })).location, '/signin', 'her session is gone');
 });
 
 test('every profile change must come from Quiz’s own pages', async () => {

@@ -124,6 +124,12 @@ export type Login = {
   codeHash: string;
   /** Wrong codes so far. */
   attempts: number;
+  /**
+   * Quiz only: the math a signed-out player built on a sign before they were asked to sign in (`to`,
+   * the sign's slug or id, and the text, checked against that sign and at most `LIMITS.wayMax`
+   * long), kept with the sign-in so it comes back on the sign once they are in. Never logged.
+   */
+  carry?: { to: string; text: string };
   createdAt: string;
   /** Epoch seconds; the table's time-to-live attribute. */
   expiresAt: number;
