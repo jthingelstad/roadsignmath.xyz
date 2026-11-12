@@ -243,17 +243,27 @@ export const POST_JS = `(() => {
     say(words.join(' '));
     save();
   };
+  // Photos still being made ready or sent: the form waits for them, so none is left out.
+  let sending = 0;
+  form.addEventListener('submit', (e) => {
+    if (!sending) return;
+    e.preventDefault();
+    say('Wait a moment: a photo is still being sent.');
+  });
   if (file) {
     file.multiple = true;
     if (add) add.hidden = true;
     file.addEventListener('change', async () => {
       const picked = Array.from(file.files || []).slice(0, Math.max(0, MOST - ids().length));
       file.value = '';
+      sending += picked.length;
       for (let i = 0; i < picked.length; i++) {
         try {
           await one(picked[i], i + 1, picked.length);
         } catch (e) {
           say(e.message);
+        } finally {
+          sending -= 1;
         }
       }
     });
@@ -408,7 +418,8 @@ export const POST_JS = `(() => {
   if (kept && typeof kept === 'object') {
     for (const [name, value] of Object.entries(kept)) {
       const el = form.elements.namedItem(name);
-      if (!el || typeof value !== 'string' || el.type === 'file' || el.length) continue;
+      // A radio group comes back as a list; a select has a length too, and is restored.
+      if (!el || typeof value !== 'string' || el.type === 'file' || (window.RadioNodeList && el instanceof RadioNodeList)) continue;
       if (el.type === 'checkbox') el.checked = value === '1';
       else el.value = value;
     }
