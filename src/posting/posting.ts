@@ -31,6 +31,13 @@ const DAY = 86400;
 const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const ROLES: FinderRole[] = ['found', 'took_photo', 'spotted'];
 const NUMBER = /^\d*\.?\d+$|^\d+\.$/;
+/** The postal codes a sign's state can be: the fifty states, DC, and the five inhabited territories. */
+export const US_STATES = new Set(
+  (
+    'AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY ' +
+    'NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY DC PR GU VI AS MP'
+  ).split(' ')
+);
 /** Slugs a sign can't have, because a route under /signs/ already uses the word. */
 const RESERVED_SLUGS = new Set(['complex', 'near', 'popular', 'similar']);
 
@@ -69,7 +76,21 @@ export async function readPhoto(
   const bytes = Buffer.from(await body());
   if (bytes.length > LIMITS.photoBytes) fail('too_large', tooLarge);
   if (!bytes.length) fail('bad_request', 'The photo is empty');
+  // The bytes must be one of the three kinds too, whatever the header says: the decoder reads
+  // many more (SVG, TIFF, GIF...), and none of those is a photo we take. A JPEG sent as a PNG is
+  // still a JPEG we take; every photo is kept as a JPEG.
+  if (!photoKind(bytes)) fail('bad_request', 'That photo couldn’t be read');
   return bytes;
+}
+
+/** What the photo's first bytes say it is: a JPEG, a PNG, a WebP, or none of them. */
+export function photoKind(bytes: Buffer): 'jpeg' | 'png' | 'webp' | undefined {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'jpeg';
+  if (bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'png';
+  if (bytes.subarray(0, 4).toString('latin1') === 'RIFF' && bytes.subarray(8, 12).toString('latin1') === 'WEBP') {
+    return 'webp';
+  }
+  return undefined;
 }
 
 /** Keeps an uploaded photo, at both sizes and without its metadata, until it is posted. */
@@ -160,7 +181,10 @@ function place(raw: unknown): Place {
     if (typeof p.state !== 'string' || !/^[A-Z]{2}$/.test(p.state)) {
       fail('bad_request', 'place.state is a two-letter state, like "MN"');
     }
-    out.state = p.state as string;
+    // Two capitals that name no state or territory are left off rather than refused: the app
+    // takes the code from the map's address, and a post is never lost over it.
+    if (US_STATES.has(p.state as string)) out.state = p.state as string;
+    else console.info({ event: 'place_state_dropped', state: p.state });
   }
   if (absent(p.lat) !== absent(p.lng)) fail('bad_request', 'place needs both lat and lng, or neither');
   if (!absent(p.lat)) {
