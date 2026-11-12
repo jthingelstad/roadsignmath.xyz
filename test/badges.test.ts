@@ -44,10 +44,10 @@ const pinned = (lat: number, lng: number, approximate = false): Partial<Sign> =>
   place: { label: 'Somewhere', state: 'MN', lat, lng, approximate }
 });
 
-test('the catalog has 29 badges, five of them secret, each with a road sign to draw', () => {
-  assert.equal(BADGES.length, 29);
+test('the catalog has 28 badges, five of them secret, each with a road sign to draw', () => {
+  assert.equal(BADGES.length, 28);
   assert.equal(BADGES.filter((b) => b.secret).length, 5);
-  assert.equal(new Set(BADGES.map((b) => b.id)).size, 29);
+  assert.equal(new Set(BADGES.map((b) => b.id)).size, 28);
   for (const b of BADGES) assert.ok(b.mark || b.steps, b.id);
 });
 
@@ -339,12 +339,10 @@ test('Whole Keypad: + − × ÷ √ ^ ! across ways; all but the minus is not en
   assert.equal(all.get('whole-keypad')?.on, '2026-04-01');
 });
 
-test('Every Number: a way using all of a sign’s three or more numbers', () => {
+test('Every Number is retired: using every number is the rule, not a badge (Jamie, 2026-11-12)', () => {
+  assert.ok(!BADGES.some((b) => b.id === 'every-number'));
   const three = s();
-  assert.ok(has(ada.id, 'every-number', [three], [w(three, '7 + 12 = 19')]));
-  assert.ok(!has(ada.id, 'every-number', [three], [w(three, '7 × 1 = 7')]));
-  const two = s({ numbers: [{ value: '7' }, { value: '7' }] });
-  assert.ok(!has(ada.id, 'every-number', [two], [w(two, '7 = 7')]), 'two numbers are too few');
+  assert.ok(!has(ada.id, 'every-number', [three], [w(three, '7 + 12 = 19')]));
 });
 
 test('Half Mile: a decimal, or a division that comes to a fraction; whole numbers are not', () => {

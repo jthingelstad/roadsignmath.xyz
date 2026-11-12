@@ -6,7 +6,7 @@
 // finder who plays. A way's badges (the math) go to whoever wrote it. Only shown signs count,
 // and only the ways on them.
 
-import { check, isFraction, numbersNotOnSign, type Node } from './equation.ts';
+import { check, isFraction, type Node } from './equation.ts';
 import { miles } from './geo.ts';
 import type { Sign, Way } from './types.ts';
 
@@ -116,13 +116,6 @@ export const BADGES: Badge[] = [
     name: 'Whole Keypad',
     how: 'Use every one of + − × ÷ √ ^ ! at least once, across your ways.',
     mark: '+−×÷'
-  },
-  {
-    id: 'every-number',
-    shelf: 'math',
-    name: 'Every Number',
-    how: 'Write a way that uses every number on a sign with at least three.',
-    mark: '123'
   },
   {
     id: 'half-mile',
@@ -422,8 +415,6 @@ export function earnedBadges(
     for (const op of ops) used.add(op as string);
     if (KEYPAD.every((op) => used.has(op))) earn('whole-keypad', sign, on);
 
-    const onSign = sign.numbers.map((n) => n.value);
-    if (onSign.length >= 3 && numbersNotOnSign(onSign, way.numbers).length === 0) earn('every-number', sign, on);
     const sides = result.ok ? result.sides : [];
     if (way.numbers.some((n) => n.includes('.')) || sides.some(hasFraction)) earn('half-mile', sign, on);
     const value = exactValue(way);

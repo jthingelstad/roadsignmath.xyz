@@ -261,9 +261,9 @@ test('the badge catalog names every badge but the secret ones', async () => {
   const { get } = await setup();
   const { res, body } = await get('/api/v1/badges');
   assert.equal(res.status, 200);
-  // The 29 badges, then this year's on the years shelf: a past year's is earned, never listed.
+  // The 28 badges, then this year's on the years shelf: a past year's is earned, never listed.
   const year = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric' }).format(new Date());
-  assert.equal(body.badges.length, 30);
+  assert.equal(body.badges.length, 29);
   assert.deepEqual(body.badges.at(-1), {
     id: `year-${year}`,
     shelf: 'years',
@@ -295,7 +295,7 @@ test('a player’s badges come with the sign and day that earned each, and no co
   const { body } = await get('/api/v1/players/ada');
   assert.deepEqual(
     body.badges.map((b: Json) => b.id),
-    ['first-sign', 'company', 'every-number', 'year-2025', 'year-2026']
+    ['first-sign', 'company', 'year-2025', 'year-2026']
   );
   assert.deepEqual(body.badges[0], {
     id: 'first-sign',
@@ -318,6 +318,6 @@ test('a player’s badges come with the sign and day that earned each, and no co
   assert.deepEqual(
     ben.body.badges.map((b: Json) => b.id),
     // Ben's way on Ada's sign is its second: Cracked It.
-    ['first-sign', 'second-opinion', 'cracked-it', 'every-number', 'year-2026']
+    ['first-sign', 'second-opinion', 'cracked-it', 'year-2026']
   );
 });
