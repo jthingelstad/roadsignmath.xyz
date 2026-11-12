@@ -423,10 +423,12 @@ test('the same way sent twice at once is added once, and every new way counts', 
   const add = (text: string, as: string) => t.call('POST', `/signs/${posted.id}/ways`, { as, body: { text } });
   const same = await Promise.all([add('7 + 12 = 19', 'ben'), add('7+12=19', 'cy')]);
   assert.deepEqual(same.map((a) => a.res.status).sort(), [201, 409]);
+  const turned = await Promise.all([add('12 − 19 = −7', 'ben'), add('−7 = 12 − 19', 'cy')]);
+  assert.deepEqual(turned.map((a) => a.res.status).sort(), [201, 409], 'the same way in another order');
   await Promise.all([add('19 − 12 = 7', 'ben'), add('19 − 7 = 12', 'cy')]);
   const sign = (await t.store.getSign(posted.id))!;
-  assert.equal(sign.wayCount, 3);
-  assert.equal((await t.store.listWays(posted.id)).length, 3);
+  assert.equal(sign.wayCount, 4);
+  assert.equal((await t.store.listWays(posted.id)).length, 4);
   assert.ok(sign.firstWay);
 });
 

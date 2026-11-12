@@ -19,8 +19,11 @@ import {
   type SignChanges,
   type Store
 } from './store.ts';
+import { sameWayKey } from '../domain/equation.ts';
 
 const copy = <T>(value: T): T => structuredClone(value);
+/** The same way in any order, beside the exact math in `wayTexts`. */
+const sameKey = (way: Way): string => `${way.signId}/same:${sameWayKey(way.text) ?? way.text}`;
 
 export class MemoryStore implements Store {
   private signs = new Map<string, Sign>();
@@ -100,20 +103,23 @@ export class MemoryStore implements Store {
   }
 
   async deleteWay(way: Way): Promise<void> {
-    const key = `${way.signId}/${way.text}`;
-    if (this.wayTexts.get(key) === way.id) this.wayTexts.delete(key);
+    for (const key of [`${way.signId}/${way.text}`, sameKey(way)])
+      if (this.wayTexts.get(key) === way.id) this.wayTexts.delete(key);
     this.ways.set(
       way.signId,
       (this.ways.get(way.signId) ?? []).filter((w) => w.id !== way.id)
     );
   }
 
-  async addWay(way: Way): Promise<'added' | 'taken' | 'gone'> {
+  async addWay(way: Way): Promise<'added' | 'taken' | 'reordered' | 'gone'> {
     const sign = this.signs.get(way.signId);
     const held = this.wayTexts.get(`${way.signId}/${way.text}`);
     if (held !== undefined && held !== way.id) return 'taken';
+    const same = this.wayTexts.get(sameKey(way));
+    if (same !== undefined && same !== way.id) return 'reordered';
     if (!sign) return 'gone';
     this.wayTexts.set(`${way.signId}/${way.text}`, way.id);
+    this.wayTexts.set(sameKey(way), way.id);
     await this.putWay(way);
     sign.wayCount = (sign.wayCount ?? 0) + 1;
     sign.firstWay ??= { text: way.text, value: way.value, playerId: way.playerId };

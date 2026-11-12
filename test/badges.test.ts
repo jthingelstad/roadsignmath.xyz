@@ -105,6 +105,30 @@ test('Tag Team: the first way on someone else’s unsolved sign, earned by its f
   assert.ok(!has(ada.id, 'tag-team', [spotted], [byFinder]));
 });
 
+test('Tag Team comes from the earliest way that earns it, as poster or solver', () => {
+  const january1 = s({ foundOn: '2026-01-01', postedAt: '2026-01-01T18:00:00.000Z' });
+  const january2 = s({ foundOn: '2026-01-02', postedAt: '2026-01-02T18:00:00.000Z' });
+  const lateSolve = w(january1, '7 + 12 = 19', { playerId: ben.id, createdAt: '2026-02-02T09:00:00.000Z' });
+  const earlySolve = w(january2, '7 + 12 = 19', { playerId: ben.id, createdAt: '2026-01-03T09:00:00.000Z' });
+  const asPoster = earned(ada.id, [january1, january2], [lateSolve, earlySolve]).get('tag-team');
+  assert.equal(asPoster?.sign.id, january2.id, 'the sign solved first, not the one found first');
+  assert.equal(asPoster?.on, '2026-01-03');
+
+  // Ada solves Ben's sign on January 5, after Ben solved hers on February 2: the solve wins.
+  const bens = s({
+    postedAt: '2026-01-01T19:00:00.000Z',
+    postedBy: ben.id,
+    finders: [{ playerId: ben.id, name: ben.name, role: 'found' }]
+  });
+  const adaSolves = w(bens, '7 + 12 = 19', { createdAt: '2026-01-05T09:00:00.000Z' });
+  const both = earned(ada.id, [january1, bens], [lateSolve, adaSolves]).get('tag-team');
+  assert.equal(both?.sign.id, bens.id);
+  assert.equal(both?.on, '2026-01-05');
+  // And the other way round: her own sign solved first wins over her later solve.
+  const sooner = { ...lateSolve, createdAt: '2026-01-04T09:00:00.000Z' };
+  assert.equal(earned(ada.id, [january1, bens], [sooner, adaSolves]).get('tag-team')?.sign.id, january1.id);
+});
+
 test('Cracked It: the second way on a sign, by someone who didn’t post it or write its first', () => {
   const sign1 = s();
   const posted = w(sign1, '7 + 12 = 19', { createdAt: sign1.postedAt });
@@ -173,7 +197,11 @@ test('Company: another player’s way on a sign you posted; your own ways bring 
 });
 
 test('Company: a finder named on someone else’s sign earns it too, but not from the math posted with it', () => {
-  const bens = s({ postedBy: ben.id, finders: [{ playerId: ada.id, name: ada.name, role: 'spotted' }] });
+  const bens = s({
+    postedAt: '2026-01-01T19:00:00.000Z',
+    postedBy: ben.id,
+    finders: [{ playerId: ada.id, name: ada.name, role: 'spotted' }]
+  });
   const posted = w(bens, '7 + 12 = 19', { playerId: ben.id, createdAt: bens.postedAt });
   assert.ok(!has(ada.id, 'company', [bens], [posted]), 'the sign’s own math is not company');
   const later = w(bens, '19 − 12 = 7', { playerId: ben.id, createdAt: '2026-03-04T18:00:00.000Z' });
@@ -249,7 +277,11 @@ test('Years: one for each year a sign was found, earned by its first sign that y
 test('Years come with finding: a finder named on the sign earns it, a way on it doesn’t', () => {
   const spotted = s({ postedBy: ben.id, finders: [{ playerId: ada.id, name: ada.name, role: 'spotted' }] });
   assert.ok(has(ada.id, 'year-2026', [spotted]));
-  const bens = s({ postedBy: ben.id, finders: [{ playerId: ben.id, name: ben.name, role: 'found' }] });
+  const bens = s({
+    postedAt: '2026-01-01T19:00:00.000Z',
+    postedBy: ben.id,
+    finders: [{ playerId: ben.id, name: ben.name, role: 'found' }]
+  });
   assert.ok(!has(ada.id, 'year-2026', [bens], [w(bens, '7 × 12 = 84')]));
   assert.ok(!has(ada.id, 'year-2026', [s({ visibility: 'held' })]));
 });

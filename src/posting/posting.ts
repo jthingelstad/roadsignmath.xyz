@@ -441,6 +441,7 @@ export async function addWay(
     createdAt: new Date(ms).toISOString()
   });
   if (added === 'taken') fail('conflict', taken);
+  if (added === 'reordered') fail('conflict', REORDERED);
   if (added === 'gone') fail('not_found', 'No sign by that id');
   return store.listWays(sign.id);
 }

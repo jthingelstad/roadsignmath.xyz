@@ -329,18 +329,22 @@ export function earnedBadges(
   for (const { way, sign, on } of mine) {
     if (sign.postedBy !== playerId) earn('second-opinion', sign, on);
     const onSign = waysOn(sign);
-    if (onSign[0]?.id === way.id && solvedForThem(sign, onSign)) earn('tag-team', sign, on);
     if (onSign[1]?.id === way.id && crackedIt(sign, onSign)) earn('cracked-it', sign, on);
     if (onSign.filter((w) => w.playerId === playerId)[1]?.id === way.id) earn('another-way', sign, on);
   }
-  // Tag Team comes to the poster too, from the first way someone else wrote on their unsolved sign.
-  for (const sign of theirs) {
-    const onSign = waysOn(sign);
-    const first = onSign[0];
-    if (sign.postedBy === playerId && first && !leftOut.has(first.playerId) && solvedForThem(sign, onSign)) {
-      earn('tag-team', sign, wayDay(first, sign));
-    }
-  }
+  // Tag Team: the first way on an unsolved sign, written by someone not credited on it. It comes
+  // to that solver and to the poster, from whichever such way was written first, in either role.
+  const tagTeam = shown
+    .map((sign) => ({ sign, first: waysOn(sign)[0] }))
+    .filter(
+      ({ sign, first }) =>
+        first &&
+        !leftOut.has(first.playerId) &&
+        (first.playerId === playerId || sign.postedBy === playerId) &&
+        solvedForThem(sign, waysOn(sign))
+    )
+    .sort((a, b) => byWritten(a.first!, b.first!))[0];
+  if (tagTeam) earn('tag-team', tagTeam.sign, wayDay(tagTeam.first!, tagTeam.sign));
   // Company comes to everyone credited on a sign: whoever posted it and whoever is named as finding
   // or spotting it (Jamie, 2026-10-31). The way posted with the sign is its own math, so it never
   // brings company, even to a finder who didn't write it.

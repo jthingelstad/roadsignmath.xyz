@@ -266,6 +266,8 @@ for (const [name, make] of kinds) {
       const first = way('S1', { id: 'w1', playerId: ada.id, createdAt: '2026-02-01T00:00:00.000Z' });
       assert.equal(await store.addWay(first), 'added');
       assert.equal(await store.addWay({ ...first, id: 'w2' }), 'taken');
+      const turned = { ...first, id: 'w2', text: '12 + 7 = 19' };
+      assert.equal(await store.addWay(turned), 'reordered', 'the same way in another order');
       const other = way('S1', {
         id: 'w3',
         playerId: ben.id,
@@ -281,6 +283,8 @@ for (const [name, make] of kinds) {
         (await store.listWays('S1')).map((w) => w.id),
         ['w1', 'w3']
       );
+      await store.deleteWay(first);
+      assert.equal(await store.addWay(turned), 'added', 'free again once its way goes');
       assert.equal(await store.addWay(way('gone', { id: 'w4' })), 'gone');
       assert.equal(await store.getSign('gone'), undefined, 'a deleted sign isn’t made again');
       assert.deepEqual(await store.listWays('gone'), []);
@@ -397,11 +401,13 @@ test('DynamoStore adds a way in one transaction of the documented shape', async 
   const items = sent.input.TransactItems as Record<string, Record<string, unknown>>[];
   assert.deepEqual(
     items.map((i) => Object.keys(i)[0]),
-    ['Put', 'Put', 'Update']
+    ['Put', 'Put', 'Put', 'Update']
   );
-  const [math, row, count] = items.map((i) => Object.values(i)[0]);
+  const [math, same, row, count] = items.map((i) => Object.values(i)[0]);
   assert.match(String((math.Item as Record<string, string>).sk), /^MATH#[0-9a-f]{64}$/);
   assert.equal(math.ConditionExpression, 'attribute_not_exists(pk) OR wayId = :id');
+  assert.match(String((same.Item as Record<string, string>).sk), /^SAME#[0-9a-f]{64}$/);
+  assert.equal(same.ConditionExpression, 'attribute_not_exists(pk) OR wayId = :id');
   assert.equal((row.Item as Record<string, string>).sk, 'WAY#2026-01-10T12:00:00.000Z#w1');
   assert.deepEqual(count.Key, { pk: 'SIGNS', sk: 'SIGN#S1' });
   assert.equal(count.UpdateExpression, 'ADD wayCount :one SET firstWay = if_not_exists(firstWay,:first)');

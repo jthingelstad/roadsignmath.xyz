@@ -81,6 +81,7 @@ and filtered in memory; at this size that is cheaper and simpler than indexes.
 | `HANDLE#<handle>` | `HANDLE` | the player id holding a handle |
 | `SLUG#<slug>` | `SLUG` | the sign id holding a slug |
 | `SIGN#<signId>` | `MATH#<sha256>` | the way id holding that math on the sign |
+| `SIGN#<signId>` | `SAME#<sha256>` | the way id holding that way in any order |
 | `SIGN#<signId>` | `REPORT#<playerId>` | a player's report of that sign |
 | `SIGN#<signId>` | `DUPLICATE#<playerId>` | a player's word that it is the same as another sign |
 | `PLAYER#<playerId>` | `SESSION#<sha256>` | a signed-in app (expires) |

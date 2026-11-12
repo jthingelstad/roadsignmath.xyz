@@ -9,6 +9,7 @@
 //   HANDLE#<handle>     HANDLE                      the player id holding a handle
 //   SLUG#<slug>         SLUG                        the sign id holding a slug
 //   SIGN#<signId>       MATH#<sha256>               the way id holding that math on the sign
+//   SIGN#<signId>       SAME#<sha256>               the way id holding that way in any order
 //   SIGN#<signId>       REPORT#<playerId>           a player's report of that sign
 //   SIGN#<signId>       DUPLICATE#<playerId>        a player's word that it is the same as another sign
 //   PLAYER#<playerId>   SESSION#<sha256>            a signed-in app (expires)
@@ -47,13 +48,22 @@ import type {
   Upload,
   Way
 } from '../domain/types.ts';
-import { emailHash, nowSeconds, wayHash, type PlayerChanges, type SignChanges, type Store } from './store.ts';
+import {
+  emailHash,
+  nowSeconds,
+  sameWayHash,
+  wayHash,
+  type PlayerChanges,
+  type SignChanges,
+  type Store
+} from './store.ts';
 
 export const KEY_PREFIXES = [
   'SIGNS',
   'SIGN#',
   'WAY#',
   'MATH#',
+  'SAME#',
   'PLAYERS',
   'PLAYER#',
   'EMAIL#',
@@ -227,9 +237,10 @@ export class DynamoStore implements Store {
   async deleteWay(way: Way): Promise<void> {
     await this.delete(`SIGN#${way.signId}`, `WAY#${way.createdAt}#${way.id}`);
     await this.unclaim(`SIGN#${way.signId}`, `MATH#${wayHash(way.text)}`, 'wayId', way.id);
+    await this.unclaim(`SIGN#${way.signId}`, `SAME#${sameWayHash(way.text)}`, 'wayId', way.id);
   }
 
-  async addWay(way: Way): Promise<'added' | 'taken' | 'gone'> {
+  async addWay(way: Way): Promise<'added' | 'taken' | 'reordered' | 'gone'> {
     const first = { text: way.text, value: way.value, playerId: way.playerId };
     try {
       await this.client.send(
@@ -239,6 +250,16 @@ export class DynamoStore implements Store {
               Put: {
                 TableName: this.table,
                 Item: { pk: `SIGN#${way.signId}`, sk: `MATH#${wayHash(way.text)}`, kind: 'math', wayId: way.id },
+                ConditionExpression: 'attribute_not_exists(pk) OR wayId = :id',
+                ExpressionAttributeValues: { ':id': way.id }
+              }
+            },
+            {
+              // The same way in another order: ways on the sign before this row existed are
+              // checked by posting, so this only has to stop two new ones at once.
+              Put: {
+                TableName: this.table,
+                Item: { pk: `SIGN#${way.signId}`, sk: `SAME#${sameWayHash(way.text)}`, kind: 'same', wayId: way.id },
                 ConditionExpression: 'attribute_not_exists(pk) OR wayId = :id',
                 ExpressionAttributeValues: { ':id': way.id }
               }
@@ -266,7 +287,8 @@ export class DynamoStore implements Store {
       if ((err as Error).name !== 'TransactionCanceledException') throw err;
       const reasons = (err as { CancellationReasons?: { Code?: string }[] }).CancellationReasons ?? [];
       if (reasons[0]?.Code === 'ConditionalCheckFailed') return 'taken';
-      if (reasons[2]?.Code === 'ConditionalCheckFailed') return 'gone';
+      if (reasons[1]?.Code === 'ConditionalCheckFailed') return 'reordered';
+      if (reasons[3]?.Code === 'ConditionalCheckFailed') return 'gone';
       throw err;
     }
   }
