@@ -318,3 +318,35 @@ test('remove-way --to live takes the way and its co-finds off, keeps the sign in
   assert.deepEqual(s1.firstWay, { text: '19 − 12 = 7', value: '7', playerId: cara.id });
   assert.equal((await store.listWays(S3)).length, 1, 'other signs keep their ways');
 });
+
+test('remove-way keeps the count right when a way is added while it runs', async () => {
+  const { store, deps } = await setup();
+  const [first, second] = await store.listWays(S1);
+  // A solve lands between remove-way reading the ways and writing the sign's count.
+  const update = store.updateSign.bind(store);
+  let raced = false;
+  store.updateSign = async (id, changes) => {
+    if (!raced) {
+      raced = true;
+      await store.addWay(
+        way(S1, {
+          id: 'way-ben-on-s1',
+          playerId: ben.id,
+          text: '7 × 12 = 84',
+          value: '84',
+          createdAt: '2026-11-12T12:00:00.000Z'
+        })
+      );
+    }
+    return update(id, changes);
+  };
+  await runOwner(deps, 'remove-way', 'exit-seven', 'live', { way: second.id });
+  const left = await store.listWays(S1);
+  assert.deepEqual(
+    left.map((w) => w.id),
+    [first.id, 'way-ben-on-s1']
+  );
+  const s1 = (await store.getSign(S1))!;
+  assert.equal(s1.wayCount, 2);
+  assert.equal(s1.firstWay?.text, first.text);
+});

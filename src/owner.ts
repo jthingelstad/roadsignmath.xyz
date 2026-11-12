@@ -107,6 +107,27 @@ async function clearEdge(deps: OwnerDeps, out: string[]): Promise<void> {
 }
 
 /**
+ * Sets the sign's way count and first way from its ways. A way added between the read and the
+ * write (`addWay` takes no lease) would be overwritten, so the ways are read again after the
+ * write, and written again until the two reads agree.
+ */
+async function settleWays(store: Store, signId: string): Promise<void> {
+  let ways = await store.listWays(signId);
+  for (let tries = 0; tries < 5; tries++) {
+    const first = ways[0];
+    const written = await store.updateSign(signId, {
+      wayCount: ways.length,
+      firstWay: first ? { text: first.text, value: first.value, playerId: first.playerId } : null
+    });
+    if (!written) refuse('The sign is gone');
+    const again = await store.listWays(signId);
+    if (again.map((w) => w.id).join() === ways.map((w) => w.id).join()) return;
+    ways = again;
+  }
+  refuse('Ways kept changing on this sign: run it again to set its count');
+}
+
+/**
  * Runs one owner command and returns what it says, line by line. `check` writes nothing. Throws
  * `OwnerRefused` when the target isn't there or can't be changed now.
  */
@@ -207,15 +228,7 @@ export async function runOwner(
         for (const coFind of await store.listCoFinds(sign.id)) {
           if (coFind.wayId === way.id) await store.deleteCoFind(coFind);
         }
-        const left = await store.listWays(sign.id);
-        const first = left[0];
-        if (
-          !(await store.updateSign(sign.id, {
-            wayCount: left.length,
-            firstWay: first ? { text: first.text, value: first.value, playerId: first.playerId } : null
-          }))
-        )
-          refuse('The sign is gone');
+        await settleWays(store, sign.id);
         out.push('Removed.');
       });
     });
