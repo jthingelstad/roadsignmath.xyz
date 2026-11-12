@@ -4,7 +4,7 @@
 // Plain SVG, no script.
 
 import type { FC } from 'hono/jsx';
-import type { earnedBadgeView } from '../api/views.ts';
+import { signPath, type earnedBadgeView } from '../api/views.ts';
 import { shortDay } from './layout.tsx';
 
 export type BadgeView = ReturnType<typeof earnedBadgeView>;
@@ -135,7 +135,7 @@ const Earned: FC<{ badge: BadgeView }> = ({ badge }) => {
   const name = badge.step === null ? badge.name : `${badge.name}: ${badge.step}`;
   return (
     <li>
-      <a href={`/signs/${badge.sign.slug}`}>
+      <a href={signPath(badge.sign)}>
         <svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true">
           <Art badge={badge} />
         </svg>
@@ -156,7 +156,7 @@ export const YearPlates: FC<{ badges: BadgeView[] }> = ({ badges }) => (
   <ul class="years">
     {badges.map((b) => (
       <li>
-        <a href={`/signs/${b.sign.slug}`} title={`${b.sign.title}, found ${shortDay(b.earned_on)}`}>
+        <a href={signPath(b.sign)} title={`${b.sign.title}, found ${shortDay(b.earned_on)}`}>
           <svg viewBox="0 0 64 64" width="72" height="72" role="img" aria-label={b.name}>
             <Art badge={b} />
           </svg>

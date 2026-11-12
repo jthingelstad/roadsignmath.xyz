@@ -5,7 +5,7 @@
 // signs found (Jamie, 2026-11-11), newest player first among equals; no rank or place is shown.
 
 import type { Hono } from 'hono';
-import { byNewest, isPublic, playerStats, type People, type Urls } from '../api/views.ts';
+import { byNewest, isPublic, playerPath, playerStats, type People, type Urls } from '../api/views.ts';
 import { earnedBadges } from '../domain/badges.ts';
 import { texOf } from '../domain/equation.ts';
 import type { Player, Sign, Way } from '../domain/types.ts';
@@ -130,7 +130,7 @@ export function mountPlayers(
               <ul class="people">
                 {rows.map(({ player, stats, since, newest }) => (
                   <li>
-                    <a class="pc" href={`/players/${player.handle}`}>
+                    <a class="pc" href={playerPath(player)}>
                       <span class="who">
                         <Avatar name={player.name} color={player.avatarColor} photo={player.avatar} size={72} />
                         <span>

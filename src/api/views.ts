@@ -12,10 +12,29 @@ export type Urls = {
   quiz?: string;
 };
 
-/** A sign's page on the site, and where its hearts are counted. */
-export const signPath = (sign: Sign): string => `/signs/${sign.slug}`;
-export const signUrl = (urls: Urls, sign: Sign): string => `${urls.site}${signPath(sign)}`;
-export const playerUrl = (urls: Urls, player: Player): string => `${urls.site}/players/${player.handle}`;
+// Pages are addressed by id, exactly as stored (Jamie, 2026-11-12: "anchor them on id's and not
+// names"; "just use ID"). The old addresses by slug and handle go to these with a 301.
+
+/** A sign's page on the site: `/signs/<id>`. */
+export const signPath = (sign: Pick<Sign, 'id'>): string => `/signs/${sign.id}`;
+export const signUrl = (urls: Urls, sign: Pick<Sign, 'id'>): string => `${urls.site}${signPath(sign)}`;
+/** A player's page on the site: `/players/<id>`. Their feeds are beside it. */
+export const playerPath = (player: Pick<Player, 'id'>): string => `/players/${player.id}`;
+export const playerUrl = (urls: Urls, player: Pick<Player, 'id'>): string => `${urls.site}${playerPath(player)}`;
+
+/**
+ * Where a sign's hearts are counted on Tinylytics: its old address by slug, the path the site's
+ * kudos buttons and the app's hearts have always used. Never change it, or every heart count
+ * starts again at none.
+ */
+export const heartPath = (sign: Pick<Sign, 'slug'>): string => `/signs/${sign.slug}`;
+
+/**
+ * A sign's id in the feeds: its old address by slug, as every item has carried it from the start.
+ * Never change it, or micro.blog imports every sign again and cross-posts each one once more.
+ */
+export const feedItemId = (urls: Urls, sign: Pick<Sign, 'slug'>): string => `${urls.site}/signs/${sign.slug}`;
+
 export const photoUrl = (urls: Urls, photoId: string, size: 'large' | 'thumb'): string =>
   `${urls.site}/p/${photoId}/${size}.jpg`;
 /** A held or hidden sign's photo, which only its poster can fetch, with their token. */
@@ -42,7 +61,7 @@ export type People = Map<string, Player>;
 export type HeartView = { counts?: Map<string, number>; mine?: Set<string> };
 
 const heartsOf = (hearts: HeartView, sign: Sign) => ({
-  hearts: hearts.counts ? (hearts.counts.get(signPath(sign)) ?? 0) : null,
+  hearts: hearts.counts ? (hearts.counts.get(heartPath(sign)) ?? 0) : null,
   hearted: hearts.mine ? hearts.mine.has(sign.id) : null
 });
 

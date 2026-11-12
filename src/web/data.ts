@@ -10,7 +10,16 @@ import { earnedBadges } from '../domain/badges.ts';
 import { texOf } from '../domain/equation.ts';
 import type { Player, Sign, Way } from '../domain/types.ts';
 import type { Store } from '../store/store.ts';
-import { byNewest, earnedBadgeView, isPublic, photoUrl, playerStats, signUrl, type Urls } from '../api/views.ts';
+import {
+  byNewest,
+  earnedBadgeView,
+  isPublic,
+  photoUrl,
+  playerStats,
+  playerUrl,
+  signUrl,
+  type Urls
+} from '../api/views.ts';
 
 /** The format of /signs.json, /players.json and /signs.geojson. */
 export const DATA_VERSION = 1;
@@ -53,14 +62,12 @@ export const newestUpdate = (data: OpenData, signs: Sign[]): string | null =>
     .sort()
     .at(-1) ?? null;
 
-export const playerPageUrl = (urls: Urls, player: Player): string => `${urls.site}/players/${player.handle}`;
-
 /** A player as the open files name them: handle, name, and their page when it answers. */
 function personOf(data: OpenData, playerId: string | undefined) {
   const player = playerId ? data.people.get(playerId) : undefined;
   if (!player) return null;
   const hasPage = data.players.includes(player);
-  return { handle: player.handle, name: player.name, url: hasPage ? playerPageUrl(data.urls, player) : null };
+  return { handle: player.handle, name: player.name, url: hasPage ? playerUrl(data.urls, player) : null };
 }
 
 /** One sign in /signs.json. */
@@ -163,10 +170,11 @@ export function playerRecord(data: OpenData, player: Player) {
   const stats = playerStats(player, signs);
   const wrote = [...ways.values()].flat().filter((w) => w.playerId === player.id).length;
   return {
+    id: player.id,
     handle: player.handle,
     name: player.name,
-    url: playerPageUrl(urls, player),
-    feed_url: `${playerPageUrl(urls, player)}/feed.json`,
+    url: playerUrl(urls, player),
+    feed_url: `${playerUrl(urls, player)}/feed.json`,
     bio: player.bio ?? null,
     avatar_color: player.avatarColor,
     avatar_url: player.avatar ? photoUrl(urls, player.avatar, 'large') : null,

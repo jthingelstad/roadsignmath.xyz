@@ -15,9 +15,13 @@ import {
   earnedBadgeView,
   isPublic,
   photoUrl,
+  playerPath,
   playerStats,
+  playerUrl,
   signDetail,
+  signPath,
   signSummary,
+  signUrl,
   type People,
   type Urls
 } from '../api/views.ts';
@@ -42,7 +46,8 @@ import { mathSvg } from './math.ts';
 import { feedAlternates } from './feeds.ts';
 import { createOldLinks } from './old-links.ts';
 import { createOpenWeb } from './open.tsx';
-import { homeCard, pinValue, playerCard, signCard } from './share.ts';
+import { homeCard, pinValue, playerCard, playerCardPath, signCard, signCardPath } from './share.ts';
+import { movedTo, playerByKey, signByKey } from './permalinks.ts';
 import { mountAppPage } from './app-page.tsx';
 import { mountIcons } from './icons.ts';
 import { mountPlayers, playingSince } from './players.tsx';
@@ -65,13 +70,22 @@ const US_MAP_SVG =
 const escapeXml = (text: string): string =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+/** A player's page by their handle, as the views name players; undefined for one not here. */
+type PageOf = (handle: string | null | undefined) => string | undefined;
+
+/** A name, linked to the player's page when they have one here. */
+const Who: FC<{ name: string; handle: string | null | undefined; pageOf: PageOf }> = ({ name, handle, pageOf }) => {
+  const href = pageOf(handle);
+  return href ? <a href={href}>{name}</a> : <>{name}</>;
+};
+
 /** The finders by name, each player's name a link to their page. */
-const Finders: FC<{ sign: Summary }> = ({ sign }) => (
+const Finders: FC<{ sign: Summary; pageOf: PageOf }> = ({ sign, pageOf }) => (
   <>
     {sign.finders.map((f, i) => (
       <>
         {i > 0 && ', '}
-        {f.handle ? <a href={`/players/${f.handle}`}>{f.name}</a> : f.name}
+        <Who name={f.name} handle={f.handle} pageOf={pageOf} />
       </>
     ))}
   </>
@@ -114,7 +128,7 @@ const NoPin: FC<{ signs: Sign[]; byYear?: boolean; year?: string }> = ({ signs, 
           data-onmap={s.place.lat !== undefined && s.place.lng !== undefined ? '' : undefined}
           hidden={off(s) ? true : undefined}
         >
-          <a href={`/signs/${s.slug}`}>{s.title}</a> ({s.place.label})
+          <a href={signPath(s)}>{s.title}</a> ({s.place.label})
         </span>
       ))}
       .
@@ -258,14 +272,14 @@ const CRUMB_STYLE = `
 `;
 
 /** Who also found a way: "Also found by Jamie and Pat" (Jamie, 2026-11-11: "You found it too"). */
-const AlsoFound: FC<{ by: { handle: string; name: string }[] }> = ({ by }) =>
+const AlsoFound: FC<{ by: { handle: string; name: string }[]; pageOf: PageOf }> = ({ by, pageOf }) =>
   by.length === 0 ? null : (
     <span class="also">
       Also found by{' '}
       {by.map((p, i) => (
         <>
           {i > 0 && (i === by.length - 1 ? ' and ' : ', ')}
-          <a href={`/players/${p.handle}`}>{p.name}</a>
+          <Who name={p.name} handle={p.handle} pageOf={pageOf} />
         </>
       ))}
     </span>
@@ -392,13 +406,13 @@ const Turn: FC<{ sign: Summary | undefined; way: 'older' | 'newer' }> = ({ sign,
     </span>
   );
   return way === 'older' ? (
-    <a class="turn older" href={`/signs/${sign.slug}`}>
+    <a class="turn older" href={signPath(sign)}>
       {ARROW('M19 12H5M11 6l-6 6 6 6')}
       {shot}
       {words}
     </a>
   ) : (
-    <a class="turn newer" href={`/signs/${sign.slug}`}>
+    <a class="turn newer" href={signPath(sign)}>
       {words}
       {shot}
       {ARROW('M5 12h14M13 6l6 6-6 6')}
@@ -633,7 +647,7 @@ export function createSite({
       [`${urls.site}/rules`, undefined],
       [`${urls.site}/support`, undefined],
       [`${urls.site}/data`, undefined],
-      ...shown.map((s): [string, string] => [`${urls.site}/signs/${s.slug}`, changed(s)]),
+      ...shown.map((s): [string, string] => [signUrl(urls, s), changed(s)]),
       // The same test as the player's page: a name, and a sign, a badge or a way found.
       ...[...everyone.values()]
         .filter(
@@ -643,7 +657,7 @@ export function createSite({
               earnedBadges(p.id, shown, ways).length ||
               waysFound(p, shown, lists, coFinds).length)
         )
-        .map((p): [string, undefined] => [`${urls.site}/players/${p.handle}`, undefined])
+        .map((p): [string, undefined] => [playerUrl(urls, p), undefined])
     ];
     const xml =
       '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
@@ -682,7 +696,7 @@ export function createSite({
           <h2>The first sign</h2>
           <div class="first">
             {genesis?.photos[0] ? (
-              <a class="shot" href={`/signs/${genesis.slug}`}>
+              <a class="shot" href={signPath(genesis)}>
                 <img
                   src={genesis.photos[0].url}
                   alt={genesis.photos[0].alt ?? 'Photo of the I-94 sign'}
@@ -701,7 +715,7 @@ export function createSite({
               {genesis && (
                 <>
                   {' '}
-                  In 2023 I <a href={`/signs/${genesis.slug}`}>photographed it again</a>.
+                  In 2023 I <a href={signPath(genesis)}>photographed it again</a>.
                 </>
               )}
             </p>
@@ -1072,7 +1086,7 @@ export function createSite({
                     <ul>
                       {picked.signs.map(card).map((s) => (
                         <li>
-                          <a href={`/signs/${s.slug}`}>
+                          <a href={signPath(s)}>
                             {s.photos[0] && <img src={s.photos[0].thumb_url} alt="" loading="lazy" />}
                             <span class="words">
                               <strong>{s.title}</strong>
@@ -1096,7 +1110,7 @@ export function createSite({
                   <ul>
                     {players.slice(0, HOME_PLAYERS).map(({ player, count }) => (
                       <li>
-                        <a href={`/players/${player.handle}`}>
+                        <a href={playerPath(player)}>
                           <Avatar name={player.name} color={player.avatarColor} photo={player.avatar} />
                           <b>{player.name}</b>
                           <span class="soft">{countSigns(count)}</span>
@@ -1209,10 +1223,13 @@ export function createSite({
   mountPlayers(site, { store, urls, people });
   mountAppPage(site, { urls });
 
-  site.get('/signs/:slug', async (c) => {
+  // A sign's page is at its id; its old address by slug, or its id in another case, comes here.
+  site.get('/signs/:key', async (c) => {
     const signs = (await store.allSigns()).filter(isPublic);
-    const found = signs.find((s) => s.slug === c.req.param('slug'));
-    if (!found) return c.notFound();
+    const named = signByKey(signs, c.req.param('key'));
+    if (!named) return c.notFound();
+    if (!named.canonical) return movedTo(c, signPath(named.found));
+    const found = named.found;
     const [ways, coFinds, everyone] = await Promise.all([
       store.listWays(found.id),
       store.listCoFinds(found.id),
@@ -1220,6 +1237,10 @@ export function createSite({
     ]);
     const sign = signDetail(urls, everyone, found, ways, undefined, coFinds);
     const byHandle = new Map([...everyone.values()].map((p) => [p.handle, p]));
+    const pageOf: PageOf = (handle) => {
+      const player = handle ? byHandle.get(handle) : undefined;
+      return player && playerPath(player);
+    };
     /** A finder's or a way's player's face: their colour, and their profile photo when they set one. */
     const faceOf = (handle: string | null | undefined) => {
       const player = handle ? byHandle.get(handle) : undefined;
@@ -1227,7 +1248,7 @@ export function createSite({
     };
     const description = `${sign.title}, ${sign.place.label}${sign.first_way ? `: ${sign.first_way.text}` : ''}`;
     // While Quiz is open, a sign with numbers to use can be tried there (Jamie, 2026-11-12).
-    const tryInQuiz = quizOpen && urls.quiz && found.numbers.length ? `${urls.quiz}/signs/${found.slug}` : undefined;
+    const tryInQuiz = quizOpen && urls.quiz && found.numbers.length ? `${urls.quiz}${signPath(found)}` : undefined;
     const { lat, lng } = found.place;
     const spot = lat !== undefined && lng !== undefined ? project(lat, lng) : null;
     const nearby =
@@ -1242,7 +1263,7 @@ export function createSite({
     const finders = sign.finders.map((f) => f.name);
     const numbers = sign.numbers.map((n) => n.value);
     const share = signCard({
-      path: `/signs/${sign.slug}`,
+      path: signCardPath(sign),
       title: sign.title,
       photo: sign.photos[0]?.url ?? null,
       place: sign.place.label,
@@ -1307,7 +1328,7 @@ export function createSite({
                     ))}
                   </span>
                   <span>
-                    <Finders sign={sign} /> found it on{' '}
+                    <Finders sign={sign} pageOf={pageOf} /> found it on{' '}
                     <time class="dt-published" datetime={sign.found_on}>
                       {shortDay(sign.found_on)}
                     </time>
@@ -1332,7 +1353,11 @@ export function createSite({
                     <p class="credit">
                       {firstWay.by && (
                         <>
-                          <a href={`/players/${firstWay.by.handle}`}>{firstWay.by.name || firstWay.by.handle}</a>
+                          <Who
+                            name={firstWay.by.name || firstWay.by.handle}
+                            handle={firstWay.by.handle}
+                            pageOf={pageOf}
+                          />
                           <Sep />
                         </>
                       )}
@@ -1341,7 +1366,7 @@ export function createSite({
                         {sign.ways.length} {sign.ways.length === 1 ? 'way' : 'ways'} so far
                       </span>
                     </p>
-                    <AlsoFound by={firstWay.also_found_by} />
+                    <AlsoFound by={firstWay.also_found_by} pageOf={pageOf} />
                   </div>
                 ) : (
                   <p class="unsolved">Nobody has solved it yet.</p>
@@ -1368,13 +1393,13 @@ export function createSite({
                             <span class="soft">
                               {w.by && (
                                 <>
-                                  <a href={`/players/${w.by.handle}`}>{w.by.name || w.by.handle}</a>
+                                  <Who name={w.by.name || w.by.handle} handle={w.by.handle} pageOf={pageOf} />
                                   <Sep />
                                 </>
                               )}
                               both sides are {w.value}
                             </span>
-                            <AlsoFound by={w.also_found_by} />
+                            <AlsoFound by={w.also_found_by} pageOf={pageOf} />
                           </span>
                         </li>
                       ))}
@@ -1473,11 +1498,14 @@ export function createSite({
     );
   });
 
-  site.get('/players/:handle', async (c) => {
+  // A player's page is at their id; their old address by handle, or their id in another case,
+  // comes here once the page answers (a handle with no page stays a 404).
+  site.get('/players/:key', async (c) => {
     const [signs, everyone] = await Promise.all([store.allSigns(), people()]);
-    const player = [...everyone.values()].find((p) => p.handle === c.req.param('handle'));
+    const named = playerByKey(everyone.values(), c.req.param('key'));
+    const player = named?.found;
     const shown = signs.filter(isPublic).sort(byNewest);
-    if (!player?.name) return c.notFound();
+    if (!named || !player?.name) return c.notFound();
     const stats = playerStats(player, shown);
     const lists = await Promise.all(shown.map((s) => store.listWays(s.id)));
     const ways = new Map<string, Way[]>(shown.map((s, i) => [s.id, lists[i]]));
@@ -1488,6 +1516,7 @@ export function createSite({
     const solved = stats.sign_count ? [] : waysFound(player, shown, lists, coFinds);
     // A player with nothing on the map yet has no page.
     if (!stats.sign_count && !badges.length && !solved.length) return c.notFound();
+    if (!named.canonical) return movedTo(c, playerPath(player));
     // Every way they found too counts, not only the one a sign that shows.
     const foundToo = coFinds.flat().filter((f) => f.playerId === player.id);
     const since = [playingSince(player, shown, ways), ...foundToo.map((f) => centralDay(f.createdAt))]
@@ -1545,11 +1574,11 @@ const FoundRow: FC<{ sign: Summary; solve: Solve; everyone: People }> = ({ sign,
   const owner = everyone.get(solve.way.playerId)?.name;
   return (
     <li>
-      <a class="shot" href={`/signs/${sign.slug}`} tabindex={-1} aria-hidden="true">
+      <a class="shot" href={signPath(sign)} tabindex={-1} aria-hidden="true">
         {sign.photos[0] && <img src={sign.photos[0].thumb_url} alt="" loading="lazy" />}
       </a>
       <div class="what">
-        <a class="title" href={`/signs/${sign.slug}`}>
+        <a class="title" href={signPath(sign)}>
           {sign.title}
         </a>
         <span class="soft">
@@ -1589,7 +1618,7 @@ const PlayerPage: FC<{
   // The years are their own row, above the rest (Jamie, 2026-11-07).
   const years = badges.filter((b) => b.shelf === 'years');
   const others = badges.filter((b) => b.shelf !== 'years');
-  const base = `/players/${player.handle}`;
+  const base = playerPath(player);
   const photo = player.avatar ? photoUrl(urls, player.avatar, 'large') : null;
   const found = stats.first_year ? ` since ${stats.first_year}` : '';
   return (
@@ -1598,7 +1627,7 @@ const PlayerPage: FC<{
       description={`Road signs ${player.name} found${found}.`}
       url={`${urls.site}${base}`}
       card={playerCard({
-        path: base,
+        path: playerCardPath(player),
         name: player.name,
         photo,
         color: player.avatarColor,
@@ -1620,6 +1649,9 @@ const PlayerPage: FC<{
           <Crumbs trail={[{ name: 'All players', href: '/players' }, { name: player.name }]} />
           <div class="who-is h-card">
             <data hidden class="u-url" value={`${urls.site}${base}`} />
+            {/* Its old address too: the card maker asks for the card there (src/web/share.ts), and
+                finds the h-card by the address it fetched, which comes here with a 301. */}
+            <data hidden class="u-url" value={`${urls.site}${playerCardPath(player)}`} />
             {photo && <data hidden class="u-photo" value={photo} />}
             <data hidden class="p-avatar-color" value={player.avatarColor} />
             <data hidden class="p-sign-count" value={String(stats.sign_count)} />
@@ -1708,7 +1740,7 @@ const PlayerPage: FC<{
                 <ul class="squares" aria-label={`${player.name}’s signs`}>
                   {stats.signs.map(summary).map((s) => (
                     <li>
-                      <a href={`/signs/${s.slug}`}>
+                      <a href={signPath(s)}>
                         <span class="shot">
                           {s.photos[0] && <img src={s.photos[0].thumb_url} alt="" loading="lazy" />}
                           {s.first_way && (
@@ -1733,7 +1765,7 @@ const PlayerPage: FC<{
                     <img src="/us-map.svg" alt={`Map of the United States with ${player.name}’s signs pinned`} />
                     <Pins
                       clusters={clusters}
-                      href={(k) => (k.signs.length === 1 ? `/signs/${k.signs[0].slug}` : `/?at=${k.key}#map`)}
+                      href={(k) => (k.signs.length === 1 ? signPath(k.signs[0]) : `/?at=${k.key}#map`)}
                     />
                   </div>
                   <NoPin signs={unpinned} />

@@ -15,10 +15,11 @@ import { Hono, type Context } from 'hono';
 import type { ApiOptions } from '../api/app.ts';
 import { LIMITS } from '../api/contract.ts';
 import { ApiError, STATUS, fail } from '../api/errors.ts';
-import { earnedBadgeView, isPublic } from '../api/views.ts';
+import { earnedBadgeView, isPublic, signPath } from '../api/views.ts';
 import { newsletterAtSignIn, removeAvatar, removePlayer, setAvatar, updateMe } from '../auth/account.ts';
 import { finishSignIn, signOut, startSignIn, type Viewer } from '../auth/auth.ts';
 import { sameWayKey } from '../domain/equation.ts';
+import { isUlid } from '../domain/ids.ts';
 import type { Player, Sign } from '../domain/types.ts';
 import { REORDERED, YOURS, solveSign } from '../posting/posting.ts';
 import { badgesFrom, credits, draw, loadQuiz, onSigns, solvedBy, stillToTry, type OnSign, type Solve } from './data.ts';
@@ -43,6 +44,7 @@ import {
   type Said
 } from './pages.tsx';
 import { forget, fromQuiz, quizViewer, remember } from './session.ts';
+import { queryOf, signByKey } from '../web/permalinks.ts';
 
 /**
  * Whether Quiz is open. Jamie's call: opened 2026-11-12 ("Approved: open Quiz on
@@ -65,12 +67,14 @@ type QuizOptions = ApiOptions & { clientIp: (c: Context) => string };
 
 /**
  * The sign a player came to try (a link from a sign's page on the site), carried through signing
- * in as `to` so they land on it after. Only a slug, so it can only ever lead to a Quiz sign page.
+ * in as `to` so they land on it after. Only a sign's id, or a slug as links and emails from before
+ * ids carried, so it can only ever lead to a Quiz sign page (a slug goes on to the id's with a 301).
  */
 const backTo = (to: string | undefined): string | undefined =>
-  to && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(to) && to.length <= 80 ? to : undefined;
+  to && (isUlid(to) || (/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(to) && to.length <= 80)) ? to : undefined;
 const withTo = (path: string, to: string | undefined) => (to ? `${path}?to=${to}` : path);
-const onward = (to: string | undefined) => (to ? `/signs/${to}` : '/next');
+// `to` is a sign's id, or an old slug, whose address goes on to the id's.
+const onward = (to: string | undefined) => (to ? signPath({ id: to }) : '/next');
 
 export function createQuiz(options: QuizOptions): Hono {
   const quiz = new Hono();
@@ -237,13 +241,26 @@ export function createQuiz(options: QuizOptions): Hono {
     const left = stillToTry(data, await onSigns(store, data.signs), viewer.player.id);
     const sign = draw(left, c.req.query('after'));
     if (!sign) return page(c, <AllDonePage here={here} player={viewer.player} />);
-    return go(c, `/signs/${sign.slug}`);
+    return go(c, signPath(sign));
   });
 
-  /** A shown sign the player sees, with its ways and co-finds, or a not-found page. */
+  /**
+   * A sign page's old address, by slug, or its id in another case: a 301 to the same page at the
+   * sign's id, keeping the rest of the path and the query (`?way=`). Undefined when the key is the
+   * id, or names no shown sign (the page then answers as it always has).
+   */
+  async function moved(c: Context, rest = ''): Promise<Response | undefined> {
+    const named = signByKey((await store.allSigns()).filter(isPublic), c.req.param('key') ?? '');
+    if (!named || named.canonical) return undefined;
+    c.header('Cache-Control', PRIVATE['Cache-Control']);
+    return c.redirect(`${signPath(named.found)}${rest}${queryOf(c)}`, 301);
+  }
+
+  /** A shown sign the player sees, by id (or a slug, from a page drawn before ids), with its ways
+   * and co-finds, or a not-found page. */
   async function signFor(c: Context, player: Player) {
     const data = await loadQuiz(store, player);
-    const sign = data.signs.find((s) => s.slug === c.req.param('slug'));
+    const sign = signByKey(data.signs, c.req.param('key') ?? '')?.found;
     if (!sign)
       return {
         missing: page(
@@ -273,15 +290,17 @@ export function createQuiz(options: QuizOptions): Hono {
     status: 200 | 400 | 409 | 429 = 200
   ) => page(c, <SolvePage here={here} player={player} sign={sign} on={on} people={data.people} said={said} />, status);
 
-  quiz.get('/signs/:slug', async (c) => {
-    const viewer = await playing(c, backTo(c.req.param('slug')));
+  quiz.get('/signs/:key', async (c) => {
+    const old = await moved(c);
+    if (old) return old;
+    const viewer = await playing(c, backTo(c.req.param('key') ?? ''));
     if (viewer instanceof Response) return viewer;
     const got = await signFor(c, viewer.player);
     if (got.missing) return got.missing;
     return solvePage(c, viewer.player, got.sign, got.on, got.data);
   });
 
-  quiz.post('/signs/:slug/solve', async (c) => {
+  quiz.post('/signs/:key/solve', async (c) => {
     const viewer = await playing(c);
     if (viewer instanceof Response) return viewer;
     const got = await signFor(c, viewer.player);
@@ -290,7 +309,7 @@ export function createQuiz(options: QuizOptions): Hono {
     const text = (await form(c))('text').trim();
     try {
       const solved = await solveSign(options, viewer.player, sign, { text }, 'quiz');
-      return go(c, `/signs/${sign.slug}/found?way=${encodeURIComponent(solved.way.id)}`);
+      return go(c, `${signPath(sign)}/found?way=${encodeURIComponent(solved.way.id)}`);
     } catch (err) {
       if (!(err instanceof ApiError)) throw err;
       if (err.code === 'conflict' && err.message === REORDERED) {
@@ -320,14 +339,16 @@ export function createQuiz(options: QuizOptions): Hono {
     }
   });
 
-  quiz.get('/signs/:slug/found', async (c) => {
+  quiz.get('/signs/:key/found', async (c) => {
+    const old = await moved(c, '/found');
+    if (old) return old;
     const viewer = await playing(c);
     if (viewer instanceof Response) return viewer;
     const got = await signFor(c, viewer.player);
     if (got.missing) return got.missing;
     const { sign, on, data } = got;
     const solve = solveFor(sign, on, viewer.player.id, c.req.query('way'));
-    if (!solve) return go(c, `/signs/${sign.slug}`);
+    if (!solve) return go(c, signPath(sign));
     const all = await onSigns(store, data.signs);
     const badges =
       solve.kind === 'too' ? [] : badgesFrom(data, all, viewer.player.id, sign).map((e) => earnedBadgeView(urls, e));
@@ -346,7 +367,9 @@ export function createQuiz(options: QuizOptions): Hono {
     );
   });
 
-  quiz.get('/signs/:slug/ways', async (c) => {
+  quiz.get('/signs/:key/ways', async (c) => {
+    const old = await moved(c, '/ways');
+    if (old) return old;
     const viewer = await playing(c);
     if (viewer instanceof Response) return viewer;
     const got = await signFor(c, viewer.player);

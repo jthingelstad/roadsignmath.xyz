@@ -28,6 +28,7 @@ async function setup() {
   return { app, store };
 }
 
+const SOLVED = '01JS0000000000000000000002';
 const page = async (app: Awaited<ReturnType<typeof setup>>['app'], path: string) => (await app.request(path)).text();
 /** The values of a page's <data class="name"> elements (all hidden: fields, never layout). */
 const data = (html: string, name: string) =>
@@ -69,11 +70,11 @@ test('a card’s alt text says what it shows', () => {
 
 test('a sign page is an h-entry with what its card shows, and names its card', async () => {
   const { app, store } = await setup();
-  const html = await page(app, '/signs/solved-sign');
+  const html = await page(app, `/signs/${SOLVED}`);
   assert.match(html, /<main id="main" class="sign h-entry">/);
   assert.match(html, /<h1 class="p-name">Solved Sign<\/h1>/);
   assert.match(html, /<time class="dt-published" datetime="2026-01-10">/);
-  assert.deepEqual(data(html, 'u-url'), ['https://example.test/signs/solved-sign']);
+  assert.deepEqual(data(html, 'u-url'), [`https://example.test/signs/${SOLVED}`]);
   assert.deepEqual(data(html, 'u-photo'), ['https://example.test/p/ph-01JS0000000000000000000002/large.jpg']);
   assert.deepEqual(data(html, 'p-location'), ['Testville, Minnesota']);
   assert.deepEqual(data(html, 'p-finder'), ['Ada']);
@@ -82,6 +83,8 @@ test('a sign page is an h-entry with what its card shows, and names its card', a
   assert.deepEqual(data(html, 'p-way-count'), ['1']);
   assert.deepEqual(data(html, 'p-number'), ['7', '12', '19']);
   const image = meta(html, 'og:image');
+  // The card keeps the slug's path: the card maker takes lowercase paths only, and the slug's
+  // address leads to this page.
   assert.match(image ?? '', /^https:\/\/cards\.thingelstad\.com\/rsm\/signs\/solved-sign\.png\?v=[0-9a-f]{10}$/);
   assert.equal(meta(html, 'twitter:image'), image);
   assert.equal(meta(html, 'og:image:width'), '1200');
@@ -99,14 +102,14 @@ test('a sign page is an h-entry with what its card shows, and names its card', a
       playerId: ben.id
     })
   );
-  const after = await page(app, '/signs/solved-sign');
+  const after = await page(app, `/signs/${SOLVED}`);
   assert.deepEqual(data(after, 'p-way-count'), ['2']);
   assert.notEqual(meta(after, 'og:image'), image);
 });
 
 test('an unsolved sign publishes its numbers and no math', async () => {
   const { app } = await setup();
-  const html = await page(app, '/signs/open-sign');
+  const html = await page(app, '/signs/01JS0000000000000000000001');
   assert.deepEqual(data(html, 'p-math'), []);
   assert.deepEqual(data(html, 'p-tex'), []);
   assert.deepEqual(data(html, 'p-way-count'), ['0']);
@@ -116,9 +119,10 @@ test('an unsolved sign publishes its numbers and no math', async () => {
 
 test('a player page is an h-card with its own u-url, and its card is their photo or their letter', async () => {
   const { app, store } = await setup();
-  const html = await page(app, '/players/ada');
+  const html = await page(app, `/players/${ada.id}`);
   assert.match(html, /class="who-is h-card"/);
-  assert.deepEqual(data(html, 'u-url'), ['https://example.test/players/ada']);
+  // Its own address, and the handle's that the card maker fetches, so it finds this h-card.
+  assert.deepEqual(data(html, 'u-url'), [`https://example.test/players/${ada.id}`, 'https://example.test/players/ada']);
   assert.deepEqual(data(html, 'u-photo'), []);
   assert.deepEqual(data(html, 'p-avatar-color'), ['#006348']);
   assert.deepEqual(data(html, 'p-sign-count'), ['2']);
@@ -132,7 +136,7 @@ test('a player page is an h-card with its own u-url, and its card is their photo
   // Never the player's email, anywhere on the page.
   assert.ok(!html.includes(ada.email!));
   await store.setAvatar(ada.id, 'face1');
-  const face = await page(app, '/players/ada');
+  const face = await page(app, `/players/${ada.id}`);
   assert.deepEqual(data(face, 'u-photo'), ['https://example.test/p/face1/large.jpg']);
   assert.notEqual(meta(face, 'og:image'), letter);
 });

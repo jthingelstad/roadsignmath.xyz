@@ -105,7 +105,7 @@ test('a sign reads in snake_case with urls, handles and no emails', async () => 
   const { get } = await setup();
   const { body } = await get('/api/v1/signs/first-sign');
   assert.equal(body.id, '01JS0000000000000000000001');
-  assert.equal(body.url, 'https://example.test/signs/first-sign');
+  assert.equal(body.url, 'https://example.test/signs/01JS0000000000000000000001');
   assert.equal(body.posted_by, 'ada');
   assert.equal(body.found_on, '2025-12-31');
   assert.equal(body.photos[0].thumb_url, 'https://example.test/p/ph-01JS0000000000000000000001/thumb.jpg');
@@ -205,7 +205,7 @@ test('map pins carry what a search reads: place, numbers and finders', async () 
     id: '01JS0000000000000000000002',
     slug: 'far-away',
     title: 'Far Away',
-    url: 'https://example.test/signs/far-away',
+    url: 'https://example.test/signs/01JS0000000000000000000002',
     lat: 44.26,
     lng: -72.58,
     approximate: true,
@@ -309,7 +309,7 @@ test('a player’s badges come with the sign and day that earned each, and no co
       id: '01JS0000000000000000000001',
       slug: 'first-sign',
       title: 'First Sign',
-      url: 'https://example.test/signs/first-sign'
+      url: 'https://example.test/signs/01JS0000000000000000000001'
     }
   });
   assert.equal(body.badges[1].earned_on, '2026-01-05', 'the day Ben’s way came');
