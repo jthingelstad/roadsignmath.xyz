@@ -31,7 +31,8 @@ const GAME = [
   'Each sign has a page at `/signs/<slug>` and each player at `/players/<handle>`. A place marked approximate has its pin on the town the post or the sign names, not the exact spot. `found_on` is the day in the finder’s own time; other times are UTC.'
 ];
 
-export function llmsTxt(data: OpenData): string {
+/** `quiz` is Quiz's address while it is open: both files name it then, and only then. */
+export function llmsTxt(data: OpenData, quiz?: string): string {
   const site = data.urls.site;
   const { states, first, last } = shape(data);
   const span = first && last ? (first === last ? ` in ${first}` : ` from ${first} to ${last}`) : '';
@@ -60,7 +61,7 @@ export function llmsTxt(data: OpenData): string {
     '',
     '## Pages',
     '',
-    `- [Home](${site}/): the map of every sign with a year filter, who’s playing, the latest signs, how to play and the app`,
+    `- [Home](${site}/): the map of every sign with a year filter, the players, the latest signs, how to play and the app`,
     `- [About](${site}/about): the game’s story, from 2005 to the app, in Jamie’s words`,
     `- [Feeds and data](${site}/data): the feeds, the open files and the API for anyone building with the signs`,
     `- [Privacy](${site}/privacy): what the game keeps and who sees it`,
@@ -68,6 +69,9 @@ export function llmsTxt(data: OpenData): string {
     `- [Help](${site}/support): how to reach Jamie and how to delete an account`,
     `- [iPhone app](${APP_STORE_URL}): the app, where the game is played, free on the App Store`,
     `- [iPhone app beta](${TESTFLIGHT_URL}): early builds of the app, through Apple’s TestFlight`,
+    ...(quiz
+      ? [`- [Quiz](${quiz}/): find the math in signs other players posted, in any browser; sign in to send a way`]
+      : []),
     '',
     '## Follow',
     '',
@@ -111,14 +115,15 @@ export function llmsTxt(data: OpenData): string {
 
 const ROLE: Record<string, string> = { found: 'found it', took_photo: 'took the photo', spotted: 'spotted it' };
 
-export function llmsFullTxt(data: OpenData): string {
+export function llmsFullTxt(data: OpenData, quiz?: string): string {
   const site = data.urls.site;
   const out = [
     '# Road Sign Math: every sign in full',
     '',
     `> Every sign on ${site}, newest posted first. The short index is ${site}/llms.txt; the same data as JSON is ${site}/signs.json.`,
     '',
-    ...GAME.flatMap((p) => [p, ''])
+    ...GAME.flatMap((p) => [p, '']),
+    ...(quiz ? [`Quiz (${quiz}/) is the game in any browser: find the math in signs other players posted.`, ''] : [])
   ];
   for (const sign of data.signs) {
     const r = signRecord(data, sign);

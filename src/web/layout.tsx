@@ -199,6 +199,8 @@ export type PageMeta = {
   card?: Card;
   /** Which of Map, Signs, Players and About the page is under, or the app's page. */
   here?: 'map' | 'signs' | 'players' | 'about' | 'app';
+  /** Quiz's address while Quiz is open: the header links it after Players (Jamie, 2026-11-12). */
+  quiz?: string;
   /** Adds Tinylytics' counter. The sign-in page leaves it out: its URL carries the link's token. */
   count?: boolean;
   /**
@@ -294,6 +296,7 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
   image,
   card,
   here,
+  quiz,
   count = true,
   banner = true,
   style = '',
@@ -373,6 +376,11 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
             <a href="/players" aria-current={here === 'players' ? 'page' : undefined}>
               Players
             </a>
+            {quiz && (
+              <a href={`${quiz}/`} data-tinylytics-event="quiz.open" data-tinylytics-event-value="header">
+                Quiz
+              </a>
+            )}
             <a href="/about" aria-current={here === 'about' ? 'page' : undefined}>
               About
             </a>

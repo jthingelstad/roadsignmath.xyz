@@ -120,7 +120,30 @@ export const APP_JSON_LD = {
   offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' }
 };
 
-export function mountAppPage(site: Hono, { urls, siteCard }: { urls: Urls; siteCard?: SiteCard }): void {
+export function mountAppPage(
+  site: Hono,
+  { urls, siteCard, quiz }: { urls: Urls; siteCard?: SiteCard; /** Quiz's address while it is open. */ quiz?: string }
+): void {
+  // While Quiz is open, the questions say where to play without an iPhone (Jamie, 2026-11-12).
+  const faq = quiz
+    ? FAQ.flatMap((qa) => [
+        qa,
+        ...(qa[0] !== 'Android?'
+          ? []
+          : [
+              [
+                'No iPhone?',
+                <>
+                  Play{' '}
+                  <a href={`${quiz}/`} data-tinylytics-event="quiz.open" data-tinylytics-event-value="app">
+                    Quiz
+                  </a>{' '}
+                  in any browser: find the math in signs other players posted. You sign in when you send your first way.
+                </>
+              ] as const
+            ])
+      ])
+    : FAQ;
   for (const shot of SHOTS) {
     site.get(`/app/${shot.name}.webp`, (c) =>
       c.body(Buffer.from(APP_SHOTS[shot.name].webp, 'base64'), 200, {
@@ -143,6 +166,7 @@ export function mountAppPage(site: Hono, { urls, siteCard }: { urls: Urls; siteC
         card={siteCard && (await siteCard())}
         jsonLd={APP_JSON_LD}
         here="app"
+        quiz={quiz}
         style={APP_STYLE}
       >
         <main id="main" class="getapp">
@@ -228,7 +252,7 @@ export function mountAppPage(site: Hono, { urls, siteCard }: { urls: Urls; siteC
                 </ol>
               </div>
               <dl class="faq">
-                {FAQ.map(([q, a]) => (
+                {faq.map(([q, a]) => (
                   <div>
                     <dt>{q}</dt>
                     <dd>{a}</dd>

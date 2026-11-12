@@ -290,6 +290,8 @@ type Deps = {
   people: () => Promise<People>;
   counts: () => Promise<Map<string, number> | undefined>;
   siteCard: SiteCard;
+  /** Quiz's address while it is open, for the header. */
+  quiz?: string;
 };
 
 /** The ways on each listed sign, read only when Complexity needs them. */
@@ -304,7 +306,7 @@ const moved = (c: Context, to: string) => {
   return c.redirect(to, 301);
 };
 
-export function mountSigns(site: Hono, { store, urls, people, counts, siteCard }: Deps): void {
+export function mountSigns(site: Hono, { store, urls, people, counts, siteCard, quiz }: Deps): void {
   site.get('/signs', async (c) => {
     const [signs, everyone] = await Promise.all([store.allSigns(), people()]);
     const shown = signs.filter(isPublic).sort(byNewest);
@@ -377,6 +379,7 @@ export function mountSigns(site: Hono, { store, urls, people, counts, siteCard }
         canonical={filtered ? `${urls.site}/signs` : undefined}
         card={await siteCard({ signs, everyone })}
         here="signs"
+        quiz={quiz}
         style={SIGNS_STYLE}
         script={
           STATE_SCRIPT + FOLD_SCRIPT + MORE_SCRIPT + SEARCH_SCRIPT + (sort === 'nearby' ? nearbyScript(PER_PAGE) : '')

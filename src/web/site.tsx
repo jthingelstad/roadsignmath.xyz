@@ -1,4 +1,4 @@
-// The website, as the design draws it: Home (the map of every sign, who's playing, the latest
+// The website, as the design draws it: Home (the map of every sign, the players, the latest
 // signs, how to play, the app), a page per sign and a page per player with their badges.
 // Read-only, public, cached at the edge until a page changes (src/edge-cache.ts), and built from
 // the same store and views as the API. There is no sign-in here: posting and finding another way happen in the app.
@@ -46,7 +46,6 @@ import {
   AppStoreBadge,
   ARCHIVE_URL,
   Avatar,
-  BetaLink,
   brandUrl,
   FOLLOW,
   Page,
@@ -73,7 +72,7 @@ import { LICENSE } from './data.ts';
 import { movedTo, playerByKey, signByKey } from './permalinks.ts';
 import { mountAppPage } from './app-page.tsx';
 import { mountIcons } from './icons.ts';
-import { mountPlayers, playingSince } from './players.tsx';
+import { mountPlayers, playingDays, sinceWords } from './players.tsx';
 import { credits, solveOf, type Solve } from '../quiz/data.ts';
 import { QUIZ_OPEN } from '../quiz/quiz.tsx';
 import { mountSigns } from './signs.tsx';
@@ -175,12 +174,13 @@ const ABOUT_STYLE = `
 .eras .when { display: inline-block; font-size: 14px; font-weight: 700; color: var(--green-ink); }
 .eras h3 { margin: 2px 0 6px; font-size: 21px; }
 .eras p { margin: 0; }
+.eras p + p { margin-top: 12px; }
 `;
 
 const HOME_DESCRIPTION =
   'A road trip game: find a road sign whose numbers make a true equation. Every sign players have found, on a map.';
 
-/** Who's playing: players with a name and a shown sign, the most signs first. */
+/** Home's Players: players with a name and a shown sign, the most signs first. */
 const playing = (shown: Sign[], everyone: People) =>
   [...everyone.values()]
     .filter((p) => p.name)
@@ -214,7 +214,7 @@ const THINGS_URL = 'https://thingelstad.xyz/things/';
 
 /** Signs in Home's list; the rest are a click away on /signs. */
 const HOME_SIGNS = 12;
-/** Players in Home's Who's playing; the rest are a click away on /players. */
+/** Players in Home's Players list; the rest are a click away on /players. */
 const HOME_PLAYERS = 10;
 
 /** The list of signs off the map: a separator between the entries shown. */
@@ -224,7 +224,7 @@ const NOPIN_STYLE = `
 `;
 
 /**
- * Who's playing: the first players, the most signs first, then a link to everyone. Home draws it
+ * Home's Players: the first players, the most signs first, then a link to everyone. Home draws it
  * twice, beside the map when the page is wide (`wide`) and after the signs on a phone, so a phone
  * reaches the signs first; only one is ever displayed, and the other is hidden from everyone.
  */
@@ -233,7 +233,7 @@ const WhoPlaying: FC<{ players: ReturnType<typeof playing>; wide?: boolean }> = 
   const id = wide ? 'who-h' : 'who-h2';
   const list = (
     <>
-      <h2 id={id}>Who’s playing</h2>
+      <h2 id={id}>Players</h2>
       <ul>
         {players.slice(0, HOME_PLAYERS).map(({ player, count }) => (
           <li>
@@ -267,7 +267,7 @@ const WhoPlaying: FC<{ players: ReturnType<typeof playing>; wide?: boolean }> = 
 
 const HOME_STYLE = `
 .hero { background: var(--ground); border-bottom: 1px solid var(--line); scroll-margin-top: 0; }
-/* One column on a phone, in the order it reads: the pitch, the map, then who's playing. Side by side, the
+/* One column on a phone, in the order it reads: the pitch, the map, then the players. Side by side, the
    players sit under the pitch and the map runs down the right. */
 .hero > .wrap { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "intro" "map" "who";
   gap: 28px 32px; align-items: start; padding-top: 28px; padding-bottom: 36px; }
@@ -706,6 +706,8 @@ export function createSite({
   quizOpen = QUIZ_OPEN
 }: Pick<ApiOptions, 'store' | 'urls' | 'heartCounts' | 'quizOpen'>): Hono {
   const site = new Hono();
+  /** Quiz's address while it is open, for the header, Home, /app and /about (as "Try this one in Quiz"). */
+  const quiz = quizOpen && urls.quiz ? urls.quiz : undefined;
   const people = async (): Promise<People> => new Map((await store.allPlayers()).map((p) => [p.id, p]));
   /** Hearts by path for Popular; undefined without Tinylytics or when they can't be read. */
   const counts = async () => heartCounts?.counts();
@@ -798,6 +800,7 @@ export function createSite({
     const genesis = found ? summary(everyone)(found) : undefined;
     return c.html(
       <Page
+        quiz={quiz}
         title="About · Road Sign Math"
         description="Road Sign Math is a road trip game Jamie Thingelstad started in 2005 with a sign on I-94: 3 × 33 = 99. Twenty years later it's an iPhone app."
         url={`${urls.site}/about`}
@@ -875,6 +878,16 @@ export function createSite({
                 everyone else, with every sign on a map and no app or sign-in needed. The blog’s sixteen signs were the
                 first ones in it. <a href={`${THINGS_URL}road-sign-math-2026/`}>How it was built</a>.
               </p>
+              {quiz && (
+                <p>
+                  No iPhone?{' '}
+                  <a href={`${quiz}/`} data-tinylytics-event="quiz.open" data-tinylytics-event-value="about">
+                    Quiz
+                  </a>{' '}
+                  brings the signs other players posted to any browser. Find the math in one and send it, and your way
+                  goes on the sign.
+                </p>
+              )}
             </li>
           </ol>
 
@@ -923,6 +936,7 @@ export function createSite({
   site.get('/privacy', async (c) =>
     c.html(
       <Page
+        quiz={quiz}
         title="Privacy · Road Sign Math"
         description="What Road Sign Math keeps, what is public, and how to delete your account."
         url={`${urls.site}/privacy`}
@@ -1008,6 +1022,7 @@ export function createSite({
   site.get('/rules', async (c) =>
     c.html(
       <Page
+        quiz={quiz}
         title="House rules · Road Sign Math"
         description="Road Sign Math is a free game Jamie Thingelstad makes for fun. Play nice."
         url={`${urls.site}/rules`}
@@ -1040,6 +1055,7 @@ export function createSite({
   site.get('/support', async (c) =>
     c.html(
       <Page
+        quiz={quiz}
         title="Help · Road Sign Math"
         description="Road Sign Math is made by one person, Jamie Thingelstad, in spare time. How to reach him and how to delete your account."
         url={`${urls.site}/support`}
@@ -1086,6 +1102,7 @@ export function createSite({
     c.header('Referrer-Policy', 'no-referrer');
     return c.html(
       <Page
+        quiz={quiz}
         title="Sign in · Road Sign Math"
         description="Sign in to Road Sign Math in the iPhone app."
         count={false}
@@ -1135,6 +1152,7 @@ export function createSite({
     const pins = homePins(shown);
     return c.html(
       <Page
+        quiz={quiz}
         title="Road Sign Math"
         description={HOME_DESCRIPTION}
         url={`${urls.site}/`}
@@ -1168,7 +1186,7 @@ export function createSite({
                 </h1>
                 <p>
                   Spot a road sign with numbers on it, then use every one of those numbers to write something true.
-                  These are the signs players have found, around the world. Tap a pin to see them.
+                  These are the signs players have found since 2005, around the world. Tap a pin to see them.
                 </p>
                 <dl class="stats">
                   <div>
@@ -1231,7 +1249,7 @@ export function createSite({
                 </section>
                 <NoPin signs={unpinned} byYear year={year} />
               </div>
-              {/* Side by side, who's playing sits under the pitch; on a phone it comes after the signs (below). */}
+              {/* Side by side, the players sit under the pitch; on a phone it comes after the signs (below). */}
               <WhoPlaying players={players} wide />
             </div>
           </section>
@@ -1314,10 +1332,16 @@ export function createSite({
               </div>
               <div class="join">
                 <AppStoreBadge from="home" />
-                <p>
-                  Free for iPhone. Want new versions before everyone else? <BetaLink from="home" /> through Apple’s
-                  TestFlight.
-                </p>
+                <p>Free for iPhone.</p>
+                {quiz && (
+                  <p>
+                    No iPhone?{' '}
+                    <a href={`${quiz}/`} data-tinylytics-event="quiz.open" data-tinylytics-event-value="home">
+                      Play Quiz
+                    </a>{' '}
+                    in any browser.
+                  </p>
+                )}
                 <a href="/app" style="color: #fff; font-weight: 800">
                   More about the app
                 </a>
@@ -1329,9 +1353,9 @@ export function createSite({
     );
   });
 
-  mountSigns(site, { store, urls, people, counts, siteCard });
-  mountPlayers(site, { store, urls, people, siteCard });
-  mountAppPage(site, { urls, siteCard });
+  mountSigns(site, { store, urls, people, counts, siteCard, quiz });
+  mountPlayers(site, { store, urls, people, siteCard, quiz });
+  mountAppPage(site, { urls, siteCard, quiz });
 
   // A sign's page is at its id; its old address by slug, or its id in another case, comes here.
   site.get('/signs/:key', async (c) => {
@@ -1394,6 +1418,7 @@ export function createSite({
     const read = sign.numbers.some((n) => from(n) || n.why);
     return c.html(
       <Page
+        quiz={quiz}
         title={`${sign.title} · Road Sign Math`}
         description={description}
         url={sign.url}
@@ -1639,9 +1664,8 @@ export function createSite({
     if (!named.canonical) return movedTo(c, playerPath(player));
     // Every way they found too counts, not only the one a sign that shows.
     const foundToo = coFinds.flat().filter((f) => f.playerId === player.id);
-    const since = [playingSince(player, shown, ways), ...foundToo.map((f) => centralDay(f.createdAt))]
-      .filter((d): d is string => !!d)
-      .sort()[0];
+    const days = [...playingDays(player, shown, ways), ...foundToo.map((f) => centralDay(f.createdAt))].sort();
+    const since = sinceWords(player, days);
     const view = c.req.query('view') === 'map' ? 'map' : 'signs';
     return c.html(
       <PlayerPage
@@ -1654,13 +1678,13 @@ export function createSite({
         view={view}
         summary={summary(everyone)}
         solved={solved}
-        quiz={quizOpen ? urls.quiz : undefined}
+        quiz={quiz}
       />
     );
   });
 
   // The feeds, the open data files, llms.txt and the /data page that documents them.
-  site.route('/', createOpenWeb({ store, urls, siteCard }));
+  site.route('/', createOpenWeb({ store, urls, siteCard, quiz }));
   // The micro.blog's old addresses, last so no page here is ever shadowed by one.
   site.route('/', createOldLinks({ store, urls }));
 
@@ -1744,6 +1768,7 @@ const PlayerPage: FC<{
   everyone: People;
   stats: ReturnType<typeof playerStats>;
   badges: ReturnType<typeof earnedBadgeView>[];
+  /** How long they've played, in words (`sinceWords`). */
   since: string | null;
   view: 'signs' | 'map';
   summary: (s: Sign) => Summary;
@@ -1780,6 +1805,7 @@ const PlayerPage: FC<{
           : undefined
       }
       here="players"
+      quiz={quiz}
       style={PLAYER_STYLE}
     >
       <main id="main" class="player">
@@ -1806,7 +1832,7 @@ const PlayerPage: FC<{
                   )}
                 </p>
               )}
-              {since && <p class="since">Playing since {since.slice(0, 4)}</p>}
+              {since && <p class="since">{since}</p>}
               {quiz && solved.length > 0 && (
                 <p class="quizzer">
                   Finds the math in other players’ signs with{' '}

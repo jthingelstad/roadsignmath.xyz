@@ -8,6 +8,7 @@ import type { Hono } from 'hono';
 import { byNewest, isPublic, playerPath, playerStats, type People, type Urls } from '../api/views.ts';
 import { earnedBadges } from '../domain/badges.ts';
 import { texOf } from '../domain/equation.ts';
+import { isFirstEraPlayer } from '../seed/archive.ts';
 import type { Player, Sign, Way } from '../domain/types.ts';
 import type { Store } from '../store/store.ts';
 import type { SiteCard } from './share.ts';
@@ -48,16 +49,18 @@ type Row = {
   stats: ReturnType<typeof playerStats>;
   /** The day they started: their first sign found or posted, or their first way written. */
   since: string;
+  /** How long they've played, in words (`sinceWords`). */
+  sinceText: string | null;
   /** Their newest sign, the newest sign they found another way on, or the newest they posted. */
   newest?: { sign: Sign; label: string; way: { text: string; tex: string | null } | null };
 };
 
 /**
- * The day a player started playing: the first sign they found or posted, or the first way they
- * wrote, whichever came first. A sign posted for other finders counts (it earns First Sign).
+ * Every day a player played, oldest first: the signs they found or posted and the ways they wrote.
+ * A sign posted for other finders counts (it earns First Sign). The first is the day they started.
  */
-export function playingSince(player: Player, shown: Sign[], ways: Map<string, Way[]>): string | null {
-  const days = [
+export function playingDays(player: Player, shown: Sign[], ways: Map<string, Way[]>): string[] {
+  return [
     ...shown
       .filter((s) => s.postedBy === player.id || s.finders.some((f) => f.playerId === player.id))
       .map((s) => s.foundOn),
@@ -66,7 +69,22 @@ export function playingSince(player: Player, shown: Sign[], ways: Map<string, Wa
       .filter((w) => w.playerId === player.id)
       .map((w) => w.createdAt.slice(0, 10))
   ].sort();
-  return days[0] ?? null;
+}
+
+/**
+ * How long a player has played, in words, from the days they played (oldest first): "Playing
+ * since 2023", or for a first-era player who hasn't played since the archive's years, the years
+ * they found signs, "Found signs 2005–2006" (Jamie, 2026-11-12). Page words only: the data files
+ * keep `first_year` as it is.
+ */
+export function sinceWords(player: Player, days: string[]): string | null {
+  const first = days[0]?.slice(0, 4);
+  const last = days.at(-1)?.slice(0, 4);
+  if (!first || !last) return null;
+  if (isFirstEraPlayer(player.id) && last < '2015') {
+    return first === last ? `Found signs ${first}` : `Found signs ${first}–${last}`;
+  }
+  return `Playing since ${first}`;
 }
 
 /**
@@ -86,7 +104,8 @@ export function playerRows(everyone: People, shown: Sign[], ways: Map<string, Wa
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       // A sign they posted for other finders counts as playing, not as theirs.
       const posted = shown.filter((s) => s.postedBy === player.id).sort(byNewest);
-      const since = playingSince(player, shown, ways);
+      const days = playingDays(player, shown, ways);
+      const since = days[0] ?? null;
       const top = stats.signs[0];
       const wayOn = theirWays.map((w) => ({ w, sign: shown.find((s) => s.id === w.signId) })).find((x) => x.sign);
       const post = posted[0];
@@ -95,7 +114,7 @@ export function playerRows(everyone: People, shown: Sign[], ways: Map<string, Wa
         : wayOn?.sign
           ? { sign: wayOn.sign, label: 'Newest way', way: tex(wayOn.w.text) }
           : post && { sign: post, label: 'Newest post', way: post.firstWay ? tex(post.firstWay.text) : null };
-      return [{ player, stats, since: since ?? '', ...(newest && { newest }) }];
+      return [{ player, stats, since: since ?? '', sinceText: sinceWords(player, days), ...(newest && { newest }) }];
     })
     .sort(
       (a, b) =>
@@ -107,7 +126,13 @@ export function playerRows(everyone: People, shown: Sign[], ways: Map<string, Wa
 
 export function mountPlayers(
   site: Hono,
-  { store, urls, people, siteCard }: { store: Store; urls: Urls; people: () => Promise<People>; siteCard: SiteCard }
+  {
+    store,
+    urls,
+    people,
+    siteCard,
+    quiz
+  }: { store: Store; urls: Urls; people: () => Promise<People>; siteCard: SiteCard; quiz?: string }
 ): void {
   site.get('/players', async (c) => {
     const [signs, everyone] = await Promise.all([store.allSigns(), people()]);
@@ -120,6 +145,7 @@ export function mountPlayers(
         url={`${urls.site}/players`}
         card={await siteCard({ signs, everyone })}
         here="players"
+        quiz={quiz}
         style={PLAYERS_STYLE}
       >
         <main id="main" class="everyone">
@@ -130,14 +156,14 @@ export function mountPlayers(
             </div>
             {rows.length > 0 ? (
               <ul class="people">
-                {rows.map(({ player, stats, since, newest }) => (
+                {rows.map(({ player, stats, sinceText, newest }) => (
                   <li>
                     <a class="pc" href={playerPath(player)}>
                       <span class="who">
                         <Avatar name={player.name} color={player.avatarColor} photo={player.avatar} size={72} />
                         <span>
                           <h2>{player.name}</h2>
-                          <span class="sub">{player.bio || (since && `Playing since ${since.slice(0, 4)}`)}</span>
+                          <span class="sub">{player.bio || sinceText}</span>
                         </span>
                       </span>
                       {stats.sign_count > 0 && (

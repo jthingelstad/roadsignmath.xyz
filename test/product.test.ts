@@ -42,6 +42,7 @@ test('the fields a product line may carry are these and no others', () => {
     'event',
     'first',
     'front',
+    'guest',
     'numbers',
     'outcome',
     'part',
@@ -419,4 +420,40 @@ test('Quiz logs its sends as quiz, and a skip only when the sign left was unsolv
     { event: 'product', action: 'way', front: 'quiz', outcome: 'new' },
     { event: 'product', action: 'way', front: 'quiz', outcome: 'found-too' }
   ]);
+});
+
+test('signed out in Quiz: a skip says guest, Send logs the ask to sign in, and never the math', async () => {
+  const store = new MemoryStore();
+  await addPlayer(store, ada);
+  await store.putSign(sign({ id: S1, title: 'Seven Twelve' }));
+  await store.putWay(way(S1));
+  await store.putSign(sign({ id: S2, title: 'Open Road', firstWay: undefined, wayCount: 0 }));
+  const app = createApp({
+    store,
+    urls: { site: 'https://example.test' },
+    mailer: new MemoryMailer(),
+    photos: new MemoryPhotoStore(),
+    moderator: new ScriptedModerator(),
+    quizOpen: true
+  });
+  const quiz = (path: string, form?: Record<string, string>) =>
+    app.request(path, {
+      method: form ? 'POST' : 'GET',
+      headers: {
+        'X-RSM-Front': 'quiz',
+        ...(form ? { 'content-type': 'application/x-www-form-urlencoded', origin: 'https://quiz.example.test' } : {})
+      },
+      body: form ? new URLSearchParams(form).toString() : undefined
+    });
+  const { lines, logged } = await catching(async () => {
+    assert.equal((await quiz('/signs/open-road')).status, 200);
+    assert.equal((await quiz(`/next?after=${S2}`)).status, 303);
+    assert.equal((await quiz('/signs/open-road/solve', { text: '19 = 7 + 12' })).status, 200);
+    assert.equal((await quiz('/signs/open-road/solve', { text: '7 + 7 = 14' })).status, 400, 'bad math asks nothing');
+  });
+  assert.deepEqual(lines, [
+    { event: 'product', action: 'skip', front: 'quiz', guest: true },
+    { event: 'product', action: 'signin-ask', front: 'quiz' }
+  ]);
+  assert.ok(!JSON.stringify([lines, logged]).includes('19 = 7'), 'the math is never in a log line');
 });
