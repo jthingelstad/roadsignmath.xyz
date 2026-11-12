@@ -90,6 +90,23 @@ export function stillToTry(data: QuizData, on: Map<string, OnSign>, playerId: st
   );
 }
 
+/** How many signs a player solves before every sign is in the draw. */
+export const FIRST_SIGNS = 10;
+
+/** Signs with this many numbers make a gentle start: two to four. */
+export const isSmall = (sign: Sign): boolean => sign.numbers.length >= 2 && sign.numbers.length <= 4;
+
+/**
+ * The signs to draw from: for a player who has solved fewer than `FIRST_SIGNS`, the small ones
+ * (two to four numbers), so a first sign isn't one with seven; once those run out, or the only one
+ * left is the sign just skipped (`after`), every sign. Still a draw: nothing counts or levels up.
+ */
+export function smallFirst(left: Sign[], solved: number, after?: string): Sign[] {
+  if (solved >= FIRST_SIGNS) return left;
+  const small = left.filter(isSmall);
+  return small.some((s) => s.id !== after && s.slug !== after) ? small : left;
+}
+
 /**
  * A sign picked at random from those still to try, other than `after` (its id, or its slug from a
  * page drawn before ids) when there is another.

@@ -123,10 +123,11 @@ function setup(store = new MemoryStore(), newsletter = new MemoryNewsletter()) {
         },
         body: new URLSearchParams(fields).toString()
       });
-    const page = await (await form('/signin', { email })).text();
+    // The email page goes on to the code page, whose address names the sign-in.
+    const started = await form('/signin', { email });
     const code = /code is (\d{6})/.exec(mailer.sent.at(-1)!.subject)![1];
-    const login = /name="login" value="([^"]+)"/.exec(page)![1];
-    const done = await form('/signin/code', { login, email, code });
+    const login = /l=([^&]+)/.exec(started.headers.get('location')!)![1];
+    const done = await form('/signin/code', { login, code });
     assert.equal(done.status, 303);
   };
   return { store, newsletter, call, signIn, quizSignIn };
