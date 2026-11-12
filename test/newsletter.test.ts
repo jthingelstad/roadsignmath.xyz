@@ -7,6 +7,7 @@ import { MemoryPhotoStore } from '../src/photos.ts';
 import { MemoryStore } from '../src/store/memory.ts';
 import { isFirstEraPlayer } from '../src/seed/archive.ts';
 import { ulid, ulidFrom } from '../src/domain/ids.ts';
+import { newsletterLease } from '../src/auth/account.ts';
 import { addPlayer } from '../src/store/store.ts';
 import { ada } from './support/fixtures.ts';
 import { ScriptedModerator } from './support/moderator.ts';
@@ -185,7 +186,7 @@ test('tags Buttondown refuses never keep a player off the list: they are added u
   const original = console.error;
   console.error = (...args: unknown[]) => errors.push(args);
   try {
-    assert.equal(await new Buttondown(async () => 'k', fetcher).add('new@example.com', ['app']), 'added');
+    assert.equal(await new Buttondown(async () => 'k', fetcher).add('new@example.com', ['app']), 'untagged');
   } finally {
     console.error = original;
   }
@@ -288,4 +289,38 @@ test('first-era players are the archive’s, by the time in their id', () => {
   assert.ok(isFirstEraPlayer(ulidFrom(Date.parse('2005-02-13T00:00:00Z'), 'archive-player:Ben Example')));
   assert.ok(!isFirstEraPlayer(ulid()));
   assert.ok(!isFirstEraPlayer(ada.id));
+});
+
+test('a new player added without their tag is not recorded as tagged, so it is tried again', async () => {
+  const newsletter = new MemoryNewsletter();
+  const add = newsletter.add.bind(newsletter);
+  let refuse = true;
+  newsletter.add = async (email) => ((await add(email)) === 'added' && refuse ? 'untagged' : add(email));
+  const tag = newsletter.tag.bind(newsletter);
+  newsletter.tag = async (email, tags) => (refuse ? 'failed' : tag(email, tags));
+  const t = setup(new MemoryStore(), newsletter);
+  await t.signIn('pat@example.com');
+  assert.ok(newsletter.list.has('pat@example.com'), 'on the list all the same');
+  const id = (await t.store.playerIdForEmail('pat@example.com'))!;
+  assert.equal((await t.store.getPlayer(id))!.newsletterTags, undefined);
+  refuse = false;
+  await t.signIn('pat@example.com');
+  assert.deepEqual((await t.store.getPlayer(id))!.newsletterTags, ['app']);
+  assert.deepEqual([...newsletter.tags.get('pat@example.com')!], ['app']);
+});
+
+test('one tag change at a time per player: a sign-in that finds the lease held leaves it for next time', async () => {
+  const store = new MemoryStore();
+  await addPlayer(store, ada);
+  const newsletter = new MemoryNewsletter();
+  newsletter.list.add(ada.email!);
+  const t = setup(store, newsletter);
+  assert.ok(await store.lease(newsletterLease(ada.id), 'someone-else', 30));
+  await t.signIn(ada.email!);
+  assert.equal(newsletter.tags.get(ada.email!), undefined, 'nothing written while another holds it');
+  assert.equal((await store.getPlayer(ada.id))!.newsletterTags, undefined);
+  await store.endLease(newsletterLease(ada.id), 'someone-else');
+  await t.signIn(ada.email!);
+  assert.deepEqual([...newsletter.tags.get(ada.email!)!], ['app']);
+  assert.ok(await store.lease(newsletterLease(ada.id), 'after', 30), 'the sign-in gave its lease back');
 });

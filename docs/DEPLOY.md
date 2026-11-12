@@ -234,6 +234,7 @@ op run --env-file=<file naming BUTTONDOWN_API_KEY> -- npm run newsletter -- --to
 op run --env-file=<file naming BUTTONDOWN_API_KEY> -- npm run newsletter -- --to live    # the owner's go
 ```
 
-It reads the live table as `cloud-engineer` and writes nothing to it, and prints counts only,
+It reads the live table as `cloud-engineer` and writes only the short lease each tag change is
+made under, the server's too, so a sign-in at the same moment can't undo it. It prints counts only,
 never an address. Tags are only added, never taken off, and nobody is resubscribed. If Buttondown
 refuses a tag (tags need its Basic plan or higher), it stops at the first refusal.

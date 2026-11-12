@@ -12,12 +12,15 @@
 // added, never taken off.
 //
 // Give the key through the environment (`op run`), never on the command line. It reads the live
-// table as the cloud-engineer profile and writes nothing to it. Addresses are read into memory
+// table as the cloud-engineer profile, and writes to it only the short lease a tag is changed under
+// (the server's, so a sign-in at the same moment can't write over it). Addresses are read into memory
 // only: never printed, logged or saved; the tool prints counts. An address Buttondown already has,
 // unsubscribed included, is never resubscribed, so running it again changes nothing twice.
 
 import { execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { parseArgs } from 'node:util';
+import { newsletterLease } from '../src/auth/account.ts';
 import { Buttondown, type NewsletterTag } from '../src/newsletter.ts';
 import { isFirstEraPlayer } from '../src/seed/archive.ts';
 import { DynamoStore } from '../src/store/dynamo.ts';
@@ -51,11 +54,14 @@ const players = await store.allPlayers();
 
 /** Each address and the tags it should have. */
 const wanted = new Map<string, Set<NewsletterTag>>();
+/** The players with each address. */
+const owners = new Map<string, string[]>();
 for (const player of players) {
   const email = player.email?.trim().toLowerCase();
   if (!email) continue;
   const tags = wanted.get(email) ?? new Set<NewsletterTag>();
   wanted.set(email, tags);
+  owners.set(email, [...(owners.get(email) ?? []), player.id]);
   if (isFirstEraPlayer(player.id)) tags.add('first-era');
   for (const session of await store.sessionsOf(player.id)) tags.add(session.via ?? 'app');
 }
@@ -108,8 +114,17 @@ for (const [email, tags] of toAdd.slice(0, DAILY)) {
   await pause(1000);
 }
 const tagged: Record<string, number> = {};
+const holder = randomUUID();
 for (const [email, tags] of toTag) {
-  const outcome = await newsletter.tag(email, tags, 10_000);
+  const leases = owners.get(email)!.map(newsletterLease);
+  const held: string[] = [];
+  for (const lease of leases) if (await store.lease(lease, holder, 60)) held.push(lease);
+  let outcome: string;
+  try {
+    outcome = held.length === leases.length ? await newsletter.tag(email, tags, 10_000) : 'busy';
+  } finally {
+    for (const lease of held) await store.endLease(lease, holder);
+  }
   count(tagged, outcome);
   // A tag Buttondown won't take (a plan without tags, say) fails them all: stop at the first.
   if (outcome === 'failed') break;

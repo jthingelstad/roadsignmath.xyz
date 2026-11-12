@@ -9,7 +9,8 @@
 // from the archive. A new player is added with the tag of where they signed in; one already on the
 // list is tagged by reading their tags and writing them back with ours added, since Buttondown's
 // update replaces the whole list (https://docs.buttondown.com/openapi.json, PATCH
-// /subscribers/{id_or_email}). Tags are only ever added, never taken off.
+// /subscribers/{id_or_email}), under a lease on the player (`newsletterLease`) so two sign-ins at
+// once can't write over each other's tag. Tags are only ever added, never taken off.
 //
 // Never resubscribed: an add sends no X-Buttondown-Collision-Behavior header, so Buttondown answers
 // 400 for an address it already has, unsubscribed ones included, and changes nothing. Never log an
@@ -19,8 +20,11 @@ const BASE = 'https://api.buttondown.com/v1';
 const KEY_KEEP = 60 * 60 * 1000;
 const KEY_RETRY = 5 * 60 * 1000;
 
-/** `added` is new on the list; `known` means Buttondown already had the address and kept it as it was. */
-export type AddOutcome = 'added' | 'known' | 'off' | 'failed';
+/**
+ * `added` is new on the list with its tags; `untagged` is new on the list without them (Buttondown
+ * refused the tags); `known` means Buttondown already had the address and kept it as it was.
+ */
+export type AddOutcome = 'added' | 'untagged' | 'known' | 'off' | 'failed';
 /** `gone` means Buttondown had no such address. */
 export type RemoveOutcome = 'removed' | 'gone' | 'off' | 'failed';
 /** `already` means the subscriber had every tag; `gone` means Buttondown has no such address. */
@@ -107,7 +111,8 @@ export class Buttondown implements Newsletter {
       // Tags Buttondown won't take never keep a player off the list: they are added untagged.
       if (code === 'tag_invalid' && tags.length) {
         console.error({ event: 'newsletter', op: 'add', outcome: 'untagged', detail: code });
-        return this.add(email, [], timeoutMs);
+        const untagged = await this.add(email, [], timeoutMs);
+        return untagged === 'added' ? 'untagged' : untagged;
       }
       const outcome: AddOutcome =
         status === 'off'
