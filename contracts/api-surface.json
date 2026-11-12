@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Road Sign Math API",
-    "version": "1.12.2",
+    "version": "1.13.0",
     "summary": "The signs, the map and the players of Road Sign Math.",
     "description": "Every public sign, the ways people found to make it true, the map and who’s playing, read by anyone; sign-in by email, your own account, and posting signs and ways from the app. Answers are JSON in UTF-8 with snake_case keys and carry an `API-Version` header. A request with a token is never cached. An error is `{\"error\": {\"code\", \"message\"}}`.",
     "license": {
@@ -1559,6 +1559,109 @@
         }
       }
     },
+    "/api/v1/signs/{id}/solve": {
+      "post": {
+        "operationId": "solveSign",
+        "summary": "Solve a sign: a new way, or one someone found already",
+        "description": "The math is checked as for adding a way. A new way goes on the sign (`result` is `new_way`) and earns badges as one would. The same way as one already on the sign, written just so or in another order (`same_way` in contracts/equation-vectors.json), credits you on that way instead (`also_found`: you found it too, once, and it earns no badge). Your own way is a conflict. `way` is the way it made or found. Answers with the sign and all its ways, each with who else found it. You need a name first. Either counts toward the 100 ways a day.",
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The sign’s id or slug.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WayPost"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Solve a sign: a new way, or one someone found already",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Solved"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter or the body is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such route, sign or player.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "It already exists (that way was found), or the same post or account change is still being made.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many tries for now; the message says when to try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/signs/{id}/heart": {
       "put": {
         "operationId": "heartSign",
@@ -2288,7 +2391,7 @@
           "api_version": {
             "type": "string",
             "examples": [
-              "1.12.2"
+              "1.13.0"
             ]
           },
           "signs": {
@@ -2686,7 +2789,8 @@
           "value",
           "numbers",
           "by",
-          "created_at"
+          "created_at",
+          "also_found_by"
         ],
         "properties": {
           "id": {
@@ -2745,6 +2849,25 @@
           "created_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "also_found_by": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "handle",
+                "name"
+              ],
+              "properties": {
+                "handle": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Players who found the same way later and were credited on it (`POST /signs/{id}/solve`), oldest first, less any you blocked."
           }
         }
       },
@@ -3389,6 +3512,34 @@
           }
         ]
       },
+      "Solved": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SignAndBadges"
+          },
+          {
+            "type": "object",
+            "required": [
+              "result",
+              "way"
+            ],
+            "properties": {
+              "result": {
+                "type": "string",
+                "enum": [
+                  "new_way",
+                  "also_found"
+                ],
+                "description": "new_way: your way went on the sign. also_found: it was there, and you found it too."
+              },
+              "way": {
+                "$ref": "#/components/schemas/Way",
+                "description": "The way you made, or the one you found too."
+              }
+            }
+          }
+        ]
+      },
       "Me": {
         "allOf": [
           {
@@ -3898,8 +4049,10 @@
             "type": "string",
             "enum": [
               "way",
-              "heart"
-            ]
+              "heart",
+              "also_found"
+            ],
+            "description": "also_found: a player found a way already on your sign, and was credited on it."
           },
           "at": {
             "type": "string",
@@ -3940,7 +4093,7 @@
           },
           "player": {
             "type": "object",
-            "description": "Who found the way or gave the heart. Handle and name are null until they give a name.",
+            "description": "Who found the way, found it too, or gave the heart. Handle and name are null until they give a name.",
             "required": [
               "handle",
               "name",
@@ -3989,7 +4142,7 @@
             "anyOf": [
               {
                 "type": "object",
-                "description": "The way, for a way; null for a heart.",
+                "description": "The way, for a way or one found too; null for a heart.",
                 "required": [
                   "id",
                   "text",

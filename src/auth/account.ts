@@ -158,7 +158,8 @@ export async function removeAvatar(deps: { store: Store; photos: PhotoStore }, p
 
 /**
  * Deletes the player and what they made: the signs they posted (with their photos, every way on
- * them and their hearts), the ways they added to other signs, the hearts they gave, their place
+ * them and their hearts), the ways they added to other signs (with others' credit on them), the
+ * ways they found too, the hearts they gave, their place
  * among a sign's finders, their reports, their profile photo, and everything kept under them (sessions, uploads,
  * blocks) and their email. Photos uploaded and never posted go when the bucket clears uploads.
  * Hearts go first: if Tinylytics can't take them back, nothing else is deleted yet.
@@ -218,6 +219,11 @@ async function deleteEverything(
     await store.deleteDuplicate(sign.id, player.id);
     const ways = await store.listWays(sign.id);
     const theirs = ways.filter((w) => w.playerId === player.id);
+    // Their credit on others' ways goes, and so does others' credit on their ways, with the way.
+    const gone = new Set(theirs.map((w) => w.id));
+    for (const coFind of await store.listCoFinds(sign.id)) {
+      if (coFind.playerId === player.id || gone.has(coFind.wayId)) await store.deleteCoFind(coFind);
+    }
     const finders = sign.finders.filter((f) => f.playerId !== player.id);
     if (!theirs.length && finders.length === sign.finders.length) continue;
     for (const way of theirs) await store.deleteWay(way);

@@ -7,6 +7,7 @@ import { LIMITS } from '../api/contract.ts';
 import { check, normalizeNumber, numbersNotOnSign, sameWayKey } from '../domain/equation.ts';
 import { slugify, ulid } from '../domain/ids.ts';
 import type {
+  CoFind,
   DuplicateReport,
   Finder,
   FinderRole,
@@ -408,30 +409,34 @@ export async function deleteSign(deps: PostingDeps, player: Player, sign: Sign):
 export const REORDERED =
   'That’s a way already on the sign in another order. Moving what’s added or multiplied around doesn’t make a new one';
 
-/** Adds a way to a sign, keeping the sign's count and first way in step with its ways. */
-export async function addWay(
-  { store }: PostingDeps,
-  player: Player,
-  sign: Sign,
-  body: Record<string, unknown>
-): Promise<Way[]> {
+/** The way a player sent, checked against the sign's numbers. */
+function sentWay(player: Player, sign: Sign, body: Record<string, unknown>) {
   needName(player);
   only(body, 'The way', ['text']);
   if (typeof body.text !== 'string' || body.text.length > LIMITS.wayMax) {
     fail('bad_request', `text is math of at most ${LIMITS.wayMax} characters`);
   }
-  const way = checkWay(body.text as string, sign.numbers);
-  const taken = 'Someone already found that way';
-  const onSign = await store.listWays(sign.id);
-  if (onSign.some((w) => w.text === way.text)) fail('conflict', taken);
-  // The same way in another order (the same-way rule in equation.ts) isn't a new way either. The
-  // app shows a conflict's message with a full stop after it, so neither message ends in one.
-  const key = sameWayKey(way.text);
-  if (onSign.some((w) => sameWayKey(w.text) === key)) fail('conflict', REORDERED);
-  const now = nowSeconds();
-  await limit(store, `ways:${player.id}`, LIMITS.waysADay, DAY, now, `Too many ways today. ${tomorrow}`);
-  // The check above answers most repeats; this one write settles two of the same way sent at once.
-  // Its time and id are to the millisecond, so ways keep the order they were sent in.
+  return checkWay(body.text as string, sign.numbers);
+}
+
+/** The way on the sign this one repeats: the same text, or the same way in another order. */
+function sameAs(onSign: Way[], text: string): { way: Way; exactly: boolean } | undefined {
+  const exact = onSign.find((w) => w.text === text);
+  if (exact) return { way: exact, exactly: true };
+  const key = sameWayKey(text);
+  const turned = onSign.find((w) => sameWayKey(w.text) === key);
+  return turned && { way: turned, exactly: false };
+}
+
+const TAKEN = 'Someone already found that way';
+const waysLimit = (store: Store, player: Player) =>
+  limit(store, `ways:${player.id}`, LIMITS.waysADay, DAY, nowSeconds(), `Too many ways today. ${tomorrow}`);
+
+/**
+ * Writes a new way. Its time and id are to the millisecond, so ways keep the order they were sent
+ * in. The write settles two of the same way sent at once: `taken` or `reordered` for the second.
+ */
+async function writeWay(store: Store, player: Player, sign: Sign, way: ReturnType<typeof checkWay>) {
   const ms = Date.now();
   const added = await store.addWay({
     id: ulid(ms),
@@ -440,10 +445,68 @@ export async function addWay(
     ...way,
     createdAt: new Date(ms).toISOString()
   });
-  if (added === 'taken') fail('conflict', taken);
-  if (added === 'reordered') fail('conflict', REORDERED);
   if (added === 'gone') fail('not_found', 'No sign by that id');
+  return added;
+}
+
+/** Adds a way to a sign, keeping the sign's count and first way in step with its ways. */
+export async function addWay(
+  { store }: PostingDeps,
+  player: Player,
+  sign: Sign,
+  body: Record<string, unknown>
+): Promise<Way[]> {
+  const way = sentWay(player, sign, body);
+  // The same way in another order (the same-way rule in equation.ts) isn't a new way either. The
+  // app shows a conflict's message with a full stop after it, so neither message ends in one.
+  const repeat = sameAs(await store.listWays(sign.id), way.text);
+  if (repeat) fail('conflict', repeat.exactly ? TAKEN : REORDERED);
+  await waysLimit(store, player);
+  const added = await writeWay(store, player, sign, way);
+  if (added === 'taken') fail('conflict', TAKEN);
+  if (added === 'reordered') fail('conflict', REORDERED);
   return store.listWays(sign.id);
+}
+
+/** The answer to solving with a way you found already. */
+export const YOURS = 'You found that way already';
+
+/** What solving a sign did: a new way on it, or credit on the way already there. */
+export type Solved = { result: 'new_way' | 'also_found'; way: Way; ways: Way[] };
+
+/**
+ * Solves a sign (Jamie, 2026-11-11): a new way goes on as `addWay` adds it; the same way as one
+ * already there, by the same-way rule, credits the player on that way instead ("You found it
+ * too"), once. Their own way is a conflict. Either counts toward the day's ways.
+ */
+export async function solveSign(
+  { store }: PostingDeps,
+  player: Player,
+  sign: Sign,
+  body: Record<string, unknown>,
+  via: CoFind['via']
+): Promise<Solved> {
+  const way = sentWay(player, sign, body);
+  let repeat = sameAs(await store.listWays(sign.id), way.text);
+  if (repeat?.way.playerId === player.id) fail('conflict', YOURS);
+  await waysLimit(store, player);
+  if (!repeat) {
+    const added = await writeWay(store, player, sign, way);
+    const ways = await store.listWays(sign.id);
+    if (added === 'added') {
+      const mine = ways.find((w) => w.playerId === player.id && w.text === way.text)!;
+      return { result: 'new_way', way: mine, ways };
+    }
+    // Someone sent the same way a moment before: theirs is the way, and this one found it too.
+    repeat = sameAs(ways, way.text) ?? fail('conflict', TAKEN);
+  }
+  if (repeat.way.playerId === player.id) fail('conflict', YOURS);
+  const credited = await store.addCoFind(
+    { signId: sign.id, wayId: repeat.way.id, playerId: player.id, createdAt: new Date().toISOString(), via },
+    repeat.way
+  );
+  if (credited === 'gone') fail('conflict', 'That way just went from the sign. Try again');
+  return { result: 'also_found', way: repeat.way, ways: await store.listWays(sign.id) };
 }
 
 /** Sends a sign back to the moderator with the player's reason; it is hidden if the moderator agrees. */

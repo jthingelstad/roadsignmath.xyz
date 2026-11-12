@@ -291,6 +291,31 @@ for (const [name, make] of kinds) {
       assert.equal(await store.claimWay('gone', first.text, 'w5'), true, 'nor its math held');
     });
 
+    test('a co-find is kept once, only while its way is there, and goes with its sign', async () => {
+      const store = make();
+      await store.putSign(sign({ id: 'S1', title: 'One', wayCount: 0 }));
+      const theWay = way('S1', { id: 'w1', playerId: ada.id });
+      const coFind = {
+        signId: 'S1',
+        wayId: 'w1',
+        playerId: ben.id,
+        createdAt: '2026-02-02T00:00:00.000Z',
+        via: 'app' as const
+      };
+      assert.equal(await store.addCoFind(coFind, theWay), 'gone', 'not before the way is there');
+      assert.equal(await store.addWay(theWay), 'added');
+      assert.equal(await store.addCoFind(coFind, theWay), 'added');
+      assert.equal(await store.addCoFind({ ...coFind, createdAt: '2026-02-03T00:00:00.000Z' }, theWay), 'already');
+      const earlier = { ...coFind, playerId: 'p-earlier', createdAt: '2026-02-01T00:00:00.000Z' };
+      assert.equal(await store.addCoFind(earlier, theWay), 'added');
+      assert.deepEqual(await store.listCoFinds('S1'), [earlier, coFind]);
+      assert.deepEqual(await store.listWays('S1'), [theWay], 'not a way');
+      await store.deleteCoFind(earlier);
+      assert.deepEqual(await store.listCoFinds('S1'), [coFind]);
+      await store.deleteSign('S1');
+      assert.deepEqual(await store.listCoFinds('S1'), []);
+    });
+
     test('an upload is taken by one post, and given back if that post fails', async () => {
       const store = make();
       const upload = {
@@ -413,4 +438,31 @@ test('DynamoStore adds a way in one transaction of the documented shape', async 
   assert.equal(count.UpdateExpression, 'ADD wayCount :one SET firstWay = if_not_exists(firstWay,:first)');
   assert.equal(count.ConditionExpression, 'attribute_exists(pk)');
   for (const i of items) assert.equal(Object.values(i)[0].TableName, 'test-table');
+});
+
+test('DynamoStore adds a co-find in one transaction that checks its way is still there', async () => {
+  const fake = new FakeDynamo('test-table');
+  const store = new DynamoStore('test-table', fake);
+  const w = way('S1', { id: 'w1' });
+  await store.putWay(w);
+  const coFind = {
+    signId: 'S1',
+    wayId: 'w1',
+    playerId: ben.id,
+    createdAt: '2026-01-11T00:00:00.000Z',
+    via: 'app' as const
+  };
+  assert.equal(await store.addCoFind(coFind, w), 'added');
+  const sent = fake.sent.at(-1)!;
+  assert.equal(sent.command, 'TransactWriteCommand');
+  const items = sent.input.TransactItems as Record<string, Record<string, unknown>>[];
+  assert.deepEqual(
+    items.map((i) => Object.keys(i)[0]),
+    ['Put', 'ConditionCheck']
+  );
+  const [row, check] = items.map((i) => Object.values(i)[0]);
+  assert.deepEqual(row.Item, { pk: 'SIGN#S1', sk: `ALSO#w1#${ben.id}`, kind: 'also', ...coFind });
+  assert.equal(row.ConditionExpression, 'attribute_not_exists(pk)');
+  assert.deepEqual(check.Key, { pk: 'SIGN#S1', sk: 'WAY#2026-01-10T12:00:00.000Z#w1' });
+  assert.equal(check.ConditionExpression, 'attribute_exists(pk)');
 });

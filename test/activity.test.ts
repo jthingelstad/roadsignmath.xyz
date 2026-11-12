@@ -192,6 +192,31 @@ test('another player sees their own signs’ activity, not yours', async () => {
   assert.deepEqual((await get(dee)).body, { days: 30, items: [] });
 });
 
+test('a way found again shows on your sign as also_found, with the finder and the way', async () => {
+  const { store, get } = await setup();
+  const benWay = way(id(1), { id: 'w-ben', playerId: ben.id, text: '19 − 12 = 7', value: '7', createdAt: ago(2) });
+  const eveWay = way(id(1), { id: 'w-eve', playerId: eve.id, text: '12 − 5 = 7', value: '7', createdAt: ago(2, 1) });
+  const adaWay = way(id(1), { id: 'w-ada', playerId: ada.id, text: '7 × 1 = 7', value: '7', createdAt: ago(2, 2) });
+  for (const w of [benWay, eveWay, adaWay]) await store.putWay(w);
+  const also = (w: typeof benWay, by: Player, createdAt: string) =>
+    store.addCoFind({ signId: id(1), wayId: w.id, playerId: by.id, createdAt, via: 'app' }, w);
+  await also(adaWay, cy, ago(0, 5)); // Cy found Ada's way too
+  await also(benWay, dee, ago(0, 10)); // Dee found Ben's way too
+  await also(benWay, ada, ago(0, 15)); // Ada's own co-find isn't news to her
+  await also(benWay, eve, ago(0, 20)); // Eve is blocked
+  await also(eveWay, cy, ago(0, 25)); // a blocked player's way stays hidden
+  await also(adaWay, dee, ago(40)); // too old
+  const { body } = await get(ada);
+  assert.deepEqual(
+    body.items.filter((i: Json) => i.kind === 'also_found').map((i: Json) => `${i.player.handle} ${i.way.id}`),
+    ['cy w-ada', 'dee w-ben']
+  );
+  const [first] = body.items;
+  assert.equal(first.kind, 'also_found');
+  assert.deepEqual(first.way, { id: 'w-ada', text: '7 × 1 = 7', tex: '7 \\times 1 = 7' });
+  assert.equal(first.sign.slug, 'exit-seven');
+});
+
 test(`at most ${LIMITS.activityMax} items, the newest`, async () => {
   const { store, get } = await setup();
   for (let i = 0; i < LIMITS.activityMax + 5; i++) {

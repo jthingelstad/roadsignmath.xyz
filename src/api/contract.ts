@@ -6,7 +6,7 @@
  * Bump on every change to the surface. tools/export-api-contract.ts refuses a changed surface
  * under a version already in contracts/api-versions.json.
  */
-export const API_VERSION = '1.12.2';
+export const API_VERSION = '1.13.0';
 
 export const LIMITS = {
   /** Signs per page of the feed. */
@@ -560,6 +560,25 @@ export const ROUTES: Route[] = [
     errors: ['conflict', 'rate_limited'],
     status: 201,
     response: 'SignAndBadges'
+  },
+  {
+    operationId: 'solveSign',
+    method: 'post',
+    path: '/signs/{id}/solve',
+    summary: 'Solve a sign: a new way, or one someone found already',
+    description:
+      'The math is checked as for adding a way. A new way goes on the sign (`result` is `new_way`) and ' +
+      'earns badges as one would. The same way as one already on the sign, written just so or in another ' +
+      'order (`same_way` in contracts/equation-vectors.json), credits you on that way instead (`also_found`: ' +
+      'you found it too, once, and it earns no badge). Your own way is a conflict. `way` is the way it made ' +
+      'or found. Answers with the sign and all its ways, each with who else found it. You need a name ' +
+      `first. Either counts toward the ${LIMITS.waysADay} ways a day.`,
+    params: [signId],
+    auth: 'signed_in',
+    body: 'WayPost',
+    errors: ['conflict', 'rate_limited'],
+    status: 200,
+    response: 'Solved'
   },
   {
     operationId: 'heartSign',

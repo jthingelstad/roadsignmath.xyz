@@ -79,6 +79,18 @@ export type Way = {
   createdAt: string;
 };
 
+/**
+ * A player who found a way already on a sign (Jamie, 2026-11-11: "You found it too"): they are
+ * credited on that way, which stays its first finder's. `via` is where they found it.
+ */
+export type CoFind = {
+  signId: string;
+  wayId: string;
+  playerId: string;
+  createdAt: string;
+  via: 'app' | 'quiz';
+};
+
 export type Player = {
   id: string;
   handle: string;

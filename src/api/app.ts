@@ -31,6 +31,7 @@ import { notFoundPage } from '../web/not-found.tsx';
 import { createSite } from '../web/site.tsx';
 import {
   addWay,
+  solveSign,
   blockPlayer,
   deleteSign,
   postSign,
@@ -49,6 +50,7 @@ import {
   playerStats,
   playerView,
   signDetail,
+  wayView,
   isPublic,
   signPath,
   signSummary,
@@ -240,13 +242,16 @@ export function createApi(options: ApiOptions): Hono {
   const findSign = (signs: Sign[], key: string): Sign =>
     signs.find((s) => s.id === key || s.slug === key) ?? fail('not_found', 'No sign by that id');
 
-  const detail = (people: People, blocked: Set<string>, sign: Sign, ways: Way[], hearts: HeartView) =>
+  /** A sign and the ways this reader sees, each with who else found it. */
+  const detail = async (people: People, blocked: Set<string>, sign: Sign, ways: Way[], hearts: HeartView) =>
     signDetail(
       urls,
       people,
       sign,
       ways.filter((w) => !blocked.has(w.playerId)),
-      hearts
+      hearts,
+      await store.listCoFinds(sign.id),
+      blocked
     );
 
   const handlers: Record<string, Handler> = {
@@ -356,7 +361,7 @@ export function createApi(options: ApiOptions): Hono {
     async getSign(c, { data, hearts }) {
       const [{ signs, people, blocked }, h] = await Promise.all([data(), hearts()]);
       const sign = findSign(signs, pathParam(c, 'id'));
-      return c.json(detail(people, blocked, sign, await store.listWays(sign.id), h));
+      return c.json(await detail(people, blocked, sign, await store.listWays(sign.id), h));
     },
 
     async getMap(c, { data, hearts }) {
@@ -493,7 +498,7 @@ export function createApi(options: ApiOptions): Hono {
       // replay tells the same news.
       const after = await load(viewer);
       // A replayed post can carry ways added since, by players the poster has blocked.
-      const answer = detail(after.people, after.blocked, sign, ways, await hearts());
+      const answer = await detail(after.people, after.blocked, sign, ways, await hearts());
       return c.json({ ...answer, unlocked: await unlockedBy(poster.id, after, { sign, ways }) }, 201);
     },
 
@@ -510,9 +515,31 @@ export function createApi(options: ApiOptions): Hono {
       const before = await badgesOf(viewer!.player.id, loaded);
       const ways = await addWay(deps, viewer!.player, sign, await jsonBody(c));
       const fresh = (await store.getSign(sign.id)) ?? sign;
-      const answer = detail(people, blocked, fresh, ways, await hearts());
+      const answer = await detail(people, blocked, fresh, ways, await hearts());
       const unlocked = await unlockedBy(viewer!.player.id, loaded, { sign: fresh, ways }, before);
       return c.json({ ...answer, unlocked }, 201);
+    },
+
+    async solveSign(c, { data, hearts, viewer }) {
+      const loaded = await data();
+      const { signs, people, blocked } = loaded;
+      const sign = findSign(signs, pathParam(c, 'id'));
+      const before = await badgesOf(viewer!.player.id, loaded);
+      // Through the API it is the app; Quiz's own pages will say 'quiz'.
+      const solved = await solveSign(deps, viewer!.player, sign, await jsonBody(c), 'app');
+      const fresh = (await store.getSign(sign.id)) ?? sign;
+      const answer = await detail(people, blocked, fresh, solved.ways, await hearts());
+      // Finding a way already there credits you on it and earns no badge.
+      const unlocked =
+        solved.result === 'new_way'
+          ? await unlockedBy(viewer!.player.id, loaded, { sign: fresh, ways: solved.ways }, before)
+          : [];
+      // The way it found, as the reader sees the sign: a blocked player's way keeps its math, not its name.
+      const way = answer.ways.find((w) => w.id === solved.way.id) ?? {
+        ...wayView(people, solved.way, await store.listCoFinds(sign.id), blocked),
+        by: null
+      };
+      return c.json({ result: solved.result, way, ...answer, unlocked });
     },
 
     async heartSign(c, { data, viewer }) {

@@ -8,7 +8,7 @@ import { addPlayer } from '../src/store/store.ts';
 import { HIGHWAY_SVG } from '../src/web/brand.ts';
 import { MAP_LIBRARIES, MAP_TILES } from '../src/web/home-map.ts';
 import { ScriptedModerator } from './support/moderator.ts';
-import { ada, sign, way } from './support/fixtures.ts';
+import { ada, ben, sign, way } from './support/fixtures.ts';
 
 /** The drawn dot between two facts, with the comma screen readers hear. */
 const SEP = '<span class="sep"><span class="vh">, </span></span>';
@@ -68,6 +68,26 @@ test('home’s app section links the App Store, and the TestFlight beta second',
     /<a class="get" href="\/app" data-tinylytics-event="app\.get" data-tinylytics-event-value="header">/
   );
   assert.ok(!html.includes('Join the iPhone beta'));
+});
+
+test('a sign page names who also found a way, and no one when nobody has', async () => {
+  const { app, store, slug } = await setup();
+  const path = `/signs/${slug('Newer Sign')}`;
+  assert.ok(!(await (await app.request(path)).text()).includes('Also found by'));
+  const [found] = await store.listWays('01JS0000000000000000000002');
+  await addPlayer(store, ben);
+  await addPlayer(store, { ...ben, id: '01JCCCCCCCCCCCCCCCCCCCCCCC', handle: 'cy', name: 'Cy' });
+  for (const [playerId, at] of [
+    [ben.id, '2026-02-02T00:00:00.000Z'],
+    ['01JCCCCCCCCCCCCCCCCCCCCCCC', '2026-02-03T00:00:00.000Z']
+  ]) {
+    await store.addCoFind({ signId: found.signId, wayId: found.id, playerId, createdAt: at, via: 'app' }, found);
+  }
+  assert.ok(
+    (await (await app.request(path)).text()).includes(
+      '<span class="also">Also found by <a href="/players/ben">Ben</a> and <a href="/players/cy">Cy</a></span>'
+    )
+  );
 });
 
 test('every page but the sign-in link carries the Smart App Banner, opening the page itself', async () => {
