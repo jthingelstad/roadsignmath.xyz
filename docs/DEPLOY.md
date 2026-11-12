@@ -57,8 +57,9 @@ Two small stacks beside it, applied by hand and never from a workflow:
   keeps its own until `aws backup update-recovery-point-lifecycle` changes it.
 
 The `roadsignmath.xyz` zone itself is projects-sysadmin's `dns-roadsignmath-xyz` stack. This
-stack writes only its certificate's validation records there; the apex, `www`, DKIM and MAIL FROM
-records are the zone stack's, and this stack prints them as outputs.
+stack writes only its certificate's validation records there; the apex, `www`, `quiz`, DKIM and
+MAIL FROM records are the zone stack's, and this stack prints them as outputs (`QuizRecords` is
+Quiz's distribution, added 2026-11-11).
 
 ## A release
 
