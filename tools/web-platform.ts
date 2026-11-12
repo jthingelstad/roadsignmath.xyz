@@ -1,9 +1,10 @@
 /** Sole owner of the web function's resource policy, which CloudFormation cannot hold (the
  * AWS::Lambda::ResourcePolicy schema refuses web-function ARNs). It grants CloudFront, from this
- * stack's distribution only, the live endpoint only. Every release installs a missing policy and
- * checks that an existing one is exactly that grant. Nothing here removes or rewrites a policy:
- * CloudFront reaches the server only through it, so a policy that differs is refused for a person
- * to look at. */
+ * stack's distributions only (the site's, and Quiz's once it exists), the live endpoint only.
+ * Every release installs a missing policy and checks that an existing one is exactly that grant.
+ * The one rewrite is the upgrade from the site-only grant to the grant naming both distributions,
+ * once Quiz's exists (2026-11-11). Nothing here removes a policy or rewrites any other: CloudFront
+ * reaches the server only through it, so a policy that differs is refused for a person to look at. */
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 import {
   GetResourcePolicyCommand,
@@ -16,13 +17,15 @@ import { region, releaseIdentity, stackInAccount, stackName } from './release-id
 
 export type Context = {
   account: string;
-  distributionArn: string;
+  /** The site's distribution, then Quiz's when the stack has one. */
+  distributionArns: string[];
   outputs: Record<string, string>;
   web: Pick<LambdaWebClient, 'send'>;
 };
 
-/** The exact endpoint-only grant; never permits public invocation. */
-export function endpointPolicy(endpointArn: string, distributionArn: string) {
+/** The exact endpoint-only grant, to one distribution or several; never permits public invocation. */
+export function endpointPolicy(endpointArn: string, distributionArns: string[]) {
+  if (distributionArns.length === 0) throw new Error('A grant names at least one distribution');
   return {
     Version: '2012-10-17',
     Statement: [
@@ -32,7 +35,9 @@ export function endpointPolicy(endpointArn: string, distributionArn: string) {
         Principal: { Service: 'cloudfront.amazonaws.com' },
         Action: 'lambda:InvokeWebFunctionEndpoint',
         Resource: endpointArn,
-        Condition: { StringEquals: { 'aws:SourceArn': distributionArn } }
+        Condition: {
+          StringEquals: { 'aws:SourceArn': distributionArns.length === 1 ? distributionArns[0] : distributionArns }
+        }
       }
     ]
   };
@@ -87,9 +92,13 @@ export async function context(): Promise<Context> {
   )
     throw new Error('The stack must be idle after a completed update');
   const outputs = Object.fromEntries((stack!.Outputs ?? []).map((entry) => [entry.OutputKey!, entry.OutputValue!]));
+  const arn = (id: string) => `arn:aws:cloudfront::${account}:distribution/${id}`;
   return {
     account,
-    distributionArn: `arn:aws:cloudfront::${account}:distribution/${required(outputs, 'DistributionId')}`,
+    distributionArns: [
+      arn(required(outputs, 'DistributionId')),
+      ...(outputs.QuizDistributionId ? [arn(outputs.QuizDistributionId)] : [])
+    ],
     outputs,
     // A write must never be blindly retried after an unknown response.
     web: new LambdaWebClient({ region, maxAttempts: 1 })
@@ -123,20 +132,27 @@ async function currentPolicy(ctx: Context, functionArn: string) {
   }
 }
 
-/** Installs the grant where there is none; confirms it where there is one. */
-export async function ensurePolicy(ctx?: Context): Promise<'installed' | 'confirmed'> {
+/**
+ * Installs the grant where there is none, confirms it where there is one, and widens the site-only
+ * grant to name Quiz's distribution once it exists.
+ */
+export async function ensurePolicy(ctx?: Context): Promise<'installed' | 'confirmed' | 'widened'> {
   const live = ctx ?? (await context());
   const { functionArn, endpointArn } = await liveEndpoint(live);
-  const desired = canonical(endpointPolicy(endpointArn, live.distributionArn));
+  const desired = canonical(endpointPolicy(endpointArn, live.distributionArns));
+  const siteOnly = canonical(endpointPolicy(endpointArn, live.distributionArns.slice(0, 1)));
   const actual = await currentPolicy(live, functionArn);
+  let outcome: 'installed' | 'widened' = 'installed';
   if (actual !== undefined) {
-    if (canonical(JSON.parse(actual)) !== desired)
+    const found = canonical(JSON.parse(actual));
+    if (found === desired) return 'confirmed';
+    if (found !== siteOnly)
       throw new Error('The endpoint policy differs from the live-endpoint grant; look at it by hand');
-    return 'confirmed';
+    outcome = 'widened';
   }
   await live.web.send(new PutResourcePolicyCommand({ resourceArn: functionArn, policy: desired }));
   const installed = await currentPolicy(live, functionArn);
   if (installed === undefined || canonical(JSON.parse(installed)) !== desired)
     throw new Error('Policy installation was not confirmed');
-  return 'installed';
+  return outcome;
 }

@@ -8,7 +8,7 @@ import { packageBundle, packageRelease } from '../tools/package-native.ts';
 import { main } from '../tools/release-cli.ts';
 import { allowedCaller, stackInAccount } from '../tools/release-identity.ts';
 import { probe } from '../tools/release-probe.ts';
-import { canonical, endpointPolicy, servedRevision, type Context } from '../tools/web-platform.ts';
+import { canonical, endpointPolicy, ensurePolicy, servedRevision, type Context } from '../tools/web-platform.ts';
 
 // Made-up identifiers throughout: account 000000000000 is no one's.
 const account = '000000000000';
@@ -37,7 +37,7 @@ test('a stack counts only in the caller account', () => {
 
 test('the endpoint grant is CloudFront, from one distribution, to the live endpoint only', () => {
   const distribution = `arn:aws:cloudfront::${account}:distribution/EEXAMPLE`;
-  const policy = endpointPolicy(endpointArn, distribution);
+  const policy = endpointPolicy(endpointArn, [distribution]);
   assert.deepEqual(policy.Statement, [
     {
       Sid: 'RoadSignMathCloudFrontLiveOnly',
@@ -57,6 +57,15 @@ test('the endpoint grant is CloudFront, from one distribution, to the live endpo
   assert.equal(canonical(reordered), canonical(policy));
   assert.notEqual(canonical({ ...policy, Version: '2008-10-17' }), canonical(policy));
   assert.throws(() => canonical({ a: undefined }), /Undefined policy field/);
+});
+
+test('a second distribution, Quiz’s, is named beside the site’s', () => {
+  const site = `arn:aws:cloudfront::${account}:distribution/EEXAMPLE`;
+  const quiz = `arn:aws:cloudfront::${account}:distribution/EQUIZ`;
+  assert.deepEqual(endpointPolicy(endpointArn, [site, quiz]).Statement[0]!.Condition, {
+    StringEquals: { 'aws:SourceArn': [site, quiz] }
+  });
+  assert.throws(() => endpointPolicy(endpointArn, []), /at least one/);
 });
 
 const endpoint = {
@@ -97,7 +106,7 @@ function context(revision: { state: string; description: string }, outputs: Reco
   const asked: string[] = [];
   const ctx: Context = {
     account,
-    distributionArn: `arn:aws:cloudfront::${account}:distribution/EEXAMPLE`,
+    distributionArns: [`arn:aws:cloudfront::${account}:distribution/EEXAMPLE`],
     outputs: {
       WebFunctionName: 'roadsignmath-xyz-web',
       WebFunctionArn: functionArn,
@@ -233,4 +242,51 @@ test('the release tool takes only what each command needs', async () => {
   await assert.rejects(main(['upload', '--artifacts', '/tmp', '--extra', 'x']), /Invalid release option/);
   await assert.rejects(main(['policies', '--force']), /Invalid release option/);
   await assert.rejects(main(['probe', '--commit', 'main']), /committed build/);
+});
+
+test('the grant is installed, confirmed, widened for Quiz, and otherwise refused', async () => {
+  const site = `arn:aws:cloudfront::${account}:distribution/EEXAMPLE`;
+  const quiz = `arn:aws:cloudfront::${account}:distribution/EQUIZ`;
+  const run = async (arns: string[], stored: unknown) => {
+    let policy = stored === undefined ? undefined : JSON.stringify(stored);
+    const puts: string[] = [];
+    const ctx = {
+      account,
+      distributionArns: arns,
+      outputs: {
+        WebFunctionName: 'roadsignmath-xyz-web',
+        WebFunctionArn: functionArn,
+        WebLiveEndpointArn: endpointArn,
+        WebLiveEndpointDomain: 'live.example.test'
+      },
+      web: {
+        send: async (command: { constructor: { name: string }; input: { policy?: string } }) => {
+          const name = command.constructor.name;
+          if (name === 'GetWebFunctionEndpointCommand') return endpoint;
+          if (name === 'PutResourcePolicyCommand') {
+            puts.push(command.input.policy!);
+            policy = command.input.policy;
+            return {};
+          }
+          if (policy === undefined) throw Object.assign(new Error('none'), { name: 'ResourceNotFoundException' });
+          return { policy };
+        }
+      } as never
+    } satisfies Context;
+    return { outcome: await ensurePolicy(ctx), puts };
+  };
+  const both = canonical(endpointPolicy(endpointArn, [site, quiz]));
+  assert.deepEqual(await run([site], undefined), {
+    outcome: 'installed',
+    puts: [canonical(endpointPolicy(endpointArn, [site]))]
+  });
+  assert.deepEqual(await run([site], endpointPolicy(endpointArn, [site])), { outcome: 'confirmed', puts: [] });
+  assert.deepEqual(await run([site, quiz], endpointPolicy(endpointArn, [site])), { outcome: 'widened', puts: [both] });
+  assert.deepEqual(await run([site, quiz], endpointPolicy(endpointArn, [site, quiz])), {
+    outcome: 'confirmed',
+    puts: []
+  });
+  const other = `arn:aws:cloudfront::${account}:distribution/EOTHER`;
+  await assert.rejects(run([site, quiz], endpointPolicy(endpointArn, [other])), /look at it by hand/);
+  await assert.rejects(run([site], endpointPolicy(endpointArn, [site, quiz])), /look at it by hand/);
 });

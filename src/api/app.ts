@@ -28,6 +28,8 @@ import { nowSeconds } from '../store/store.ts';
 import { limit } from './input.ts';
 import { appSiteAssociation } from '../web/apple.ts';
 import { notFoundPage } from '../web/not-found.tsx';
+import { frontOf } from '../front.ts';
+import { createQuiz } from '../quiz/quiz.tsx';
 import { createSite } from '../web/site.tsx';
 import {
   addWay,
@@ -652,7 +654,7 @@ export function createApi(options: ApiOptions): Hono {
   return api;
 }
 
-/** The whole server: the API under /api/v1 and the website's pages beside it. */
+/** The whole server: the site's front and, through Quiz's distribution, Quiz (src/front.ts). */
 export function createApp(given: ApiOptions): Hono {
   const changes = given.edgeCache ? new PageChanges(given.edgeCache) : undefined;
   const options = {
@@ -661,7 +663,17 @@ export function createApp(given: ApiOptions): Hono {
     heartCounts: given.heartCounts ?? new HeartCounts(given.tinylytics)
   };
   const app = new Hono();
+  // A page write through either front clears the site's cache, so the middleware is outside both.
   if (changes) app.use('*', changes.middleware());
+  const site = siteApp(options);
+  const quiz = createQuiz(options);
+  app.all('*', (c) => (frontOf(c) === 'quiz' ? quiz : site).fetch(c.req.raw, c.env));
+  return app;
+}
+
+/** The site's front: the API under /api/v1 and the website's pages beside it. */
+function siteApp(options: ApiOptions & { heartCounts: HeartCounts }): Hono {
+  const app = new Hono();
   app.route('/api/v1', createApi(options));
   if (options.appleTeamId) {
     const association = JSON.stringify(appSiteAssociation(options.appleTeamId));
