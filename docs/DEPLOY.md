@@ -27,8 +27,8 @@ us-east-1:
 - **The runtime secret**, `roadsignmath-xyz-runtime` in Secrets Manager, with three keys:
   `ANTHROPIC_API_KEY` (the moderator's), `TINYLYTICS_API_KEY` (a full-access Tinylytics key,
   for hearts and the app's screen views) and `BUTTONDOWN_API_KEY` (the players' newsletter, from
-  the 1Password item "Buttondown - Road Sign Math"; without it new players aren't added and
-  deleted ones aren't removed). The owner keeps that secret by hand; no stack or deploy
+  the 1Password item "Buttondown - Road Sign Math"; without it new players aren't added or
+  tagged and deleted ones aren't removed). The owner keeps that secret by hand; no stack or deploy
   writes it, and the function may read it and no other. Without the first, posting and reporting
   answer 503 and change nothing; without the second, every sign's `hearts` is null, hearting
   answers 503, and app views are dropped. Everything else works either way. The function reads
@@ -220,3 +220,21 @@ TINYLYTICS_API_KEY=… BUTTONDOWN_API_KEY=… npm run owner -- remove-player <ha
 - `--to check` only reads the live table. `--to live` is a write to live data, the owner's alone,
   and clears the edge once at the end, even when it fails partway. It reads the table, photo bucket and distribution from the
   `roadsignmath-xyz` stack as `cloud-engineer`. It never prints an email address.
+
+### The newsletter's list and tags
+
+`npm run newsletter` ([`tools/newsletter-sync.ts`](../tools/newsletter-sync.ts)) puts every player
+with an address on the Buttondown list, with their tags: `first-era` for the archive's 2005-2014
+players, and `app` or `quiz` for each place they have a live session (a session from before
+12 November 2026 records none and was the app's). The server adds and tags players at sign-in; the
+tool is for the players from before, and was run to tag the list once on Jamie's go (2026-11-12).
+
+```sh
+op run --env-file=<file naming BUTTONDOWN_API_KEY> -- npm run newsletter -- --to check   # reads only
+op run --env-file=<file naming BUTTONDOWN_API_KEY> -- npm run newsletter -- --to live    # the owner's go
+```
+
+It reads the live table as `cloud-engineer` and writes only the short lease each tag change is
+made under, the server's too, so a sign-in at the same moment can't undo it. It prints counts only,
+never an address. Tags are only added, never taken off, and nobody is resubscribed. If Buttondown
+refuses a tag (tags need its Basic plan or higher), it stops at the first refusal.

@@ -827,7 +827,10 @@ export function createSite({
               Tinylytics counts visits to this website and to Quiz and screens viewed in the app, and keeps the hearts.
               It uses no cookies.
             </li>
-            <li>Buttondown sends the newsletter. The game gives it your email address and nothing else.</li>
+            <li>
+              Buttondown sends the newsletter. The game gives it your email address and a note of whether you play in
+              the app, in Quiz or both (and, for the players from 2005 to 2014, that you played then), and nothing else.
+            </li>
             <li>OpenStreetMap draws the map on the home page: your browser fetches the map’s tiles from it.</li>
           </ul>
           <h2>Quiz</h2>

@@ -85,6 +85,8 @@ export interface Store {
    * changed because the player is gone or already named.
    */
   updatePlayer(id: string, changes: PlayerChanges, onlyIfUnnamed?: boolean): Promise<boolean>;
+  /** Replaces the player's confirmed newsletter tags; nothing happens if the player is gone. */
+  setNewsletterTags(id: string, tags: string[]): Promise<void>;
   /**
    * Points the player at a new profile photo, or at none with null, and returns the photo it
    * replaced so its files can go. False when the player is gone.
@@ -119,6 +121,8 @@ export interface Store {
   putSession(session: Session): Promise<void>;
   /** Missing once it has expired. */
   getSession(playerId: string, secretHash: string): Promise<Session | undefined>;
+  /** The player's sessions that haven't expired. */
+  sessionsOf(playerId: string): Promise<Session[]>;
   deleteSession(playerId: string, secretHash: string): Promise<void>;
 
   /**

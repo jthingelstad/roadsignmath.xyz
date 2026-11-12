@@ -102,6 +102,11 @@ export type Player = {
   bio?: string;
   /** Private. Never in a public answer. Missing until the player claims the account. */
   email?: string;
+  /**
+   * Private. The newsletter's tags Buttondown has confirmed for this player's address (`app`,
+   * `quiz`, `first-era`). One missing is tried again at their next sign-in through that front.
+   */
+  newsletterTags?: string[];
   createdAt: string;
 };
 
@@ -123,6 +128,8 @@ export type Login = {
 /** A signed-in app. The token is `rsm_<playerId>_<secret>`; only the secret's hash is kept. */
 export type Session = {
   playerId: string;
+  /** Where they signed in. Sessions from before 12 November 2026 have none: all were the app. */
+  via?: 'app' | 'quiz';
   secretHash: string;
   createdAt: string;
   lastUsedAt: string;
