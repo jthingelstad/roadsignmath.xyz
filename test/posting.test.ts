@@ -502,6 +502,26 @@ test('deleting an account takes its co-finds, and the co-finds on its ways', asy
   );
 });
 
+test('a co-find made on a way while its author is deleted is refused, not left behind', async () => {
+  const t = await setup();
+  const { body: posted } = await t.post({ way: undefined });
+  await t.call('POST', `/signs/${posted.id}/solve`, { as: 'cy', body: { text: '19 − 12 = 7' } });
+  const [cysWay] = await t.store.listWays(posted.id);
+  // Ben solves Cy's way just as the deletion reads the sign's co-finds.
+  const read = t.store.listCoFinds.bind(t.store);
+  let raced: string | undefined;
+  t.store.listCoFinds = async (signId: string) => {
+    raced ??= await t.store.addCoFind(
+      { signId, wayId: cysWay.id, playerId: ben.id, createdAt: new Date().toISOString(), via: 'app' },
+      cysWay
+    );
+    return read(signId);
+  };
+  assert.equal((await t.call('DELETE', '/me', { as: 'cy' })).res.status, 204);
+  assert.equal(raced, 'gone', 'the way went first');
+  assert.deepEqual(await read(posted.id), []);
+});
+
 test('the same way sent twice at once is added once, and every new way counts', async () => {
   const t = await setup();
   const { body: posted } = await t.post({ way: undefined });

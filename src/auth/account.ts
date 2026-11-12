@@ -219,6 +219,9 @@ async function deleteEverything(
     await store.deleteDuplicate(sign.id, player.id);
     const ways = await store.listWays(sign.id);
     const theirs = ways.filter((w) => w.playerId === player.id);
+    // Their ways go before the co-finds are read: a co-find is only added while its way is there,
+    // so none can land on one of their ways after this sweep.
+    for (const way of theirs) await store.deleteWay(way);
     // Their credit on others' ways goes, and so does others' credit on their ways, with the way.
     const gone = new Set(theirs.map((w) => w.id));
     for (const coFind of await store.listCoFinds(sign.id)) {
@@ -226,7 +229,6 @@ async function deleteEverything(
     }
     const finders = sign.finders.filter((f) => f.playerId !== player.id);
     if (!theirs.length && finders.length === sign.finders.length) continue;
-    for (const way of theirs) await store.deleteWay(way);
     const left = await store.listWays(sign.id);
     await store.updateSign(sign.id, {
       finders,
