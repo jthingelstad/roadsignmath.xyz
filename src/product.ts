@@ -24,8 +24,15 @@ export type ProductLine =
   | { action: 'heart'; front: Front; outcome: 'given' | 'taken-back' }
   | { action: 'report'; front: Front; outcome: 'hidden' | 'kept' }
   | { action: 'duplicate'; front: Front }
-  | { action: 'profile'; part: 'name' | 'bio' | 'name-and-bio' | 'photo' | 'photo-removed'; first?: boolean }
+  | {
+      action: 'profile';
+      part: 'name' | 'bio' | 'name-and-bio' | 'website' | 'home' | 'several' | 'photo' | 'photo-removed';
+      first?: boolean;
+    }
   | { action: 'photo-refused' }
+  | { action: 'words-refused'; first: boolean }
+  | { action: 'player-report'; front: Front }
+  | { action: 'finder-left'; front: Front }
   | { action: 'account-deleted' }
   | { action: 'feedback'; front: Front };
 
@@ -48,12 +55,15 @@ export const PRODUCT_FIELDS = {
     'duplicate',
     'profile',
     'photo-refused',
+    'words-refused',
+    'player-report',
+    'finder-left',
     'account-deleted',
     'feedback'
   ],
   front: FRONTS,
   outcome: ['new', 'returning', 'shown', 'held', 'found-too', 'given', 'taken-back', 'hidden', 'kept'],
-  part: ['name', 'bio', 'name-and-bio', 'photo', 'photo-removed'],
+  part: ['name', 'bio', 'name-and-bio', 'website', 'home', 'several', 'photo', 'photo-removed'],
   photos: 'count',
   numbers: 'count',
   solved: 'flag',
@@ -63,13 +73,17 @@ export const PRODUCT_FIELDS = {
 /** The kinds of failure the Operator counts, and the outcomes each logs. */
 export const FAILURES = {
   /**
-   * The moderator couldn't be asked (the post, report or photo answered 503), wouldn't look, or the
+   * The moderator couldn't be asked (the post, report, photo or profile words answered 503), wouldn't look, or the
    * day's ceiling across all players was reached (`ceiling`: answered 503 the same way).
    */
   moderator: ['unavailable', 'refused', 'ceiling'],
   /** A sign-in email that didn't go: the start answers its error and no code reached the player. */
   'signin-mail': ['unsent']
 } as const;
+
+/** What a moderator call was for: the `op` on its failure lines. */
+export const MODERATOR_OPS = ['post', 'report', 'avatar', 'profile'] as const;
+export type ModeratorOp = (typeof MODERATOR_OPS)[number];
 
 type Allowed = readonly string[] | 'count' | 'flag';
 
@@ -113,7 +127,7 @@ export function product(line: ProductLine): void {
 export function failure<K extends keyof typeof FAILURES>(
   kind: K,
   outcome: (typeof FAILURES)[K][number],
-  op?: 'post' | 'report' | 'avatar' | Front
+  op?: ModeratorOp | Front
 ): void {
   try {
     console.error(op ? { event: kind, outcome, op } : { event: kind, outcome });

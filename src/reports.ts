@@ -1,14 +1,16 @@
-// Reports reach Jamie: each new report of a sign, and each "Report a duplicate", is emailed to
+// Reports reach Jamie: each new report of a sign, each "Report a duplicate" and each report of a
+// player, is emailed to
 // FEEDBACK_TO, the address Send feedback uses (Jamie, 2026-11-10: "an email to
 // admin@thingelstad.com for each report (Claude's verdict and the sign's link, the Send feedback
 // route)"). The email carries the sign's title and link, the reason or note, Claude's verdict for
-// a report, and the reporter's name and handle, which are public. Never an email address.
+// a report, and the reporter's name and handle, which are public. A player report carries the
+// player's name, handle and page instead of a sign. Never an email address.
 //
 // Best-effort: the report is already decided and saved when the email goes, so a mail that
 // can't be sent changes nothing a player sees. It is logged by outcome only.
 
-import { signUrl, type Urls } from './api/views.ts';
-import type { DuplicateReport, Player, Report, Sign } from './domain/types.ts';
+import { playerUrl, signUrl, type Urls } from './api/views.ts';
+import type { DuplicateReport, Player, PlayerReport, Report, Sign } from './domain/types.ts';
 import type { Mail, Mailer } from './mail/mailer.ts';
 import type { Store } from './store/store.ts';
 
@@ -103,6 +105,34 @@ export function duplicateMail(
   };
 }
 
+/** The email for a player's report of another player. */
+export function playerReportMail(
+  to: string,
+  urls: Urls,
+  reporter: Player,
+  reported: Player,
+  report: PlayerReport
+): Mail {
+  const lines = [
+    `${who(reporter)} reported the player ${who(reported)}.`,
+    playerUrl(urls, reported),
+    '',
+    `Reason: ${report.reason}`,
+    '',
+    'A player report is only emailed: Claude doesn’t look at it, and nothing is hidden.',
+    '',
+    '—',
+    `Player: ${reported.handle}`,
+    `Sent: ${central.format(new Date(report.createdAt))}`,
+    `Remove them: npm run owner -- remove-player ${reported.handle} --to check`
+  ];
+  return {
+    to,
+    subject: `Road Sign Math player report: ${reported.name || `@${reported.handle}`}`,
+    text: `${lines.join('\n')}\n`
+  };
+}
+
 /** Sends a mail best-effort: never throws, and logs only the outcome. */
 async function deliver(deps: ReportMailDeps, kind: string, make: (to: string) => Promise<Mail>) {
   let outcome: ReportMailOutcome = 'off';
@@ -141,4 +171,14 @@ export function mailDuplicate(
   report: DuplicateReport
 ): Promise<ReportMailOutcome> {
   return deliver(deps, 'duplicate', async (to) => duplicateMail(to, deps.urls, reporter, sign, other, report));
+}
+
+/** Emails a player report to the owner. Never throws. */
+export function mailPlayerReport(
+  deps: ReportMailDeps,
+  reporter: Player,
+  reported: Player,
+  report: PlayerReport
+): Promise<ReportMailOutcome> {
+  return deliver(deps, 'player', async (to) => playerReportMail(to, deps.urls, reporter, reported, report));
 }

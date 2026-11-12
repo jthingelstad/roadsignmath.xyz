@@ -254,13 +254,19 @@ export function createQuiz(options: QuizOptions): Hono {
     const field = await form(c);
     const to = backTo(field('to'));
     try {
-      await updateMe(store, viewer.player, { name: field('name') });
+      // The same check as the app's: the moderator looks at the name first.
+      await updateMe(options, viewer.player, { name: field('name') });
     } catch (err) {
-      if (!(err instanceof ApiError) || (err.code !== 'bad_request' && err.code !== 'rate_limited')) throw err;
+      const status = trouble(err, ['bad_request', 'rate_limited', 'refused', 'unavailable']);
       return page(
         c,
-        <NamePage here={here} player={viewer.player} error={err.message.replace(/([^.])$/, '$1.')} to={to} />,
-        400
+        <NamePage
+          here={here}
+          player={viewer.player}
+          error={(err as ApiError).message.replace(/([^.])$/, '$1.')}
+          to={to}
+        />,
+        status === 400 || status === 429 ? 400 : status
       );
     }
     return go(c, onward(to));
@@ -480,7 +486,11 @@ export function createQuiz(options: QuizOptions): Hono {
   async function profilePage(
     c: Context,
     player: Player,
-    more: { done?: ProfileDone; trouble?: ProfileTrouble; typed?: { name: string; bio: string } } = {},
+    more: {
+      done?: ProfileDone;
+      trouble?: ProfileTrouble;
+      typed?: { name: string; bio: string; website: string; home: string };
+    } = {},
     status: Parameters<typeof page>[2] = 200
   ) {
     const { hasPage } = await profileOf(player);
@@ -498,11 +508,11 @@ export function createQuiz(options: QuizOptions): Hono {
     const viewer = await playing(c);
     if (viewer instanceof Response) return viewer;
     const field = await form(c);
-    const typed = { name: field('name'), bio: field('bio') };
+    const typed = { name: field('name'), bio: field('bio'), website: field('website'), home: field('home') };
     try {
-      await updateMe(store, viewer.player, typed);
+      await updateMe(options, viewer.player, typed);
     } catch (err) {
-      const status = trouble(err, ['bad_request', 'rate_limited']);
+      const status = trouble(err, ['bad_request', 'rate_limited', 'refused', 'unavailable']);
       const message = sentence((err as ApiError).message);
       return profilePage(c, viewer.player, { trouble: { part: 'about', message }, typed }, status);
     }

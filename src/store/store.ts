@@ -4,6 +4,7 @@ import type {
   CoFind,
   Block,
   DuplicateReport,
+  PlayerReport,
   Heart,
   Login,
   Player,
@@ -14,7 +15,13 @@ import type {
   Way
 } from '../domain/types.ts';
 
-export type PlayerChanges = { name?: string; handle?: string; bio?: string | null };
+export type PlayerChanges = {
+  name?: string;
+  handle?: string;
+  bio?: string | null;
+  website?: string | null;
+  home?: string | null;
+};
 
 /** The sign fields that change after posting; null removes one. */
 export type SignChanges = {
@@ -80,7 +87,7 @@ export interface Store {
   /** Writes the player's row. The email and handle are claimed separately, first. */
   putPlayer(player: Player): Promise<void>;
   /**
-   * Changes some of a player's fields in place; `bio: null` removes the bio. With
+   * Changes some of a player's fields in place; null removes a bio, website or home. With
    * `onlyIfUnnamed`, changes nothing unless the player still has no name. False when nothing
    * changed because the player is gone or already named.
    */
@@ -101,8 +108,8 @@ export interface Store {
   releaseHandle(handle: string, playerId: string): Promise<void>;
   /**
    * Removes the player, their email and handle (when they still point at this player), and
-   * everything kept under them: sessions, uploads, blocks, hearts and post keys. Signs, ways and
-   * reports are the caller's.
+   * everything kept under them: sessions, uploads, blocks, hearts, post keys and other players'
+   * reports of them. Signs, ways, their reports of signs and their reports of other players are the caller's.
    */
   deletePlayer(id: string): Promise<void>;
 
@@ -150,6 +157,14 @@ export interface Store {
   putDuplicate(report: DuplicateReport): Promise<void>;
   getDuplicate(signId: string, playerId: string): Promise<DuplicateReport | undefined>;
   deleteDuplicate(signId: string, playerId: string): Promise<void>;
+
+  /**
+   * Keeps a player's report of another player unless that reporter has one of them already; false
+   * then, and the first stays as it was. The row is under the reported player, so it goes when they do.
+   */
+  putPlayerReport(report: PlayerReport): Promise<boolean>;
+  getPlayerReport(playerId: string, reporterId: string): Promise<PlayerReport | undefined>;
+  deletePlayerReport(playerId: string, reporterId: string): Promise<void>;
 
   putBlock(block: Block): Promise<void>;
   deleteBlock(playerId: string, blockedId: string): Promise<void>;

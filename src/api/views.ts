@@ -200,6 +200,15 @@ export function playerStats(player: Player, signs: Sign[]) {
   };
 }
 
+/** A website as a page shows it: its host, without a leading www. */
+export function websiteHost(website: string): string {
+  try {
+    return new URL(website).hostname.replace(/^www\./, '');
+  } catch {
+    return website;
+  }
+}
+
 export function playerView(urls: Urls, player: Player, signs: Sign[]) {
   const stats = playerStats(player, signs);
   return {
@@ -209,6 +218,8 @@ export function playerView(urls: Urls, player: Player, signs: Sign[]) {
     avatar_url: player.avatar ? photoUrl(urls, player.avatar, 'large') : null,
     avatar_thumb_url: player.avatar ? photoUrl(urls, player.avatar, 'thumb') : null,
     bio: player.bio ?? null,
+    website: player.website ?? null,
+    home: player.home ?? null,
     url: playerUrl(urls, player),
     sign_count: stats.sign_count,
     states: stats.states,

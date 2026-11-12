@@ -22,6 +22,7 @@ import {
   signPath,
   signSummary,
   signUrl,
+  websiteHost,
   type People,
   type Urls
 } from '../api/views.ts';
@@ -646,6 +647,8 @@ ${CRUMB_STYLE}
 .who-is h1 { margin: 0; font-size: clamp(40px, 6vw, 56px); line-height: 1; }
 .who-is .bio { margin: 6px 0 0; font-size: 20px; color: var(--ink2); }
 .who-is .since { margin: 0; color: var(--ink2); }
+.who-is .where { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--ink2); }
+.who-is .where a { color: inherit; font-weight: 700; overflow-wrap: anywhere; }
 .stats { margin: 0; display: flex; gap: 40px; }
 .stats div { display: flex; flex-direction: column; align-items: center; }
 .stats dd { margin: 0; order: -1; font-size: 36px; font-weight: 900; line-height: 1.1; }
@@ -1793,6 +1796,16 @@ const PlayerPage: FC<{
             <div class="id">
               <h1 class="p-name">{player.name}</h1>
               {player.bio && <p class="bio p-note">{player.bio}</p>}
+              {(player.home || player.website) && (
+                <p class="where">
+                  {player.home && <span>{player.home}</span>}
+                  {player.website && (
+                    <a href={player.website} rel="nofollow ugc noopener">
+                      {websiteHost(player.website)}
+                    </a>
+                  )}
+                </p>
+              )}
               {since && <p class="since">Playing since {since.slice(0, 4)}</p>}
               {quiz && solved.length > 0 && (
                 <p class="quizzer">

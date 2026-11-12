@@ -87,6 +87,8 @@ export const PLAYER_FIELDS: Field[] = [
   ['url', 'string', 'Their page.'],
   ['feed_url', 'string', 'Their JSON Feed; feed.xml beside it is Atom.'],
   ['bio', 'string or null', 'What they wrote about themselves.'],
+  ['website', 'string or null', 'Their website, an http or https address.'],
+  ['home', 'string or null', 'Where they call home, as they wrote it.'],
   ['avatar_color', 'string', 'The colour behind their first letter when they have no photo.'],
   ['avatar_url', 'string or null', 'Their profile photo, 512 pixels square.'],
   ['avatar_thumb_url', 'string or null', 'The same, 160 pixels square.'],

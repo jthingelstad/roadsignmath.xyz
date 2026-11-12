@@ -8,8 +8,8 @@ import { createContext, useContext, type FC, type PropsWithChildren } from 'hono
 import { texOf } from '../domain/equation.ts';
 import type { Player, Sign, Way } from '../domain/types.ts';
 import { LIMITS } from '../api/contract.ts';
-import { BIO_MAX, NAME_MAX } from '../auth/account.ts';
-import { photoUrl, playerUrl, signPath, signUrl, type People } from '../api/views.ts';
+import { BIO_MAX, HOME_MAX, NAME_MAX, WEBSITE_MAX } from '../auth/account.ts';
+import { photoUrl, playerUrl, signPath, signUrl, websiteHost, type People } from '../api/views.ts';
 import { BRAND_VERSION, LOCKUP_SIZE } from '../web/brand.ts';
 import { BADGE_STYLE, BadgeCards, type BadgeView } from '../web/badges.tsx';
 import { longDay } from '../web/layout.tsx';
@@ -1246,7 +1246,7 @@ export const withAt = (path: string, at?: string): string =>
 
 /**
  * Your profile, modelled on the app's You and its Settings: your photo (choose one, or remove
- * it), name and bio, your email (only you see it), your page on the site, the signs you've
+ * it), name, bio, website and home, your email (only you see it), your page on the site, the signs you've
  * solved, sign out and Delete my account. Every change is a form, so it works without scripts.
  */
 export const ProfilePage: FC<{
@@ -1257,7 +1257,7 @@ export const ProfilePage: FC<{
   done?: ProfileDone;
   trouble?: ProfileTrouble;
   /** What they typed, kept when a save failed. */
-  typed?: { name: string; bio: string };
+  typed?: { name: string; bio: string; website: string; home: string };
   /** The sign being played, by slug, to go back to. */
   at?: string;
 }> = ({ here, player, hasPage, done, trouble, typed, at }) => {
@@ -1283,6 +1283,12 @@ export const ProfilePage: FC<{
             <p class="meta">Your page on roadsignmath.xyz starts with the first way you find.</p>
           )}
           {player.bio && <p class="bio">{player.bio}</p>}
+          {player.home && <p class="meta">{player.home}</p>}
+          {player.website && (
+            <a href={player.website} rel="nofollow ugc noopener">
+              {websiteHost(player.website)}
+            </a>
+          )}
         </section>
 
         <section class="part" aria-labelledby="ph-h">
@@ -1325,7 +1331,7 @@ export const ProfilePage: FC<{
 
         <section class="part" aria-labelledby="ab-h">
           <h2 id="ab-h" class="h2">
-            Name and bio
+            Name, bio, website and home
           </h2>
           <Oops message={trouble?.part === 'about' ? trouble.message : undefined} />
           <form method="post" action={withAt('/profile', at)} class="stack">
@@ -1354,6 +1360,34 @@ export const ProfilePage: FC<{
             <p class="meta">
               It shows on your page, under your name, for everyone. Up to {BIO_MAX} characters; leave it empty to take
               it away.
+            </p>
+            <label for="web">Website</label>
+            <input
+              id="web"
+              class="field"
+              type="text"
+              name="website"
+              inputmode="url"
+              autocomplete="url"
+              autocapitalize="none"
+              spellcheck={false}
+              maxlength={WEBSITE_MAX}
+              placeholder="example.com"
+              value={typed?.website ?? player.website ?? ''}
+            />
+            <label for="home">Home</label>
+            <input
+              id="home"
+              class="field"
+              type="text"
+              name="home"
+              maxlength={HOME_MAX}
+              placeholder="Your town"
+              value={typed?.home ?? player.home ?? ''}
+            />
+            <p class="meta">
+              Both show on your page for everyone; leave one empty to take it away. Claude looks at what you change
+              before it’s saved.
             </p>
             <button class="btn" type="submit">
               Save

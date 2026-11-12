@@ -1,14 +1,15 @@
-// What a signed-in player can change about themselves: their name, bio and profile photo, and
-// deleting the account with everything it made.
+// What a signed-in player can change about themselves: their name, bio, website, home and profile
+// photo, and deleting the account with everything it made.
 
 import { randomUUID } from 'node:crypto';
 import { LIMITS } from '../api/contract.ts';
 import { fail } from '../api/errors.ts';
 import { limit, text } from '../api/input.ts';
+import { isIP } from 'node:net';
 import { slugify, ulid } from '../domain/ids.ts';
 import type { Player } from '../domain/types.ts';
 import { heartLease, removePlayerHearts, removeSignKudos, sweepSignKudos } from '../hearts.ts';
-import type { Moderator } from '../moderation/moderator.ts';
+import type { Moderator, ProfileWords } from '../moderation/moderator.ts';
 import { avatarRenditions, type PhotoStore } from '../photos.ts';
 import { moderate, readPhoto } from '../posting/posting.ts';
 import type { Tinylytics } from '../tinylytics.ts';
@@ -19,6 +20,48 @@ import { product } from '../product.ts';
 
 export const NAME_MAX = 40;
 export const BIO_MAX = 160;
+/** A website's address, as kept (an international name, in its ASCII form, can be longer than typed). */
+export const WEBSITE_MAX = 200;
+/** Home: a town or a state, in the player's words. */
+export const HOME_MAX = 60;
+
+const WEBSITE_BAD = 'website must be a web address, like example.com';
+
+/**
+ * A website as kept: an http or https address with a real host name, no user name or password, and
+ * no spaces, normalised (lowercase host, an international name in its ASCII form). Without a scheme
+ * it is https. Every other scheme (javascript:, data:, mailto:...) is refused. Empty is none.
+ */
+export function readWebsite(raw: unknown): string | null {
+  if (raw === null) return null;
+  // The same control, invisible and direction rules as a name; a space inside is never in an address.
+  const typed = text(raw, 'website', WEBSITE_MAX, 0);
+  if (!typed) return null;
+  if (/\s/.test(typed)) return fail('bad_request', 'website can’t hold spaces');
+  // A scheme is letters then a colon; "example.com:8080" is a host and a port, not a scheme.
+  const scheme = /^([a-z][a-z0-9+.-]*):(?!\d)/i.exec(typed)?.[1]?.toLowerCase();
+  if (scheme && scheme !== 'http' && scheme !== 'https') {
+    return fail('bad_request', 'website must be an http or https address');
+  }
+  let url: URL;
+  try {
+    url = new URL(scheme ? typed : `https://${typed}`);
+  } catch {
+    return fail('bad_request', WEBSITE_BAD);
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return fail('bad_request', 'website must be an http or https address');
+  }
+  if (url.username || url.password) return fail('bad_request', 'website can’t hold a user name or password');
+  const host = url.hostname;
+  // A name with a dot in it, not an IP address or a machine on someone's own network.
+  if (!host.includes('.') || host.endsWith('.') || isIP(host.replace(/^\[|\]$/g, '')) || /^[\d.]+$/.test(host)) {
+    return fail('bad_request', WEBSITE_BAD);
+  }
+  const kept = url.href;
+  if (kept.length > WEBSITE_MAX) return fail('bad_request', `website is at most ${WEBSITE_MAX} characters`);
+  return kept;
+}
 
 /** Reserves the handle a first name makes: the name's slug, or the slug with -2, -3 and so on. */
 async function reserveHandle(store: Store, player: Player, name: string): Promise<string | undefined> {
@@ -32,25 +75,37 @@ async function reserveHandle(store: Store, player: Player, name: string): Promis
   return undefined;
 }
 
+/** The fields `PATCH /me` and Quiz's profile can change. */
+const PROFILE_FIELDS = ['name', 'bio', 'website', 'home'] as const;
+type ProfileField = (typeof PROFILE_FIELDS)[number];
+
 /**
- * Sets the name and bio. The first name a player gives also sets their handle (their page's
- * address), which stays put after that so links keep working. Each field is changed in place,
- * so two requests at once can't undo each other, and only one of them can set the handle.
+ * Sets the name, bio, website and home. The first name a player gives also sets their handle
+ * (their page's address), which stays put after that so links keep working. Each field is changed
+ * in place, so two requests at once can't undo each other, and only one of them can set the
+ * handle. The words that change go to the moderator first, together in one call, under the same
+ * policy as a post: a refusal is a 422 with its sentence, and nothing is saved.
  */
-export async function updateMe(store: Store, player: Player, body: Record<string, unknown>): Promise<Player> {
-  const unknown = Object.keys(body).filter((k) => k !== 'name' && k !== 'bio');
-  if (unknown.length) fail('bad_request', `Only name and bio can change, not ${unknown.join(', ')}`);
+export async function updateMe(
+  deps: { store: Store; moderator: Moderator },
+  player: Player,
+  body: Record<string, unknown>
+): Promise<Player> {
+  const { store, moderator } = deps;
+  const unknown = Object.keys(body).filter((k) => !(PROFILE_FIELDS as readonly string[]).includes(k));
+  if (unknown.length) fail('bad_request', `Only name, bio, website and home can change, not ${unknown.join(', ')}`);
   const changes: PlayerChanges = {};
   if ('name' in body) changes.name = text(body.name, 'name', NAME_MAX, 1);
   if ('bio' in body) changes.bio = (body.bio === null ? '' : text(body.bio, 'bio', BIO_MAX, 0)) || null;
+  if ('website' in body) changes.website = readWebsite(body.website);
+  if ('home' in body) changes.home = (body.home === null ? '' : text(body.home, 'home', HOME_MAX, 0)) || null;
 
   // Nothing to change, or nothing that differs from what is kept (read consistently, so a change
   // made a moment ago counts): no write, so no page is cleared from the edge, and no try is counted.
   const kept = (await store.getPlayer(player.id, true)) ?? fail('unauthorized', 'That account is gone');
-  const differs =
-    (changes.name !== undefined && changes.name !== kept.name) ||
-    (changes.bio !== undefined && changes.bio !== (kept.bio ?? null));
-  if (!differs) return kept;
+  const changed = PROFILE_FIELDS.filter((f) => changes[f] !== undefined && changes[f] !== (kept[f] ?? null));
+  if (!changed.length) return kept;
+  for (const field of PROFILE_FIELDS) if (!changed.includes(field)) delete changes[field];
   // Every change clears the website's pages at the edge, so a player gets a day's worth and no more.
   await limit(
     store,
@@ -60,6 +115,20 @@ export async function updateMe(store: Store, player: Player, body: Record<string
     nowSeconds(),
     'Too many changes today. Try again tomorrow.'
   );
+  const first = changed.includes('name') && !kept.name;
+  // Only words being put up are looked at; one being taken away needs no look.
+  const words: ProfileWords = {};
+  for (const field of changed) {
+    const value = changes[field];
+    if (value) words[field] = value;
+  }
+  if (Object.keys(words).length) {
+    const verdict = await moderate(store, 'profile', () => moderator.reviewProfile(words));
+    if (verdict.verdict !== 'ok') {
+      product({ action: 'words-refused', first });
+      fail('refused', verdict.reason || 'Our moderator wouldn’t show that on your profile.');
+    }
+  }
 
   let done = false;
   if (changes.name && !kept.name) {
@@ -72,14 +141,15 @@ export async function updateMe(store: Store, player: Player, body: Record<string
     }
   }
   if (!done) await store.updatePlayer(player.id, changes);
-  const part =
-    changes.name !== undefined && changes.bio !== undefined
-      ? 'name-and-bio'
-      : changes.name !== undefined
-        ? 'name'
-        : 'bio';
-  product({ action: 'profile', part, first: !!changes.name && !kept.name });
+  product({ action: 'profile', part: profilePart(changed), first });
   return (await store.getPlayer(player.id)) ?? fail('unauthorized', 'That account is gone');
+}
+
+/** What a profile change was, for the dashboard: one field, name and bio as before, or several. */
+function profilePart(changed: ProfileField[]): 'name' | 'bio' | 'name-and-bio' | 'website' | 'home' | 'several' {
+  if (changed.length === 1) return changed[0];
+  if (changed.length === 2 && changed.includes('name') && changed.includes('bio')) return 'name-and-bio';
+  return 'several';
 }
 
 /** Removes a replaced profile photo's files. A failure leaves them behind but changes nothing else. */
@@ -172,8 +242,8 @@ export async function removeAvatar(deps: { store: Store; photos: PhotoStore }, p
  * Deletes the player and what they made: the signs they posted (with their photos, every way on
  * them and their hearts), the ways they added to other signs (with others' credit on them), the
  * ways they found too, the hearts they gave, their place
- * among a sign's finders, their reports, their profile photo, and everything kept under them (sessions, uploads,
- * blocks) and their email. Photos uploaded and never posted go when the bucket clears uploads.
+ * among a sign's finders, their reports (of signs and of players), their profile photo, everything kept
+ * under them (sessions, uploads, blocks, other players' reports of them) and their email. Photos uploaded and never posted go when the bucket clears uploads.
  * Hearts go first: if Tinylytics can't take them back, nothing else is deleted yet.
  */
 export async function deleteAccount(
@@ -295,6 +365,11 @@ async function deleteEverything(
       wayCount: left.length,
       firstWay: left[0] ? { text: left[0].text, value: left[0].value, playerId: left[0].playerId } : null
     });
+  }
+  // Their reports of other players; reports of them go with their own rows in deletePlayer.
+  for (const other of await store.allPlayers()) {
+    if (other.id === player.id) continue;
+    if (await store.getPlayerReport(other.id, player.id)) await store.deletePlayerReport(other.id, player.id);
   }
   // Read again under the lease: a profile photo set since this request began goes too.
   const avatar = (await store.getPlayer(player.id, true))?.avatar ?? player.avatar;

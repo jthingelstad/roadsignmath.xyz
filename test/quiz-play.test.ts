@@ -651,6 +651,49 @@ test('the profile: name, bio, email only she sees, her page, and edits that keep
   assert.equal((await t.store.getPlayer(ada.id))!.name, 'Ada Lovelace', 'nothing changed');
 });
 
+test('the profile’s website and home: saved through the moderator, refused in its words', async () => {
+  const t = await setup();
+  const form = (await t.quiz('/profile', { as: 'ada' })).html;
+  assert.ok(form.includes('<label for="web">Website</label>') && form.includes('name="website"'));
+  assert.ok(form.includes('<label for="home">Home</label>') && form.includes('name="home"'));
+  const saved = await t.quiz('/profile', {
+    as: 'ada',
+    form: { name: 'Ada', bio: 'Counts everything.', website: 'ada.example.com', home: 'Testville' }
+  });
+  assert.equal(saved.location, '/profile?done=saved');
+  assert.deepEqual(t.moderator.profiles, [{ website: 'https://ada.example.com/', home: 'Testville' }]);
+  const shown = (await t.quiz('/profile', { as: 'ada' })).html;
+  assert.ok(shown.includes('<a href="https://ada.example.com/" rel="nofollow ugc noopener">ada.example.com</a>'));
+  assert.ok(shown.includes('value="Testville"'));
+
+  t.moderator.profile = { verdict: 'hold', reason: 'That website is an advertisement.' };
+  const refused = await t.quiz('/profile', {
+    as: 'ada',
+    form: { name: 'Ada', bio: 'Counts everything.', website: 'shop.example.com', home: 'Testville' }
+  });
+  assert.equal(refused.res.status, 422);
+  assert.ok(decoded(refused.html).includes('That website is an advertisement.'));
+  assert.ok(refused.html.includes('value="shop.example.com"'), 'what she typed stays');
+  assert.equal((await t.store.getPlayer(ada.id))!.website, 'https://ada.example.com/');
+
+  t.moderator.profile = 'unavailable';
+  const down = await t.quiz('/profile', { as: 'ada', form: { name: 'Ada', bio: 'New', website: '', home: '' } });
+  assert.equal(down.res.status, 503);
+  assert.ok(decoded(down.html).includes('Our moderator couldn’t look just now. Try again in a minute.'));
+});
+
+test('Quiz’s name step goes through the moderator too', async () => {
+  const t = await setup();
+  t.moderator.profile = { verdict: 'hold', reason: 'That name is a slur.' };
+  const refused = await t.quiz('/name', { as: 'pnameless00', form: { name: 'Bad Word' } });
+  assert.equal(refused.res.status, 422);
+  assert.ok(decoded(refused.html).includes('That name is a slur.'));
+  assert.equal((await t.store.getPlayer(nameless.id))!.name, '');
+  t.moderator.profile = { verdict: 'ok', reason: '' };
+  assert.equal((await t.quiz('/name', { as: 'pnameless00', form: { name: 'Pat' } })).location, '/next');
+  assert.deepEqual(t.moderator.profiles, [{ name: 'Bad Word' }, { name: 'Pat' }]);
+});
+
 test('a profile photo: set through the moderator, refused in its words, replaced, removed after asking', async () => {
   const t = await setup();
   const set = await t.quiz('/profile/photo', { as: 'ben', upload: await upload(await jpeg()) });

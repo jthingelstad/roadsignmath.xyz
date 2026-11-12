@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Road Sign Math API",
-    "version": "1.14.1",
+    "version": "1.15.0",
     "summary": "The signs, the map and the players of Road Sign Math.",
     "description": "Every public sign, the ways people found to make it true, the map and who’s playing, read by anyone; sign-in by email, your own account, and posting signs and ways from the app. Answers are JSON in UTF-8 with snake_case keys and carry an `API-Version` header. A request with a token is never cached. An error is `{\"error\": {\"code\", \"message\"}}`.",
     "license": {
@@ -893,8 +893,8 @@
       },
       "patch": {
         "operationId": "updateMe",
-        "summary": "Change your name or bio",
-        "description": "The first name you give also sets your handle, the address of your page; it stays after that. A null or empty bio removes it. At most 30 changes a day; sending what you already have changes nothing and counts for nothing.",
+        "summary": "Change your name, bio, website or home",
+        "description": "The first name you give also sets your handle, the address of your page; it stays after that. A null or empty bio, website or home removes it. A website is an http or https address; one without a scheme gets https. Our moderator looks at the words that change, all in one look, before any is saved: 422 `refused` says why it wouldn’t show them, and 503 means it couldn’t look and nothing changed. At most 30 changes a day; sending what you already have changes nothing and counts for nothing.",
         "security": [
           {
             "token": []
@@ -912,7 +912,7 @@
         },
         "responses": {
           "200": {
-            "description": "Change your name or bio",
+            "description": "Change your name, bio, website or home",
             "headers": {
               "API-Version": {
                 "schema": {
@@ -949,8 +949,28 @@
               }
             }
           },
+          "422": {
+            "description": "The moderator wouldn’t show that profile photo or those profile words; the message says why, for the player.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Too many tries for now; the message says when to try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The moderator, the hearts counter or the mail couldn’t answer just now; try again in a minute.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1108,7 +1128,7 @@
             }
           },
           "422": {
-            "description": "The moderator wouldn’t show that profile photo; the message says why, for the player.",
+            "description": "The moderator wouldn’t show that profile photo or those profile words; the message says why, for the player.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1445,6 +1465,72 @@
           },
           "429": {
             "description": "Too many tries for now; the message says when to try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/signs/{id}/finders/me": {
+      "delete": {
+        "operationId": "leaveSign",
+        "summary": "Take yourself off a sign’s finders",
+        "description": "For a sign that credits you and someone else posted (delete your own sign instead). Your ways on it stay. When you were its only finder, its poster is credited instead. A sign that doesn’t credit you is left as it is.",
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The sign’s id or slug.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Take yourself off a sign’s finders",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter or the body is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such route, sign or player.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2259,6 +2345,99 @@
         }
       }
     },
+    "/api/v1/players/{handle}/report": {
+      "post": {
+        "operationId": "reportPlayer",
+        "summary": "Report a player",
+        "description": "Sends your reason to the owner of Road Sign Math, with your name and handle. Nothing is hidden and our moderator doesn’t look; what happens next is the owner’s call. One report per player; sending another changes nothing. You can’t report yourself. It counts against the 20 reports a day.",
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "description": "The player’s handle.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportPost"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Report a player",
+            "headers": {
+              "API-Version": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "This server’s API version."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerReportReceived"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter or the body is missing or out of range; the message says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, a token that has ended, or a sign-in code that is wrong or too old.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such route, sign or player.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many tries for now; the message says when to try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/feedback": {
       "post": {
         "operationId": "sendFeedback",
@@ -2391,7 +2570,7 @@
           "api_version": {
             "type": "string",
             "examples": [
-              "1.14.1"
+              "1.15.0"
             ]
           },
           "signs": {
@@ -3196,6 +3375,8 @@
           "avatar_url",
           "avatar_thumb_url",
           "bio",
+          "website",
+          "home",
           "url",
           "sign_count",
           "states",
@@ -3241,6 +3422,29 @@
             "anyOf": [
               {
                 "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "website": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri",
+                "description": "Their website, an http or https address; show it by its host. Null when they gave none."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "home": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Where they call home, as they wrote it; null when they gave none."
               },
               {
                 "type": "null"
@@ -3591,6 +3795,35 @@
                 "type": "null"
               }
             ]
+          },
+          "website": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "description": "An http or https address, or a bare host like example.com (https is assumed).",
+                "examples": [
+                  "example.com"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "home": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60,
+                "examples": [
+                  "Minneapolis, MN"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },
@@ -3923,6 +4156,19 @@
                 "type": "null"
               }
             ]
+          }
+        }
+      },
+      "PlayerReportReceived": {
+        "type": "object",
+        "required": [
+          "received"
+        ],
+        "properties": {
+          "received": {
+            "type": "boolean",
+            "const": true,
+            "description": "It is kept and sent on; nothing is hidden."
           }
         }
       },

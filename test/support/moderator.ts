@@ -6,7 +6,9 @@ import {
   type Post,
   type PostVerdict,
   type ReportVerdict,
-  type AvatarVerdict
+  type AvatarVerdict,
+  type ProfileVerdict,
+  type ProfileWords
 } from '../../src/moderation/moderator.ts';
 
 export class ScriptedModerator implements Moderator {
@@ -16,6 +18,8 @@ export class ScriptedModerator implements Moderator {
   readonly reports: { post: Post; reason: string }[] = [];
   avatar: AvatarVerdict | 'unavailable' = { verdict: 'ok', reason: '' };
   readonly avatars: Buffer[] = [];
+  profile: ProfileVerdict | 'unavailable' = { verdict: 'ok', reason: '' };
+  readonly profiles: ProfileWords[] = [];
 
   async reviewPost(post: Post): Promise<PostVerdict> {
     this.posts.push(post);
@@ -33,5 +37,11 @@ export class ScriptedModerator implements Moderator {
     this.avatars.push(photo);
     if (this.avatar === 'unavailable') throw new ModeratorUnavailable('down');
     return this.avatar;
+  }
+
+  async reviewProfile(words: ProfileWords): Promise<ProfileVerdict> {
+    this.profiles.push(words);
+    if (this.profile === 'unavailable') throw new ModeratorUnavailable('down');
+    return this.profile;
   }
 }
