@@ -4,6 +4,7 @@
 import type { FC } from 'hono/jsx';
 import { heartPath, signPath, type signSummary } from '../api/views.ts';
 import { shortDay } from './layout.tsx';
+import { PHOTO_SIZES } from '../photos.ts';
 import { mathSvg } from './math.ts';
 import type { SortKey } from './sorts.ts';
 
@@ -38,16 +39,33 @@ export const Facts: FC<{ items: (string | false | null | undefined)[] }> = ({ it
 /**
  * Tinylytics' kudos button, filled in by its script with ❤️ and the count. The count is kept at
  * the sign's heart path (its address by slug, `heartPath`), the same one the app's hearts
- * use, so both add up together. It is not the page's address: never move it there.
+ * use, so both add up together. It is not the page's address: never move it there. A card's
+ * heart is filled when the card comes into view (`HEART_SCRIPT` in layout.tsx); `now` fills it
+ * as soon as the script loads (the sign page's own).
  */
-export const Heart: FC<{ sign: { slug: string; title: string } }> = ({ sign }) => (
+export const Heart: FC<{ sign: { slug: string; title: string }; now?: boolean }> = ({ sign, now }) => (
   <button
     type="button"
-    class="tinylytics_kudos"
+    class={now ? 'kudo tinylytics_kudos' : 'kudo'}
     data-path={heartPath(sign)}
     aria-label={`Heart the ${sign.title} sign`}
   />
 );
+
+type PhotoView = Summary['photos'][number];
+
+/** How wide the thumb is: 480 px, or the photo's own width when it is smaller (photos.ts). */
+export const thumbWidth = (p: Pick<PhotoView, 'width'>): number => Math.min(PHOTO_SIZES.thumb, p.width);
+
+/**
+ * Both sizes for the browser to choose from, at their real widths, or nothing when the photo is no
+ * wider than the thumb (then the two are the same picture).
+ */
+export const photoSrcset = (p: PhotoView): string | undefined =>
+  p.width > PHOTO_SIZES.thumb ? `${p.thumb_url} ${thumbWidth(p)}w, ${p.url} ${p.width}w` : undefined;
+
+/** A small photo is never drawn wider than twice its real width: past that it only blurs. */
+export const photoCap = (p: Pick<PhotoView, 'width'>): string => `max-width: min(100%, ${p.width * 2}px)`;
 
 /** A sign's first way, drawn as the sign page draws it; the text when it has no LaTeX. */
 export const Eq: FC<{ sign: Summary }> = ({ sign }) =>
@@ -150,14 +168,30 @@ export const CHIP_STYLE = `
 /**
  * Nearby, in the browser: the page lists the signs newest first with their pins on each card;
  * "Use my location" asks the browser where it is and puts the closest first. The location never
- * leaves the page. `show` cards stay visible (Home shows 12); the rest wait hidden.
+ * leaves the page. `show` cards are visible at first and "Show more" (`.nearby-more`) shows `show`
+ * more each time; without script every card is there.
  */
 export const nearbyScript = (show: number): string => `
 (() => {
-  const button = document.querySelector('.locate');
   const list = document.querySelector('[data-nearby]');
+  if (!list) return;
+  const more = document.querySelector('.nearby-more');
+  let shown = ${show};
+  const fit = () => {
+    [...list.children].forEach((li, i) => { li.hidden = i >= shown; });
+    if (more) more.hidden = list.children.length <= shown;
+    document.dispatchEvent(new Event('rsm:cards'));
+  };
+  fit();
+  more?.addEventListener('click', () => {
+    const next = list.children[shown];
+    shown += ${show};
+    fit();
+    next?.querySelector('a')?.focus();
+  });
+  const button = document.querySelector('.locate');
   const note = document.querySelector('.sortnote');
-  if (!button || !list || !navigator.geolocation) return;
+  if (!button || !navigator.geolocation) return;
   button.hidden = false;
   const rad = (d) => (d * Math.PI) / 180;
   const miles = (a, b, c, d) => {
@@ -172,12 +206,13 @@ export const nearbyScript = (show: number): string => `
       return { li, d };
     });
     cards.sort((x, y) => x.d - y.d);
-    cards.forEach(({ li, d }, i) => {
-      li.hidden = i >= ${show};
+    cards.forEach(({ li, d }) => {
       const away = li.querySelector('.away');
       if (away) away.textContent = d === Infinity ? '' : ' (' + (d < 10 ? d.toFixed(1).replace(/\\.0$/, '') : Math.round(d)) + ' mi away)';
       list.append(li);
     });
+    shown = ${show};
+    fit();
     button.hidden = true;
     if (note) note.textContent = 'Closest to you first. Signs with no pin come last.';
   };

@@ -8,6 +8,7 @@ import { DATA_VERSION, LICENSE, signRecord, type OpenData } from './data.ts';
 import { FEED_SIZE } from './feeds.ts';
 import { SOURCE_URL } from './llms.ts';
 import { Page } from './layout.tsx';
+import type { Card } from './share.ts';
 
 /** A field: its path in the record (`place.lat`, `ways[].text`), its type, and what it is. */
 export type Field = [name: string, type: string, what: string];
@@ -151,6 +152,8 @@ const DOCS_STYLE = `
 .fields td:first-child small { color: var(--soft); font-size: 13px; }
 pre { margin: 12px 0 0; padding: 14px 16px; border-radius: 12px; background: var(--ground); border: 1px solid var(--line);
   overflow-x: auto; font: 13px/1.5 'Overpass Mono', ui-monospace, monospace; }
+/* On a phone the samples wrap instead of running off the side under a scroll. */
+@media (max-width: 599px) { pre { white-space: pre-wrap; overflow-wrap: anywhere; } }
 .routes { margin: 8px 0 0; padding: 0; list-style: none; }
 .routes li { padding: 8px 0; border-bottom: 1px solid var(--rule); display: flex; flex-wrap: wrap; gap: 2px 12px; }
 .routes code { font-weight: 700; }
@@ -196,7 +199,7 @@ function example(data: OpenData): string | null {
   );
 }
 
-export const DocsPage: FC<{ data: OpenData }> = ({ data }) => {
+export const DocsPage: FC<{ data: OpenData; card?: Card }> = ({ data, card }) => {
   const site = data.urls.site;
   const sample = example(data);
   const reads = ROUTES.filter((r) => r.method === 'get' && r.auth === 'public');
@@ -210,6 +213,7 @@ for (const sign of signs) {
       title="Feeds and data · Road Sign Math"
       description="Follow new signs in a feed reader, or build something with every sign: open JSON, GeoJSON, feeds, the API and llms.txt."
       url={`${site}/data`}
+      card={card}
       style={DOCS_STYLE}
     >
       <main id="main" class="wrap docs">

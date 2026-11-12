@@ -39,7 +39,12 @@ const STYLE = `
     --green-ink: #5CC395; --tint: #CFE3D8; --heart: #E0566B; --heart-soft: #3A1D23; --chip-on: #E8EFEB; --chip-on-ink: #101713; }
 }
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+/* Readers who ask for less motion get none: no smooth scrolling, transitions or animations. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
 body { margin: 0; background: var(--page); color: var(--ink); font: 16px/1.5 Overpass, system-ui, -apple-system, sans-serif; }
 a { color: var(--green-ink); }
 a:hover { color: var(--ink); }
@@ -138,18 +143,56 @@ h1, h2, h3 { font-weight: 900; letter-spacing: -0.01em; }
 `;
 
 /** The heart buttons, only on pages that load Tinylytics' script (it fills them in). */
-const HEART_STYLE = `.tinylytics_kudos { font: inherit; font-size: 15px; line-height: 1; color: var(--ink); background: transparent;
+const HEART_STYLE = `.kudo { font: inherit; font-size: 15px; line-height: 1; color: var(--ink); background: transparent;
   border: 1px solid var(--line2); border-radius: 999px; padding: 7px 12px; min-width: 56px; min-height: 36px; cursor: pointer; }
-.tinylytics_kudos:empty::before { content: "❤️"; opacity: .45; }
-.tinylytics_kudos:hover { border-color: var(--heart); }
-.tinylytics_kudos.did_select { border-color: var(--heart); background: var(--heart-soft); cursor: default; }
+.kudo:empty::before { content: "❤️"; opacity: .45; }
+.kudo:hover { border-color: var(--heart); }
+.kudo.did_select { border-color: var(--heart); background: var(--heart-soft); cursor: default; }
 `;
+
+/**
+ * Hearts fill in as their cards come into view, not all at once: a heart is a `kudo` button, and
+ * Tinylytics' script fills only the ones marked `tinylytics_kudos` (one count request each). This
+ * marks the hearts near the screen and asks the script to fill them, first taking the mark off the
+ * ones it has already filled so it doesn't ask for their counts again. A heart with the mark from
+ * the start (the sign page's own) is filled when the script loads. Cards added later (Show more on
+ * /signs) send `rsm:cards` on the document to be watched too.
+ */
+export const HEART_SCRIPT = `
+(() => {
+  const waiting = new Set();
+  let soon = 0;
+  const done = (b) => b.dataset.tinylyticsKudosBound === 'true' || b.classList.contains('did_select');
+  const fill = () => {
+    soon = 0;
+    const t = window.tinylytics;
+    const ready = t && typeof t.triggerUpdate === 'function';
+    if (ready) document.querySelectorAll('.kudo.tinylytics_kudos').forEach((b) => { if (done(b)) b.classList.remove('tinylytics_kudos'); });
+    waiting.forEach((b) => b.classList.add('tinylytics_kudos'));
+    waiting.clear();
+    if (ready) t.triggerUpdate();
+  };
+  const want = (b) => { waiting.add(b); if (!soon) soon = setTimeout(fill, 150); };
+  const seen = 'IntersectionObserver' in window
+    ? new IntersectionObserver((entries) => entries.forEach((e) => {
+        if (e.isIntersecting) { seen.unobserve(e.target); want(e.target); }
+      }), { rootMargin: '300px 0px' })
+    : null;
+  const watch = () => document.querySelectorAll('.kudo:not(.tinylytics_kudos):not([data-watched])').forEach((b) => {
+    b.dataset.watched = '';
+    if (seen) seen.observe(b); else want(b);
+  });
+  watch();
+  document.addEventListener('rsm:cards', watch);
+})();`;
 
 export type PageMeta = {
   title: string;
   description: string;
   /** The page's own address, for sharing. */
   url?: string;
+  /** The address search engines should index instead, when it isn't `url` (a filtered list). */
+  canonical?: string;
   /** A photo to show when the page is shared. */
   image?: string;
   /** The page's share card on cards.thingelstad.com, in place of a photo (src/web/share.ts). */
@@ -169,7 +212,14 @@ export type PageMeta = {
   script?: string;
   /** Feeds of the page's own, for feed readers to find beside the site's (a player's signs). */
   feeds?: { type: string; title: string; href: string }[];
+  /** What the page is, for Open Graph: a sign is an article, a player a profile, the rest the website. */
+  kind?: 'website' | 'article' | 'profile';
+  /** Structured data about the page for search engines (schema.org, as JSON-LD). */
+  jsonLd?: Record<string, unknown>;
 };
+
+/** JSON-LD as a script's text: `<` is escaped so no string in it can close the script. */
+export const jsonLdText = (data: Record<string, unknown>): string => JSON.stringify(data).replace(/</g, '\\u003c');
 
 /** The site's feeds and llms.txt, in every page's head. Non-feed JSON stays out: JSON Feed 1.0 readers take any application/json alternate for a feed. */
 const ALTERNATES = [
@@ -240,6 +290,7 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
   title,
   description,
   url,
+  canonical,
   image,
   card,
   here,
@@ -248,6 +299,8 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
   style = '',
   script,
   feeds = [],
+  kind = 'website',
+  jsonLd,
   children
 }) => (
   <html lang="en">
@@ -267,8 +320,9 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
       <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
       <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       <link rel="manifest" href="/site.webmanifest" />
-      {url && <link rel="canonical" href={url} />}
+      {(canonical ?? url) && <link rel="canonical" href={canonical ?? url} />}
       <meta property="og:site_name" content="Road Sign Math" />
+      <meta property="og:type" content={kind} />
       <meta property="og:title" content={title} />
       <meta property="og:description" content={description} />
       {url && <meta property="og:url" content={url} />}
@@ -298,6 +352,7 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
         href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;700;800;900&family=Overpass+Mono:wght@400;700&display=swap"
       />
       <style dangerouslySetInnerHTML={{ __html: STYLE + (count ? HEART_STYLE : '') + style }} />
+      {jsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdText(jsonLd) }} />}
     </head>
     <body>
       <a class="skip" href="#main">
@@ -367,6 +422,7 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
         </div>
       </footer>
       {script && <script dangerouslySetInnerHTML={{ __html: script }} />}
+      {count && <script dangerouslySetInnerHTML={{ __html: HEART_SCRIPT }} />}
       {count && <script defer src={TINYLYTICS_SCRIPT} data-site={TINYLYTICS_SITE} />}
     </body>
   </html>

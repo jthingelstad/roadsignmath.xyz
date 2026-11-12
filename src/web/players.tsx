@@ -10,6 +10,7 @@ import { earnedBadges } from '../domain/badges.ts';
 import { texOf } from '../domain/equation.ts';
 import type { Player, Sign, Way } from '../domain/types.ts';
 import type { Store } from '../store/store.ts';
+import type { SiteCard } from './share.ts';
 import { Avatar, Page, Plate } from './layout.tsx';
 import { waysFor } from './signs.tsx';
 
@@ -106,7 +107,7 @@ export function playerRows(everyone: People, shown: Sign[], ways: Map<string, Wa
 
 export function mountPlayers(
   site: Hono,
-  { store, urls, people }: { store: Store; urls: Urls; people: () => Promise<People> }
+  { store, urls, people, siteCard }: { store: Store; urls: Urls; people: () => Promise<People>; siteCard: SiteCard }
 ): void {
   site.get('/players', async (c) => {
     const [signs, everyone] = await Promise.all([store.allSigns(), people()]);
@@ -117,6 +118,7 @@ export function mountPlayers(
         title="Players · Road Sign Math"
         description={`Everyone playing Road Sign Math: ${rows.length} ${rows.length === 1 ? 'player' : 'players'} and the road signs they've found.`}
         url={`${urls.site}/players`}
+        card={await siteCard({ signs, everyone })}
         here="players"
         style={PLAYERS_STYLE}
       >

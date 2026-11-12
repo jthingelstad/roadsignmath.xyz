@@ -11,6 +11,7 @@ import type { Store } from '../store/store.ts';
 import { playerPath, type Urls } from '../api/views.ts';
 import { loadOpenData, playersFile, signsFile, signsGeoJson } from './data.ts';
 import { DocsPage } from './docs.tsx';
+import type { SiteCard } from './share.ts';
 import { atomFeed, jsonFeed, playerFeed, siteFeed } from './feeds.ts';
 import { llmsFullTxt, llmsTxt } from './llms.ts';
 import { movedTo, playerByKey } from './permalinks.ts';
@@ -20,7 +21,7 @@ export const OPEN = { 'Access-Control-Allow-Origin': '*' };
 const json = (c: Context, body: unknown, type: string) =>
   c.body(`${JSON.stringify(body, null, 2)}\n`, 200, { 'Content-Type': `${type}; charset=utf-8`, ...OPEN });
 
-export function createOpenWeb({ store, urls }: { store: Store; urls: Urls }): Hono {
+export function createOpenWeb({ store, urls, siteCard }: { store: Store; urls: Urls; siteCard?: SiteCard }): Hono {
   const open = new Hono();
   const load = () => loadOpenData(store, urls);
 
@@ -74,7 +75,7 @@ export function createOpenWeb({ store, urls }: { store: Store; urls: Urls }): Ho
     c.body(llmsFullTxt(await load()), 200, { 'Content-Type': 'text/plain; charset=utf-8', ...OPEN })
   );
 
-  open.get('/data', async (c) => c.html(<DocsPage data={await load()} />));
+  open.get('/data', async (c) => c.html(<DocsPage data={await load()} card={siteCard && (await siteCard())} />));
 
   return open;
 }

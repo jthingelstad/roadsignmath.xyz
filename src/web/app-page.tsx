@@ -5,9 +5,10 @@
 
 import type { Hono } from 'hono';
 import type { Urls } from '../api/views.ts';
+import type { SiteCard } from './share.ts';
 import { APP_QR_SVG, APP_SHOTS } from './app-assets.ts';
 import { APP_STORE_BADGE_SVG } from './app-store-badge.ts';
-import { AppStoreBadge, BetaLink, Page } from './layout.tsx';
+import { APP_STORE_URL, AppStoreBadge, BetaLink, Page } from './layout.tsx';
 
 const DAY = 'public, max-age=86400';
 
@@ -107,7 +108,19 @@ const FAQ = [
   ]
 ] as const;
 
-export function mountAppPage(site: Hono, { urls }: { urls: Urls }): void {
+/** What search engines read about the app: schema.org's MobileApplication, free on the App Store. */
+export const APP_JSON_LD = {
+  '@context': 'https://schema.org',
+  '@type': 'MobileApplication',
+  name: 'Road Sign Math',
+  operatingSystem: 'iOS',
+  applicationCategory: 'GameApplication',
+  url: APP_STORE_URL,
+  downloadUrl: APP_STORE_URL,
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' }
+};
+
+export function mountAppPage(site: Hono, { urls, siteCard }: { urls: Urls; siteCard?: SiteCard }): void {
   for (const shot of SHOTS) {
     site.get(`/app/${shot.name}.webp`, (c) =>
       c.body(Buffer.from(APP_SHOTS[shot.name].webp, 'base64'), 200, {
@@ -121,12 +134,14 @@ export function mountAppPage(site: Hono, { urls }: { urls: Urls }): void {
     c.body(APP_STORE_BADGE_SVG, 200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': DAY })
   );
 
-  site.get('/app', (c) =>
+  site.get('/app', async (c) =>
     c.html(
       <Page
         title="The iPhone app · Road Sign Math"
         description="Road Sign Math lives in the iPhone app: point the camera at a sign, make its numbers true, and post it to the map. Free on the App Store."
         url={`${urls.site}/app`}
+        card={siteCard && (await siteCard())}
+        jsonLd={APP_JSON_LD}
         here="app"
         style={APP_STYLE}
       >

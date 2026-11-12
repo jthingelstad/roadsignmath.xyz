@@ -72,7 +72,7 @@ async function setup(extra = 0) {
       sign({
         id: id(100 + n),
         title: `Extra ${n}`,
-        postedAt: `2023-01-${String(n + 1).padStart(2, '0')}T00:00:00.000Z`
+        postedAt: new Date(Date.UTC(2023, 0, 1 + n)).toISOString()
       })
     );
   }
@@ -126,8 +126,7 @@ test('/signs sorts the way the app does: Popular by hearts, Complexity by the ma
   assert.match(near, /<li class="tile" data-lat="45" data-lng="-93">/);
   assert.match(near, /<button type="button" class="locate" hidden="">Use my location<\/button>/);
   assert.ok(near.includes('navigator.geolocation'));
-  // Anything else is Latest.
-  assert.deepEqual(titles((await page('/signs?sort=random')).html), ['Unsolved', 'Fraction', 'Root', 'Plain']);
+  // A sort the page doesn't know goes to Latest with a 301 (below).
 });
 
 test('/signs filters by year and state, and every link keeps the other choices', async () => {
@@ -164,4 +163,80 @@ test('Home shows the twelve newest signs; its sorts open the Signs page', async 
 test('the sitemap lists /signs', async () => {
   const { page } = await setup();
   assert.match((await page('/sitemap.xml')).html, /<loc>https:\/\/example\.test\/signs<\/loc><lastmod>/);
+});
+
+test('/signs draws 48 cards a page, with a Show more link to the next that works without script', async () => {
+  const { page } = await setup(60);
+  const first = (await page('/signs')).html;
+  assert.equal(titles(first).length, 48);
+  assert.match(first, /<a class="more" href="\/signs\?page=2" rel="next">Show more<\/a>/);
+  assert.match(first, /<nav class="pager" aria-label="More signs" data-total="64">/);
+  assert.ok(first.includes('Showing 48 of 64 signs'));
+  // The year's count is every sign found that year, not only the ones on this page.
+  assert.match(first, /<h2 id="y2026">2026<\/h2><span>61 signs<\/span>/);
+  assert.match(first, /<link rel="canonical" href="https:\/\/example.test\/signs"\/>/);
+  const second = await page('/signs?page=2');
+  assert.equal(second.res.status, 200);
+  assert.equal(titles(second.html).length, 16);
+  // Between them, every sign once.
+  assert.equal(new Set([...titles(first), ...titles(second.html)]).size, 64);
+  assert.ok(!second.html.includes('class="more"'));
+  assert.ok(second.html.includes('Signs 49–64 of 64'));
+  assert.ok(second.html.includes('<title>Every sign (page 2) · Road Sign Math</title>'));
+  assert.match(second.html, /<link rel="canonical" href="https:\/\/example.test\/signs\?page=2"\/>/);
+  assert.match(second.html, /<a href="\/signs">Back to the first page<\/a>/);
+  // A sort keeps its paging and the link keeps the sort.
+  const popular = (await page('/signs?sort=popular')).html;
+  assert.equal(titles(popular).length, 48);
+  assert.match(popular, /<a class="more" href="\/signs\?sort=popular&amp;page=2" rel="next">/);
+  // Nearby draws every card for the browser to sort, shown 48 at a time by script.
+  const near = (await page('/signs?sort=nearby')).html;
+  assert.equal(titles(near).length, 64);
+  assert.ok(!near.includes('class="more"'));
+  assert.match(near, /<button type="button" class="nearby-more" hidden="">Show more<\/button>/);
+  assert.ok(near.includes('let shown = 48;'));
+});
+
+test('/signs sends a choice it does not know to the page without it, with a 301', async () => {
+  const { app } = await setup(60);
+  const to = async (path: string) => {
+    const res = await app.request(path);
+    return [res.status, res.headers.get('location'), res.headers.get('cache-control')];
+  };
+  const day = 'public, max-age=60, s-maxage=86400';
+  assert.deepEqual(await to('/signs?sort=random'), [301, '/signs', day]);
+  assert.deepEqual(await to('/signs?sort=popular&year=1999'), [301, '/signs?sort=popular', day]);
+  assert.deepEqual(await to('/signs?year=2025&state=ZZ'), [301, '/signs?year=2025', day]);
+  assert.deepEqual(await to('/signs?page=1'), [301, '/signs', day]);
+  assert.deepEqual(await to('/signs?page=3'), [301, '/signs', day]);
+  assert.deepEqual(await to('/signs?page=two'), [301, '/signs', day]);
+  assert.deepEqual(await to('/signs?sort=nearby&page=2'), [301, '/signs?sort=nearby', day]);
+  // A state in lower case, and the state menu's empty "All states", are fine as they are.
+  assert.equal((await app.request('/signs?state=mn')).status, 200);
+  assert.equal((await app.request('/signs?state=')).status, 200);
+});
+
+test('a filtered /signs names plain /signs as canonical; the filters fold on a phone', async () => {
+  const { page } = await setup();
+  for (const path of ['/signs?sort=complexity', '/signs?year=2025', '/signs?state=IA']) {
+    assert.match((await page(path)).html, /<link rel="canonical" href="https:\/\/example.test\/signs"\/>/, path);
+  }
+  const html = (await page('/signs?sort=popular&year=2025')).html;
+  assert.match(html, /<details class="filterbox" open="">/);
+  assert.match(html, /<span class="now">Popular, 2025, All states<\/span>/);
+  assert.ok(html.includes("matchMedia('(max-width: 699px)')"));
+  // The years sit in one row that scrolls sideways on a phone.
+  assert.match(html, /<div class="chips yearchips" role="group" aria-label="Year found">/);
+  assert.match(html, /\.filters \.yearchips \{ flex-wrap: nowrap; overflow-x: auto;/);
+});
+
+test('/signs has a search box for script, over every sign in /signs.json, with no query parameter', async () => {
+  const { page } = await setup(60);
+  const html = (await page('/signs')).html;
+  assert.match(html, /<div class="search" role="search" hidden="">/);
+  // The box is no form field: nothing it holds goes in an address.
+  assert.match(html, /<input id="find" type="search" autocomplete="off"/);
+  assert.ok(!/<input id="find"[^>]*name=/.test(html));
+  assert.ok(html.includes("fetch('/signs.json')"));
+  assert.ok(html.includes('function rsmSignMatches(sign, query)'));
 });

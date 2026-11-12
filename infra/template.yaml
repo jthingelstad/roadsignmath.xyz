@@ -381,7 +381,7 @@ Resources:
   # (WebRequestPolicy forwards none of its own), so a crawler's made-up query is a hit on the
   # page it names instead of a miss that reaches the function. test/cache-key.test.ts finds every
   # parameter a route reads and fails when one is missing here (CloudFront allows ten a policy).
-  # Pages: /signs's sort, year and state, Home's year and at, a player's view. The sign-in link's
+  # Pages: /signs's sort, year, state and page, Home's year and at, a player's view. The sign-in link's
   # l and t are read by the app, never the page, and the share card's v is on the card maker's
   # address, not ours.
   WebCachePolicy:
@@ -402,7 +402,7 @@ Resources:
           CookiesConfig: { CookieBehavior: none }
           QueryStringsConfig:
             QueryStringBehavior: whitelist
-            QueryStrings: [sort, year, state, at, view]
+            QueryStrings: [sort, year, state, page, at, view]
 
   # The API's, the same but for the API's own parameters: /signs/near's and /signs/similar's lat
   # and lng, /signs/similar's numbers, and a list's cursor and limit.
