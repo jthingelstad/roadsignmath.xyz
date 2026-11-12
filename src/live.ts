@@ -80,6 +80,7 @@ export function liveOptions(config: LiveConfig): ApiOptions {
     appleTeamId: config.appleTeamId,
     tinylytics: new KeyedTinylytics(tinylyticsKey(config)),
     newsletter: new Buttondown(buttondownKey(config)),
-    edgeCache: config.photoDistributionId ? new CloudFrontEdgeCache(config.photoDistributionId) : undefined
+    edgeCache: config.photoDistributionId ? new CloudFrontEdgeCache(config.photoDistributionId) : undefined,
+    census: true
   };
 }

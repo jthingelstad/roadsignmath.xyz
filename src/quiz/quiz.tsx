@@ -22,6 +22,7 @@ import { sameWayKey } from '../domain/equation.ts';
 import { isUlid } from '../domain/ids.ts';
 import type { Player, Sign } from '../domain/types.ts';
 import { REORDERED, YOURS, solveSign } from '../posting/posting.ts';
+import { product } from '../product.ts';
 import { badgesFrom, credits, draw, loadQuiz, onSigns, solvedBy, stillToTry, type OnSign, type Solve } from './data.ts';
 import {
   AllDonePage,
@@ -240,6 +241,9 @@ export function createQuiz(options: QuizOptions): Hono {
     const data = await loadQuiz(store, viewer.player);
     const left = stillToTry(data, await onSigns(store, data.signs), viewer.player.id);
     const sign = draw(left, c.req.query('after'));
+    // Leaving a sign they haven't solved for another is a skip (Next after a send leaves a solved one).
+    const after = c.req.query('after');
+    if (after && left.some((s) => s.id === after || s.slug === after)) product({ action: 'skip', front: 'quiz' });
     if (!sign) return page(c, <AllDonePage here={here} player={viewer.player} />);
     return go(c, signPath(sign));
   });

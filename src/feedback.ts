@@ -10,6 +10,7 @@ import { playerUrl, type Urls } from './api/views.ts';
 import type { Player } from './domain/types.ts';
 import type { Mail, Mailer } from './mail/mailer.ts';
 import type { Store } from './store/store.ts';
+import { product } from './product.ts';
 
 const DAY = 86400;
 const CONTROL = /\p{Cc}/u;
@@ -107,8 +108,10 @@ export async function sendFeedback(
   try {
     await deps.mailer.send(mail);
   } catch (err) {
-    console.error({ event: 'feedback', outcome: 'unsent', detail: err instanceof Error ? err.message : String(err) });
+    // The error's name only: a mail service's message can quote an address.
+    console.error({ event: 'feedback', outcome: 'unsent', detail: err instanceof Error ? err.name : 'unknown' });
     fail('unavailable', unsent);
   }
   console.info({ event: 'feedback', outcome: 'sent', reply: !!mail.replyTo });
+  product({ action: 'feedback', front: 'app' });
 }

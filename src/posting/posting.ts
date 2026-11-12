@@ -24,6 +24,7 @@ import { removeSignKudos, sweepSignKudos } from '../hearts.ts';
 import { renditions, type PhotoStore } from '../photos.ts';
 import type { Tinylytics } from '../tinylytics.ts';
 import { nowSeconds, type Store } from '../store/store.ts';
+import { failure, product } from '../product.ts';
 
 export type PostingDeps = { store: Store; photos: PhotoStore; moderator: Moderator; tinylytics?: Tinylytics };
 
@@ -53,7 +54,7 @@ export async function moderate<T>(ask: () => Promise<T>): Promise<T> {
     return await ask();
   } catch (err) {
     if (err instanceof ModeratorUnavailable) {
-      console.error('moderator unavailable:', err.message);
+      failure('moderator', 'unavailable');
       return fail('unavailable', 'Our moderator couldn’t look just now. Try again in a minute.');
     }
     throw err;
@@ -411,6 +412,15 @@ export async function postSign(
     // The post is made. Its uploads are taken for it, so another post can't use them, and they
     // expire on their own if clearing them fails here.
     for (const photoId of taken) await store.deleteUpload(player.id, photoId).catch(() => undefined);
+    // Only the app posts today (POST /signs).
+    product({
+      action: 'sign',
+      front: 'app',
+      outcome: sign.visibility === 'held' ? 'held' : 'shown',
+      photos: signPhotos.length,
+      numbers: sign.numbers.length,
+      solved: !!way
+    });
     return { sign, ways };
   } catch (err) {
     const undo = [
@@ -498,6 +508,7 @@ export async function addWay(
   const added = await writeWay(store, player, sign, way);
   if (added === 'taken') fail('conflict', TAKEN);
   if (added === 'reordered') fail('conflict', REORDERED);
+  product({ action: 'way', front: 'app', outcome: 'new' });
   return store.listWays(sign.id);
 }
 
@@ -534,6 +545,7 @@ export async function solveSign(
     const ways = await store.listWays(sign.id);
     if (added === 'added') {
       const mine = ways.find((w) => w.playerId === player.id && w.text === way.text)!;
+      product({ action: 'way', front: via, outcome: 'new' });
       return { result: 'new_way', way: mine, ways };
     }
     // Someone sent the same math a moment before: theirs is the way, and this one found it too.
@@ -545,6 +557,7 @@ export async function solveSign(
     repeat.way
   );
   if (credited === 'gone') fail('conflict', 'That way just went from the sign. Try again');
+  if (credited === 'added') product({ action: 'way', front: via, outcome: 'found-too' });
   return { result: 'also_found', way: repeat.way, ways: await store.listWays(sign.id) };
 }
 
@@ -576,6 +589,8 @@ export async function reportSign(
   } finally {
     await store.endLease(lease, player.id).catch(() => undefined);
   }
+  // Reports come from the app today (POST /signs/{id}/report); the outcome is the moderator's verdict.
+  product({ action: 'report', front: 'app', outcome: report.outcome });
   if (told) await told(report, fresh).catch(() => undefined);
   return report;
 }
@@ -675,6 +690,7 @@ export async function reportDuplicate(
     createdAt: isoNow(now)
   };
   await store.putDuplicate(report);
+  product({ action: 'duplicate', front: 'app' });
   return report;
 }
 
