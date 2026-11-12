@@ -642,6 +642,20 @@ test('a player with no signs has a page of the ways they found on other players�
     },
     adas
   );
+  // Before that, in 2025, Ben found another of Ada's ways on the same sign too: the row shows
+  // the newer one, and Ben has been playing since 2025.
+  const second = way('01JS0000000000000000000002', {
+    id: 'way-ada-2',
+    playerId: adas.playerId,
+    text: '6 × 3 = 18',
+    value: '18',
+    createdAt: '2025-12-01T15:00:00.000Z'
+  });
+  await store.addWay(second);
+  await store.addCoFind(
+    { signId: second.signId, wayId: second.id, playerId: ben.id, createdAt: '2025-12-20T15:00:00.000Z', via: 'quiz' },
+    second
+  );
   await store.addWay(
     way('01JS0000000000000000000001', {
       id: 'way-cy',
@@ -671,7 +685,8 @@ test('a player with no signs has a page of the ways they found on other players�
   assert.ok(html.includes(`Found by Ada${SEP}Testville, Minnesota`));
   assert.ok(html.includes(`Also found Ada’s way${SEP}Feb 3, 2026`), 'its day in US Central');
   assert.ok(html.includes('aria-label="18 ÷ 6 = 3"'), 'the way on its plate');
-  assert.ok(html.includes('Playing since 2026'));
+  assert.ok(html.includes('Playing since 2025'), 'from the earliest way found too, not the row shown');
+  assert.ok(!html.includes('/players/ben/feed'), 'no feeds until a sign or a badge');
   assert.ok(!html.includes('<dl class="stats">'), 'no sign or state counts');
   assert.ok(!html.includes('Finds the math'), 'Quiz isn’t named while it’s closed');
 

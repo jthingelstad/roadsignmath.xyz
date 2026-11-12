@@ -1448,10 +1448,13 @@ export function createSite({
     const badges = earnedBadges(player.id, shown, ways).map((e) => earnedBadgeView(urls, e));
     // A player with no signs of their own shows the ways they found on other players' signs:
     // their own, and the ones they found too (one row a sign, the most recent).
-    const solved = stats.sign_count ? [] : waysFound(player, shown, lists, await coFindsOn(shown));
+    const coFinds = stats.sign_count ? [] : await coFindsOn(shown);
+    const solved = stats.sign_count ? [] : waysFound(player, shown, lists, coFinds);
     // A player with nothing on the map yet has no page.
     if (!stats.sign_count && !badges.length && !solved.length) return c.notFound();
-    const since = [playingSince(player, shown, ways), ...solved.map((f) => centralDay(f.solve.at))]
+    // Every way they found too counts, not only the one a sign that shows.
+    const foundToo = coFinds.flat().filter((f) => f.playerId === player.id);
+    const since = [playingSince(player, shown, ways), ...foundToo.map((f) => centralDay(f.createdAt))]
       .filter((d): d is string => !!d)
       .sort()[0];
     const view = c.req.query('view') === 'map' ? 'map' : 'signs';
@@ -1565,7 +1568,12 @@ const PlayerPage: FC<{
         stateCount: stats.states.length,
         firstYear: stats.first_year
       })}
-      feeds={feedAlternates({ title: `${player.name} · Road Sign Math`, base: `${urls.site}${base}` }, urls.site)}
+      // Their feeds are of their signs, and answer once they have a sign or a badge (src/web/data.ts).
+      feeds={
+        stats.sign_count || badges.length
+          ? feedAlternates({ title: `${player.name} · Road Sign Math`, base: `${urls.site}${base}` }, urls.site)
+          : undefined
+      }
       here="players"
       style={PLAYER_STYLE}
     >
