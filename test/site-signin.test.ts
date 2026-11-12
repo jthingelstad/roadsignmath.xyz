@@ -203,7 +203,9 @@ test('open, sign in by code on the site: its own email, the shared cookie and a 
   const marker = cookieNamed(done.cookies, 'rsm_me')!;
   assert.ok(!/HttpOnly/.test(marker), 'the header’s script reads it');
   const token = decodeURIComponent(/^rsm_session=([^;]+)/.exec(session)![1]!);
-  assert.ok(!marker.includes(token.split('_')[2]!), 'the marker holds no secret');
+  // The secret is base64url, so it can hold a `_` itself: take all of it, not a piece.
+  const secret = /^rsm_[0-9A-Z]{26}_(.{43})$/.exec(token)![1]!;
+  assert.ok(!marker.includes(secret), 'the marker holds no secret');
   assert.match(decodeURIComponent(/^rsm_me=([^;]+)/.exec(marker)![1]!), /^1\.[0-9A-F]{6}\.\.\?$/i);
 
   const cookie = `rsm_session=${token}`;
