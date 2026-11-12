@@ -8,6 +8,10 @@
 // - unhide-sign <slug>: a hidden or held sign is shown again (`unhideSign`).
 // - set-place <slug>: puts the sign where the owner says, with its label, state and whether the pin is
 //   only approximate (Jamie, 2026-11-11, placing the signs abroad and Gross Vehicle Weight).
+// - remove-way <slug> --way <id>: takes one way off a sign, with the co-finds on it, and keeps the
+//   sign's count and first way in step, as an account delete does for its ways (Jamie,
+//   2026-11-12: "remove my West Warwick 2+2=4 way"). Without --way, `check` lists the sign's ways
+//   and their ids.
 // - remove-player <handle>: exactly what `DELETE /me` does (`removePlayer`): the account and
 //   everything it made, their hearts' kudos first, then their address leaves the newsletter.
 //
@@ -24,7 +28,7 @@ import { hideSign, unhideSign } from './posting/posting.ts';
 import type { Store } from './store/store.ts';
 import type { Tinylytics } from './tinylytics.ts';
 
-export const OWNER_COMMANDS = ['hide-sign', 'unhide-sign', 'set-place', 'remove-player'] as const;
+export const OWNER_COMMANDS = ['hide-sign', 'unhide-sign', 'set-place', 'remove-way', 'remove-player'] as const;
 export type OwnerCommand = (typeof OWNER_COMMANDS)[number];
 export type OwnerMode = 'check' | 'live';
 
@@ -111,7 +115,7 @@ export async function runOwner(
   command: OwnerCommand,
   target: string,
   mode: OwnerMode,
-  options: { note?: string; place?: Partial<Place> } = {}
+  options: { note?: string; place?: Partial<Place>; way?: string } = {}
 ): Promise<string[]> {
   const { store } = deps;
   const out: string[] = [];
@@ -173,6 +177,46 @@ export async function runOwner(
       await thenClear(deps, out, async () => {
         if (!(await store.updateSign(sign.id, { place }))) refuse('The sign is gone');
         out.push('Moved.');
+      });
+    });
+    return out;
+  }
+
+  if (command === 'remove-way') {
+    const sign = await signBySlug(store, target);
+    out.push(await describeSign(store, sign));
+    const ways = await store.listWays(sign.id);
+    const people = new Map((await store.allPlayers()).map((p) => [p.id, p]));
+    const line = (w: (typeof ways)[number]) =>
+      `${w.id}  ${w.text}  by ${named(people.get(w.playerId))}, ${w.createdAt.slice(0, 10)}`;
+    const id = options.way?.trim();
+    if (!id) {
+      if (live) refuse('remove-way --to live needs --way <id>');
+      return [...out, ...ways.map(line), 'Name the way to remove with --way <id>.'];
+    }
+    const way = ways.find((w) => w.id === id) ?? refuse(`No way ${id} on this sign`);
+    const coFinds = (await store.listCoFinds(sign.id)).filter((c) => c.wayId === way.id);
+    out.push(line(way));
+    out.push(
+      `${live ? 'Removing' : 'Would remove'} it and ${plural(coFinds.length, 'co-find')} on it; the sign keeps ${plural(ways.length - 1, 'way')}.`
+    );
+    if (!live) return out;
+    await underReportLease(store, sign, async () => {
+      await thenClear(deps, out, async () => {
+        await store.deleteWay(way);
+        for (const coFind of await store.listCoFinds(sign.id)) {
+          if (coFind.wayId === way.id) await store.deleteCoFind(coFind);
+        }
+        const left = await store.listWays(sign.id);
+        const first = left[0];
+        if (
+          !(await store.updateSign(sign.id, {
+            wayCount: left.length,
+            firstWay: first ? { text: first.text, value: first.value, playerId: first.playerId } : null
+          }))
+        )
+          refuse('The sign is gone');
+        out.push('Removed.');
       });
     });
     return out;

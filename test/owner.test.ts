@@ -281,3 +281,40 @@ test('two owner commands on one sign never hold its lease at once', async () => 
   assert.ok((await first).includes('Hidden.'));
   assert.equal((await store.getSign(S1))!.visibility, 'hidden');
 });
+
+test('remove-way --to check lists the ways or says what would go, and writes nothing', async () => {
+  const { store, deps } = await setup();
+  const before = await snapshot(store);
+  const list = await runOwner(deps, 'remove-way', 'exit-seven', 'check');
+  assert.ok(list.some((l) => l.startsWith('way-cara-on-s1  19 − 12 = 7  by Cara (@cara)')));
+  assert.ok(list.some((l) => l.startsWith('way-ada-on-s1  7 + 12 = 19')));
+  const one = await runOwner(deps, 'remove-way', 'exit-seven', 'check', { way: 'way-cara-on-s1' });
+  assert.ok(one.some((l) => l.startsWith('Would remove it and 0 co-finds on it; the sign keeps 1 way.')));
+  assert.equal(await snapshot(store), before);
+  await assert.rejects(runOwner(deps, 'remove-way', 'exit-seven', 'check', { way: 'nope' }), OwnerRefused);
+  await assert.rejects(runOwner(deps, 'remove-way', 'exit-seven', 'live'), OwnerRefused);
+  assert.equal(await snapshot(store), before);
+});
+
+test('remove-way --to live takes the way and its co-finds off, keeps the sign in step, and clears the edge', async () => {
+  const { store, deps, edgeCache } = await setup();
+  const first = (await store.listWays(S1))[0];
+  await store.addCoFind(
+    { signId: S1, wayId: first.id, playerId: ben.id, createdAt: '2026-01-12T00:00:00.000Z', via: 'quiz' },
+    first
+  );
+  const out = await runOwner(deps, 'remove-way', 'exit-seven', 'live', { way: first.id });
+  assert.ok(out.includes('Removed.'));
+  assert.ok(out.includes('Cleared the edge.'));
+  assert.equal(edgeCache.clears, 1);
+  const left = await store.listWays(S1);
+  assert.deepEqual(
+    left.map((w) => w.id),
+    ['way-cara-on-s1']
+  );
+  assert.deepEqual(await store.listCoFinds(S1), []);
+  const s1 = (await store.getSign(S1))!;
+  assert.equal(s1.wayCount, 1);
+  assert.deepEqual(s1.firstWay, { text: '19 − 12 = 7', value: '7', playerId: cara.id });
+  assert.equal((await store.listWays(S3)).length, 1, 'other signs keep their ways');
+});

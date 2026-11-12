@@ -201,6 +201,8 @@ npm run owner -- hide-sign <slug> --to check            # read only: what would 
 npm run owner -- hide-sign <slug> --to live [--note "…"]
 npm run owner -- unhide-sign <slug> --to check|live
 npm run owner -- set-place <slug> --lat=<n> --lng=<n> [--label "…"] [--state XX] [--approximate] --to check|live
+npm run owner -- remove-way <slug> --to check            # read only: the sign's ways and their ids
+npm run owner -- remove-way <slug> --way <id> --to check|live
 npm run owner -- remove-player <handle> --to check
 TINYLYTICS_API_KEY=… BUTTONDOWN_API_KEY=… npm run owner -- remove-player <handle> --to live
 ```
@@ -213,6 +215,9 @@ TINYLYTICS_API_KEY=… BUTTONDOWN_API_KEY=… npm run owner -- remove-player <ha
 - `set-place` puts a sign on the map: the coordinates, and the label and two-letter state when
   given (left out, they stay; `--state ""` clears it). The pin counts as exact unless
   `--approximate`. Write a negative number with `=` (`--lng=-87.26`). It holds the report lease too.
+- `remove-way` takes one way off a sign (Jamie, 2026-11-12, for a way that left a number out):
+  the way, the co-finds on it, and the sign's way count and first way kept in step, as an account
+  delete does for its ways. It holds the report lease too.
 - `remove-player` is `DELETE /me` for that player (`removePlayer`, the same code): the account
   and everything it made, their hearts' kudos first, then their address leaves the newsletter.
   `--to live` needs the Tinylytics and Buttondown keys through the environment (`op run`), never
