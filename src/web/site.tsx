@@ -300,7 +300,7 @@ const HOME_STYLE = `
   .years::-webkit-scrollbar { display: none; }
   .years a { flex: none; }
 }
-.years a { display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border-radius: 999px;
+.years a { position: relative; display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border-radius: 999px;
   border: 1.5px solid var(--line2); background: var(--card); color: var(--ink); font-weight: 700; font-size: 14px; text-decoration: none; }
 .years a[aria-current] { border-color: var(--chip-on); background: var(--chip-on); color: var(--chip-on-ink); }
 .picked { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
