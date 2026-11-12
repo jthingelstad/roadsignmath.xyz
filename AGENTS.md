@@ -17,7 +17,7 @@ ids or ARNs, local paths, or photos of plates or faces that weren't meant to be 
   ways"). The rule is in `checkWay` (`src/posting/posting.ts`) for a post's first way, another
   way and a solve, a found-too included; `numbersLeftOut` in the checker names what is left out,
   and Quiz's keypad holds Send until it is empty. The ways already on signs stay, first-era ones
-  that leave numbers out included. Every Number is still a badge. `src/domain/equation.ts` is the checker;
+  that leave numbers out included. Every Number is no longer a badge (Jamie, 2026-11-12: "that badge never should have existed. It is a requirement."). `src/domain/equation.ts` is the checker;
   `contracts/equation-vectors.json` holds the cases the server and the iPhone app both pass,
   including each way's LaTeX (`tex`): ÷ is a stacked fraction. The site draws it as SVG with
   MathJax on the server (`src/web/math.ts`); the app draws the same LaTeX with SwiftMath
@@ -179,7 +179,7 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
   newest first and unsolved signs last, at 0. Each sign in the answer carries its `complexity`
   for the app, but no page shows it: it orders signs by their math and is never a player's score.
   `complex` is a reserved slug.
-- **Badges** (`src/domain/badges.ts`): 30 little road signs on five shelves (firsts, places,
+- **Badges** (`src/domain/badges.ts`): 29 little road signs on five shelves (firsts, places,
   math, seasons, secret). Nothing about them is stored: they are worked out on every read from
   the shown signs and the ways on them that the reader sees (a block leaves out the blocked
   player's ways), so a badge follows its sign. A sign's badges go to its poster and every
