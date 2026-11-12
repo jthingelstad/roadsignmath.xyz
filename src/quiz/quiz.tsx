@@ -2,7 +2,7 @@
 // Quiz's distribution (src/front.ts); the site never serves these pages, and Quiz never serves
 // the site's or the API.
 //
-// Until Jamie launches it, `QUIZ_OPEN` is false and every address answers the same short page
+// Jamie opened it on 2026-11-12. With `QUIZ_OPEN` false, every address answers the same short page
 // saying Quiz is coming, kept out of search engines.
 //
 // Open, it is a handful of server-drawn pages (src/quiz/pages.tsx) over the same store and the
@@ -38,8 +38,12 @@ import {
 } from './pages.tsx';
 import { forget, fromQuiz, quizViewer, remember } from './session.ts';
 
-/** Whether Quiz is open. Jamie's call; until then every address answers the coming-soon page. */
-export const QUIZ_OPEN = false;
+/**
+ * Whether Quiz is open. Jamie's call: opened 2026-11-12 ("Approved: open Quiz on
+ * quiz.roadsignmath.xyz by setting QUIZ_OPEN to true"). Set false, every address answers the
+ * coming-soon page.
+ */
+export const QUIZ_OPEN = true;
 
 const NO_STORE = { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' };
 const PRIVATE = { 'Cache-Control': 'no-store' };
@@ -52,6 +56,15 @@ export const quizOrigin = (site: string): string => {
 };
 
 type QuizOptions = ApiOptions & { clientIp: (c: Context) => string };
+
+/**
+ * The sign a player came to try (a link from a sign's page on the site), carried through signing
+ * in as `to` so they land on it after. Only a slug, so it can only ever lead to a Quiz sign page.
+ */
+const backTo = (to: string | undefined): string | undefined =>
+  to && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(to) && to.length <= 80 ? to : undefined;
+const withTo = (path: string, to: string | undefined) => (to ? `${path}?to=${to}` : path);
+const onward = (to: string | undefined) => (to ? `/signs/${to}` : '/next');
 
 export function createQuiz(options: QuizOptions): Hono {
   const quiz = new Hono();
@@ -71,11 +84,11 @@ export function createQuiz(options: QuizOptions): Hono {
     return (key: string) => (typeof body[key] === 'string' ? (body[key] as string) : '');
   };
 
-  /** The signed-in player, or a redirect: to sign in, or to give a name first. */
-  async function playing(c: Context): Promise<Viewer | Response> {
+  /** The signed-in player, or a redirect: to sign in, or to give a name first, then back to `to`. */
+  async function playing(c: Context, to?: string): Promise<Viewer | Response> {
     const viewer = await quizViewer(store, c);
-    if (!viewer) return go(c, '/signin');
-    if (!viewer.player.name) return go(c, '/name');
+    if (!viewer) return go(c, withTo('/signin', to));
+    if (!viewer.player.name) return go(c, withTo('/name', to));
     return viewer;
   }
 
@@ -104,28 +117,37 @@ export function createQuiz(options: QuizOptions): Hono {
   quiz.get('/signin', async (c) => {
     const loginId = c.req.query('l');
     const token = c.req.query('t');
-    if (loginId && token) return page(c, <LinkPage here={here} loginId={loginId} token={token} />);
-    if (await quizViewer(store, c)) return go(c, '/next');
-    return page(c, <SignInPage here={here} />);
+    const to = backTo(c.req.query('to'));
+    if (loginId && token) return page(c, <LinkPage here={here} loginId={loginId} token={token} to={to} />);
+    if (await quizViewer(store, c)) return go(c, onward(to));
+    return page(c, <SignInPage here={here} to={to} />);
   });
 
   quiz.post('/signin', async (c) => {
     const field = await form(c);
     const email = field('email').trim();
+    const to = backTo(field('to'));
     const link = (loginId: string, token: string) =>
-      `${here.quiz}/signin?l=${encodeURIComponent(loginId)}&t=${encodeURIComponent(token)}`;
+      `${here.quiz}/signin?l=${encodeURIComponent(loginId)}&t=${encodeURIComponent(token)}${to ? `&to=${to}` : ''}`;
     try {
       const started = await startSignIn({ store, mailer, link, front: 'quiz' }, email, clientIp(c));
-      return page(c, <CodePage here={here} loginId={started.loginId} email={email} sent={field('again') === '1'} />);
+      return page(
+        c,
+        <CodePage here={here} loginId={started.loginId} email={email} sent={field('again') === '1'} to={to} />
+      );
     } catch (err) {
       if (!(err instanceof ApiError) || (err.code !== 'bad_request' && err.code !== 'rate_limited')) throw err;
       const message = err.code === 'bad_request' ? 'That doesn’t look like an email address.' : err.message;
-      return page(c, <SignInPage here={here} email={email} error={message} />, err.code === 'bad_request' ? 400 : 429);
+      return page(
+        c,
+        <SignInPage here={here} email={email} error={message} to={to} />,
+        err.code === 'bad_request' ? 400 : 429
+      );
     }
   });
 
-  /** Signs in with the code or the link's token, then on to a name or the signs. */
-  async function finish(c: Context, input: { loginId: string; code?: string; token?: string }) {
+  /** Signs in with the code or the link's token, then on to a name or the signs (the one in `to`). */
+  async function finish(c: Context, input: { loginId: string; code?: string; token?: string }, to?: string) {
     const done = await finishSignIn(store, input);
     // A new player joins the newsletter, as in the app (Jamie, 2026-11-07). Never in the way.
     if (done.isNew && done.player.email && options.newsletter) {
@@ -133,25 +155,26 @@ export function createQuiz(options: QuizOptions): Hono {
       console.log({ event: 'newsletter', op: 'add', outcome });
     }
     remember(c, done.token);
-    return go(c, done.player.name ? '/next' : '/name');
+    return go(c, done.player.name ? onward(to) : withTo('/name', to));
   }
 
   quiz.post('/signin/code', async (c) => {
     const field = await form(c);
     const email = field('email');
     const loginId = field('login');
+    const to = backTo(field('to'));
     try {
-      return await finish(c, { loginId, code: field('code').trim() });
+      return await finish(c, { loginId, code: field('code').trim() }, to);
     } catch (err) {
       if (!(err instanceof ApiError) || err.code === 'internal' || err.code === 'unavailable') throw err;
-      return page(c, <CodePage here={here} loginId={loginId} email={email} error={codeTrouble(err)} />, 400);
+      return page(c, <CodePage here={here} loginId={loginId} email={email} error={codeTrouble(err)} to={to} />, 400);
     }
   });
 
   quiz.post('/signin/link', async (c) => {
     const field = await form(c);
     try {
-      return await finish(c, { loginId: field('login'), token: field('token') });
+      return await finish(c, { loginId: field('login'), token: field('token') }, backTo(field('to')));
     } catch (err) {
       if (!(err instanceof ApiError) || err.code === 'internal' || err.code === 'unavailable') throw err;
       return page(
@@ -168,26 +191,28 @@ export function createQuiz(options: QuizOptions): Hono {
 
   quiz.get('/name', async (c) => {
     const viewer = await quizViewer(store, c);
-    if (!viewer) return go(c, '/signin');
-    if (viewer.player.name) return go(c, '/next');
-    return page(c, <NamePage here={here} player={viewer.player} />);
+    const to = backTo(c.req.query('to'));
+    if (!viewer) return go(c, withTo('/signin', to));
+    if (viewer.player.name) return go(c, onward(to));
+    return page(c, <NamePage here={here} player={viewer.player} to={to} />);
   });
 
   quiz.post('/name', async (c) => {
     const viewer = await quizViewer(store, c);
     if (!viewer) return go(c, '/signin');
     const field = await form(c);
+    const to = backTo(field('to'));
     try {
       await updateMe(store, viewer.player, { name: field('name') });
     } catch (err) {
       if (!(err instanceof ApiError) || (err.code !== 'bad_request' && err.code !== 'rate_limited')) throw err;
       return page(
         c,
-        <NamePage here={here} player={viewer.player} error={err.message.replace(/([^.])$/, '$1.')} />,
+        <NamePage here={here} player={viewer.player} error={err.message.replace(/([^.])$/, '$1.')} to={to} />,
         400
       );
     }
-    return go(c, '/next');
+    return go(c, onward(to));
   });
 
   quiz.post('/signout', async (c) => {
@@ -243,7 +268,7 @@ export function createQuiz(options: QuizOptions): Hono {
   ) => page(c, <SolvePage here={here} player={player} sign={sign} on={on} people={data.people} said={said} />, status);
 
   quiz.get('/signs/:slug', async (c) => {
-    const viewer = await playing(c);
+    const viewer = await playing(c, backTo(c.req.param('slug')));
     if (viewer instanceof Response) return viewer;
     const got = await signFor(c, viewer.player);
     if (got.missing) return got.missing;

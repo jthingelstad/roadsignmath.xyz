@@ -123,7 +123,10 @@ test('the privacy page says deleted things leave the backups within a year, and 
   assert.ok(html.includes('gone from them within a year'));
   assert.ok(html.includes('When you report a sign'));
   assert.ok(html.includes('Jamie gets an email about it'));
-  assert.ok(html.includes('Updated 10 November 2026.'));
+  assert.ok(html.includes('Updated 12 November 2026.'));
+  assert.ok(html.includes('<h2>Quiz</h2>'));
+  assert.ok(html.includes('it sets one cookie, which holds your sign-in and nothing else'));
+  assert.ok(!html.slice(html.indexOf('<h2>Quiz</h2>'), html.indexOf('<h2>Reports</h2>')).includes('Buttondown'));
 });
 
 test('the house rules and help pages answer, are cached like the others, and every page links them', async () => {
@@ -706,4 +709,34 @@ test('a player with no signs has a page of the ways they found on other players�
     !(await (await make(true).request('/players/ada')).text()).includes('Finds the math'),
     'only without signs'
   );
+});
+
+test('while Quiz is open, a sign with numbers says “Try this one in Quiz”, linking that sign in Quiz', async () => {
+  const store = new MemoryStore();
+  await addPlayer(store, ada);
+  await store.putSign(sign({ id: '01JS0000000000000000000001', title: 'Exit Seven' }));
+  await store.putSign(sign({ id: '01JS0000000000000000000002', title: 'No Numbers', numbers: [] }));
+  const make = (quizOpen: boolean) =>
+    createApp({
+      store,
+      urls: { site: 'https://example.test', quiz: 'https://quiz.example.test' },
+      mailer: new MemoryMailer(),
+      photos: new MemoryPhotoStore(),
+      moderator: new ScriptedModerator(),
+      quizOpen
+    });
+  const slug = (title: string) => store.allSigns().then((all) => all.find((s) => s.title === title)!.slug);
+
+  const open = await (await make(true).request(`/signs/${await slug('Exit Seven')}`)).text();
+  assert.ok(open.includes(`href="https://quiz.example.test/signs/${await slug('Exit Seven')}"`));
+  assert.ok(open.includes('Try this one in Quiz'));
+  assert.ok(open.includes('data-tinylytics-event="quiz.try"'));
+  assert.ok(open.includes('in your browser with Quiz'));
+  assert.ok(open.includes('Solve it in the app'), 'the app stays the first way in');
+
+  const none = await (await make(true).request(`/signs/${await slug('No Numbers')}`)).text();
+  assert.ok(!none.includes('Try this one in Quiz'), 'nothing to solve with: not in Quiz');
+  const closed = await (await make(false).request(`/signs/${await slug('Exit Seven')}`)).text();
+  assert.ok(!closed.includes('Try this one in Quiz'), 'never while Quiz is switched off');
+  assert.ok(closed.includes('Ways are added from the app'));
 });

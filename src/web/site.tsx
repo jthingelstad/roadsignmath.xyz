@@ -456,6 +456,9 @@ ${CRUMB_STYLE}
 .another { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 20px; border-radius: 10px;
   background: var(--green); color: #fff; font-weight: 800; text-decoration: none; }
 .another:hover { background: var(--green-dark); color: #fff; }
+.cta .go { flex: 0 1 auto; display: flex; flex-direction: column; gap: 10px; }
+.another.quiz { background: transparent; color: var(--green-dark); box-shadow: inset 0 0 0 2px var(--green); }
+.another.quiz:hover { background: var(--green); color: #fff; }
 .spot { grid-area: spot; align-self: start; display: flex; flex-direction: column; gap: 14px; padding: 18px; background: var(--card); border: 1px solid var(--line);
   border-radius: 16px; }
 .spot .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
@@ -821,12 +824,20 @@ export function createSite({
               Amazon Web Services hosts this website, the app’s server and the photos, and sends the sign-in emails.
             </li>
             <li>
-              Tinylytics counts visits to this website and screens viewed in the app, and keeps the hearts. It uses no
-              cookies.
+              Tinylytics counts visits to this website and to Quiz and screens viewed in the app, and keeps the hearts.
+              It uses no cookies.
             </li>
             <li>Buttondown sends the newsletter. The game gives it your email address and nothing else.</li>
             <li>OpenStreetMap draws the map on the home page: your browser fetches the map’s tiles from it.</li>
           </ul>
+          <h2>Quiz</h2>
+          <p>
+            <a href="https://quiz.roadsignmath.xyz">Quiz</a> is the game in your web browser: you find the math in signs
+            other players posted. It uses the same account as the app, signed in with the same email. To keep you signed
+            in it sets one cookie, which holds your sign-in and nothing else, and goes when you sign out. The ways you
+            find there are public like any others, and Delete my account, in the app, removes them too. Tinylytics
+            counts Quiz’s pages apart from this website’s.
+          </p>
           <h2>Reports</h2>
           <p>
             When you report a sign, Claude looks at it again, and Jamie gets an email about it: the sign, your reason,
@@ -847,7 +858,7 @@ export function createSite({
             Email Jamie at <a href="mailto:jamie@thingelstad.com">jamie@thingelstad.com</a>. The{' '}
             <a href="/rules">house rules</a> say what can be posted.
           </p>
-          <p class="soft">Updated 10 November 2026.</p>
+          <p class="soft">Updated 12 November 2026.</p>
         </main>
       </Page>
     )
@@ -1209,6 +1220,8 @@ export function createSite({
       return { color: player?.avatarColor, photo: player?.avatar };
     };
     const description = `${sign.title}, ${sign.place.label}${sign.first_way ? `: ${sign.first_way.text}` : ''}`;
+    // While Quiz is open, a sign with numbers to use can be tried there (Jamie, 2026-11-12).
+    const tryInQuiz = quizOpen && urls.quiz && found.numbers.length ? `${urls.quiz}/signs/${found.slug}` : undefined;
     const { lat, lng } = found.place;
     const spot = lat !== undefined && lng !== undefined ? project(lat, lng) : null;
     const nearby =
@@ -1365,11 +1378,28 @@ export function createSite({
                 <div class="cta">
                   <div>
                     <strong>{firstWay ? 'See another way to make it true?' : 'Can you make it true?'}</strong>
-                    <p>Ways are added from the app, where the keypad checks your math as you go.</p>
+                    <p>
+                      {tryInQuiz
+                        ? 'Add a way in the app, or in your browser with Quiz. The keypad checks your math as you go.'
+                        : 'Ways are added from the app, where the keypad checks your math as you go.'}
+                    </p>
                   </div>
-                  <a class="another" href="/app" data-tinylytics-event="app.get" data-tinylytics-event-value="sign">
-                    {firstWay ? 'Find another way in the app' : 'Solve it in the app'} <span aria-hidden="true">→</span>
-                  </a>
+                  <div class="go">
+                    <a class="another" href="/app" data-tinylytics-event="app.get" data-tinylytics-event-value="sign">
+                      {firstWay ? 'Find another way in the app' : 'Solve it in the app'}{' '}
+                      <span aria-hidden="true">→</span>
+                    </a>
+                    {tryInQuiz && (
+                      <a
+                        class="another quiz"
+                        href={tryInQuiz}
+                        data-tinylytics-event="quiz.try"
+                        data-tinylytics-event-value="sign"
+                      >
+                        Try this one in Quiz <span aria-hidden="true">→</span>
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
               <section class="spot" aria-labelledby="where-h">

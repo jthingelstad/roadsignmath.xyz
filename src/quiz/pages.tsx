@@ -12,6 +12,7 @@ import { BRAND_VERSION, LOCKUP_SIZE } from '../web/brand.ts';
 import { BADGE_STYLE, BadgeCards, type BadgeView } from '../web/badges.tsx';
 import { longDay } from '../web/layout.tsx';
 import { mathSvg } from '../web/math.ts';
+import { QUIZ_TINYLYTICS_SITE, TINYLYTICS_SCRIPT } from '../web/tinylytics.ts';
 import { CHECKER_JS } from './checker.ts';
 import { KEYPAD_JS } from './keypad.ts';
 import type { OnSign, Solve } from './data.ts';
@@ -153,13 +154,24 @@ label { font-weight: 800; }
 }
 `;
 
+/** Carries the sign a player came to try through signing in (`to`, a slug Quiz checked). */
+const BackTo: FC<{ to?: string }> = ({ to }) => (to ? <input type="hidden" name="to" value={to} /> : null);
+
 /** The site's address for a photo of a shown sign. */
 const photoUrl = (here: Here, id: string, size: 'large' | 'thumb') => `${here.site}/p/${id}/${size}.jpg`;
 
 /** Quiz's frame: header with the logo and the Quiz tab, the page, and a footer to the site. */
 export const Frame: FC<
-  PropsWithChildren<{ here: Here; title: string; player?: Player; script?: string; description?: string }>
-> = ({ here, title, player, script, description, children }) => (
+  PropsWithChildren<{
+    here: Here;
+    title: string;
+    player?: Player;
+    script?: string;
+    description?: string;
+    /** Adds Quiz's Tinylytics counter. The sign-in link's page leaves it out: its URL carries the token. */
+    count?: boolean;
+  }>
+> = ({ here, title, player, script, description, count = true, children }) => (
   <html lang="en">
     <head>
       <meta charset="utf-8" />
@@ -225,6 +237,7 @@ export const Frame: FC<
         </div>
       </footer>
       {script && <script dangerouslySetInnerHTML={{ __html: script }} />}
+      {count && <script defer src={TINYLYTICS_SCRIPT} data-site={QUIZ_TINYLYTICS_SITE} />}
     </body>
   </html>
 );
@@ -457,7 +470,12 @@ export const HomePage: FC<{ here: Here; sample?: Sign; more: Sign[] }> = ({ here
   </Frame>
 );
 
-export const SignInPage: FC<{ here: Here; error?: string; email?: string }> = ({ here, error, email }) => (
+export const SignInPage: FC<{ here: Here; error?: string; email?: string; to?: string }> = ({
+  here,
+  error,
+  email,
+  to
+}) => (
   <Frame here={here} title="Sign in">
     <div class="stack narrow">
       <h1>Sign in to play</h1>
@@ -468,6 +486,7 @@ export const SignInPage: FC<{ here: Here; error?: string; email?: string }> = ({
         </p>
       )}
       <form method="post" action="/signin" class="stack">
+        <BackTo to={to} />
         <label for="em">Email</label>
         <input id="em" class="field" type="email" name="email" autocomplete="email" required value={email ?? ''} />
         <button class="btn" type="submit">
@@ -485,13 +504,14 @@ export const SignInPage: FC<{ here: Here; error?: string; email?: string }> = ({
   </Frame>
 );
 
-export const CodePage: FC<{ here: Here; loginId: string; email: string; error?: string; sent?: boolean }> = ({
-  here,
-  loginId,
-  email,
-  error,
-  sent
-}) => (
+export const CodePage: FC<{
+  here: Here;
+  loginId: string;
+  email: string;
+  error?: string;
+  sent?: boolean;
+  to?: string;
+}> = ({ here, loginId, email, error, sent, to }) => (
   <Frame here={here} title="Check your email">
     <div class="stack narrow">
       <h1>Check your email</h1>
@@ -512,6 +532,7 @@ export const CodePage: FC<{ here: Here; loginId: string; email: string; error?: 
       <form method="post" action="/signin/code" class="stack">
         <input type="hidden" name="login" value={loginId} />
         <input type="hidden" name="email" value={email} />
+        <BackTo to={to} />
         <label for="code">6-digit code</label>
         <input
           id="code"
@@ -531,11 +552,12 @@ export const CodePage: FC<{ here: Here; loginId: string; email: string; error?: 
         <form method="post" action="/signin">
           <input type="hidden" name="email" value={email} />
           <input type="hidden" name="again" value="1" />
+          <BackTo to={to} />
           <button type="submit" class="txt">
             Send the email again
           </button>
         </form>
-        <a class="txt" href="/signin">
+        <a class="txt" href={to ? `/signin?to=${to}` : '/signin'}>
           Use a different email
         </a>
       </div>
@@ -548,10 +570,16 @@ export const CodePage: FC<{ here: Here; loginId: string; email: string; error?: 
  * Where the email's link lands. Mail scanners follow links, so opening it changes nothing: the
  * button (pressed for you when scripts run) sends the link's token, and that signs you in.
  */
-export const LinkPage: FC<{ here: Here; loginId: string; token: string }> = ({ here, loginId, token }) => (
+export const LinkPage: FC<{ here: Here; loginId: string; token: string; to?: string }> = ({
+  here,
+  loginId,
+  token,
+  to
+}) => (
   <Frame
     here={here}
     title="Signing you in"
+    count={false}
     script="document.getElementById('go').requestSubmit && document.getElementById('go').requestSubmit();"
   >
     <div class="stack narrow">
@@ -559,6 +587,7 @@ export const LinkPage: FC<{ here: Here; loginId: string; token: string }> = ({ h
       <form id="go" method="post" action="/signin/link" class="stack">
         <input type="hidden" name="login" value={loginId} />
         <input type="hidden" name="token" value={token} />
+        <BackTo to={to} />
         <button class="btn" type="submit">
           Sign in to Quiz
         </button>
@@ -567,7 +596,12 @@ export const LinkPage: FC<{ here: Here; loginId: string; token: string }> = ({ h
   </Frame>
 );
 
-export const NamePage: FC<{ here: Here; player: Player; error?: string }> = ({ here, player, error }) => (
+export const NamePage: FC<{ here: Here; player: Player; error?: string; to?: string }> = ({
+  here,
+  player,
+  error,
+  to
+}) => (
   <Frame here={here} title="Your name" player={player}>
     <div class="stack narrow">
       <h1>You’re in. What should we call you?</h1>
@@ -578,6 +612,7 @@ export const NamePage: FC<{ here: Here; player: Player; error?: string }> = ({ h
         </p>
       )}
       <form method="post" action="/name" class="stack">
+        <BackTo to={to} />
         <label for="nm">Your name</label>
         <input id="nm" class="field" type="text" name="name" autocomplete="given-name" maxlength={40} required />
         <p class="meta">It also makes your page’s address on roadsignmath.xyz, for good.</p>

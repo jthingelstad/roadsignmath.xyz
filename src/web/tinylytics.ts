@@ -12,6 +12,13 @@
 
 export const TINYLYTICS_SITE = 'ryhTaXDDgZtyCktoVzzj';
 
+/**
+ * Quiz's own Tinylytics site (quiz.roadsignmath.xyz), so Quiz's numbers stand apart from the
+ * website's and the app's. It counts page views only: no events, no hearts (hearts stay on the
+ * website's site, where the API reads them).
+ */
+export const QUIZ_TINYLYTICS_SITE = 'drzyH75DrwosGs_Up8RK';
+
 export const TINYLYTICS_SCRIPT = 'https://tinylytics.app/js/script.js';
 
 /** The pixel's address, its hits landing on `path` in the site's numbers. */
