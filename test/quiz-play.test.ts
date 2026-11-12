@@ -288,7 +288,11 @@ test('signed out: build the math, Send asks for sign-in, and the math comes back
     form: { email: 'pat@example.com', to: 'unsolved-junction', math: '19 − 12 = 7' }
   });
   assert.equal(sent.res.status, 303);
-  assert.ok(!decodeURIComponent(sent.location!).includes('19'), 'the math never goes in an address');
+  // The address holds only the login (a random id, which can itself hold "19") and the sign.
+  const at = new URL(sent.location!, QUIZ);
+  assert.deepEqual([...at.searchParams.keys()], ['l', 'to'], 'the math never goes in an address');
+  assert.equal(at.searchParams.get('to'), 'unsolved-junction');
+  assert.ok(!decodeURIComponent(at.href).includes('−') && !at.href.includes('math'));
   const mailText = t.mailer.sent[0].text + t.mailer.sent[0].subject;
   assert.ok(!mailText.includes('19 − 12'), 'nor in the email');
   const codePage = await t.quiz(sent.location!);
@@ -340,7 +344,11 @@ test('a player with a name signing in by the link lands on the sign with the mat
   const t = await setup();
   await t.quiz('/signin', { form: { email: ada.email!, to: 'seven-twelve', math: '19 − 7 = 12' } });
   const link = /(https:\/\/quiz\.example\.test\/signin\?[^\s]+)/.exec(t.mailer.sent[0].text)![1];
-  assert.ok(!link.includes('math') && !link.includes('19'), 'the link carries the sign, never the math');
+  // The link holds the login, its random token (either can hold "19") and the sign, never the math.
+  const params = new URL(link).searchParams;
+  assert.deepEqual([...params.keys()], ['l', 't', 'to'], 'the link carries the sign, never the math');
+  assert.equal(params.get('to'), 'seven-twelve');
+  assert.ok(!link.includes('math') && !decodeURIComponent(link).includes('−'));
   const opened = await t.quiz(new URL(link).pathname + new URL(link).search);
   const loginId = /name="login" value="([^"]+)"/.exec(opened.html)![1];
   const token = /name="token" value="([^"]+)"/.exec(opened.html)![1];

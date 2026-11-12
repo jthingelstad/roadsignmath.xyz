@@ -1,5 +1,6 @@
-// The website's signed-in side (wave 2, packages 2A and 2B): sign in on roadsignmath.xyz by email,
-// the name step, posting a sign (`/post`, src/web/post.tsx), and `/you`, the player's own page: the profile (photo, name, bio, website, home, through
+// The website's signed-in side (wave 2, packages 2A, 2B and 2C): sign in on roadsignmath.xyz by email,
+// the name step, posting a sign (`/post`, src/web/post.tsx), reporting a sign, a duplicate or a
+// player (`/you/report/...`, src/web/report.tsx), and `/you`, the player's own page: the profile (photo, name, bio, website, home, through
 // the same moderated `updateMe` as the app and Quiz), the signs they posted, held and hidden ones
 // included with why, Delete a sign, Sign out and Delete my account. The sign-in and profile pages
 // are Quiz's (src/quiz/account.tsx and pages.tsx), drawn in the site's frame.
@@ -30,6 +31,7 @@ import { Face, Frame, MessagePage, SITE_PATHS, type Here } from '../quiz/pages.t
 import { QUIZ_OPEN, quizOrigin } from '../quiz/quiz.tsx';
 import { MARKER_COOKIE, forget, fromOrigin, jarFor, sessionViewer } from '../quiz/session.ts';
 import { POST_PATH, mountPost } from './post.tsx';
+import { mountReports, reportBackTo } from './report.tsx';
 
 /**
  * Whether the website's sign-in is open. Jamie opened it on 2026-11-12 ("turn it on for everyone");
@@ -187,8 +189,9 @@ export function createAccount(options: AccountOptions): Hono {
     here,
     jar,
     page,
-    // The site's sign-in lands on `/you`, or back on the posting form a signed-out player opened.
-    backTo: (raw) => (raw === POST_PATH ? POST_PATH : undefined),
+    // The site's sign-in lands on `/you`, or back on the posting form or a report form (a checked
+    // slug or handle in its path, `reportBackTo`) a signed-out player opened. Never anywhere else.
+    backTo: (raw) => (raw === POST_PATH ? POST_PATH : reportBackTo(raw)),
     onward: (to) => to ?? SITE_PATHS.profile,
     profileOf,
     yours: async (player) => <YourSigns signs={await posted(player)} site={urls.site} />,
@@ -196,6 +199,7 @@ export function createAccount(options: AccountOptions): Hono {
   });
 
   mountPost(app, { options, jar, page, quiz: (options.quizOpen ?? QUIZ_OPEN) ? here.quiz : undefined });
+  mountReports(app, { options, jar, page, quiz: (options.quizOpen ?? QUIZ_OPEN) ? here.quiz : undefined });
 
   /** A sign of theirs, by id, in any state, or undefined. */
   const yourSign = async (player: Player, id: string) => (await posted(player)).find((s) => s.id === id.toUpperCase());

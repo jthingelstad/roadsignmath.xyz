@@ -158,7 +158,7 @@ export function mountAccount(app: Hono, front: AccountFront): void {
     const carried = again ? again.carry : to && math ? { to, text: math } : undefined;
     const landing = here.front === 'site' ? paths.link : paths.signin;
     const link = (loginId: string, token: string) =>
-      `${origin}${landing}?l=${encodeURIComponent(loginId)}&t=${encodeURIComponent(token)}${to ? `&to=${to}` : ''}`;
+      `${origin}${landing}?l=${encodeURIComponent(loginId)}&t=${encodeURIComponent(token)}${to ? `&to=${encodeURIComponent(to)}` : ''}`;
     try {
       const started = await startSignIn({ store, mailer, link, front: mailFront, carry: carried }, email, clientIp(c));
       // The code page is a page of its own, so a refresh shows it again instead of sending another email.
