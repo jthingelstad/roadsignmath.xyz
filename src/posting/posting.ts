@@ -4,7 +4,7 @@
 import { fail } from '../api/errors.ts';
 import { limit, text } from '../api/input.ts';
 import { LIMITS } from '../api/contract.ts';
-import { check, normalizeNumber, numbersNotOnSign, sameWayKey } from '../domain/equation.ts';
+import { check, normalizeNumber, numbersLeftOut, numbersNotOnSign, sameWayKey } from '../domain/equation.ts';
 import { slugify, ulid } from '../domain/ids.ts';
 import type {
   CoFind,
@@ -245,19 +245,28 @@ async function finders(store: Store, poster: Player, input: PostInput): Promise<
   });
 }
 
-/** Checks a way against the sign's numbers: true math, and only numbers the sign shows. */
+/**
+ * Checks a way against the sign's numbers: true math, only numbers the sign shows, and every one
+ * of them (Jamie, 2026-11-12: "require every number in new ways, keep the first-era ways"). The
+ * ways already on signs stay as they are; every way sent from now on, a co-find's included, uses
+ * them all.
+ */
 function checkWay(raw: string, numbers: SignNumber[]): { text: string; value: string; numbers: string[] } {
   const result = check(raw);
   if (!result.ok) return fail('bad_request', result.message);
-  const missing = numbersNotOnSign(
-    result.numbers,
-    numbers.map((n) => n.value)
-  );
+  const onSign = numbers.map((n) => n.value);
+  const missing = numbersNotOnSign(result.numbers, onSign);
   if (missing.length) {
     fail('bad_request', `${missing.join(', ')} ${missing.length === 1 ? 'isn’t' : 'aren’t'} on the sign that often`);
   }
+  const left = numbersLeftOut(result.numbers, onSign);
+  if (left.length) fail('bad_request', leftOutMessage(left));
   return { text: result.canonical, value: result.value, numbers: result.numbers };
 }
+
+/** The answer to a true way that leaves some of the sign's numbers out. */
+export const leftOutMessage = (left: string[]): string =>
+  `Use every number on the sign: ${left.join(', ')} ${left.length === 1 ? 'is' : 'are'} left out`;
 
 /** The first free slug from the title: title, title-2, title-3… claimed so two posts can't share one. */
 async function reserveSlug(store: Store, signId: string, title: string): Promise<string> {

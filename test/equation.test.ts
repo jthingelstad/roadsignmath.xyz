@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { check, numbersNotOnSign, sameWayKey, texOf } from '../src/domain/equation.ts';
+import { check, numbersLeftOut, numbersNotOnSign, sameWayKey, texOf } from '../src/domain/equation.ts';
 
 type Vector = {
   text: string;
@@ -16,6 +16,7 @@ type Vector = {
 const vectors = JSON.parse(readFileSync(new URL('../contracts/equation-vectors.json', import.meta.url), 'utf8')) as {
   checks: Vector[];
   numbers_on_sign: { used: string[]; sign: string[]; missing: string[]; note: string }[];
+  numbers_left_out: { used: string[]; sign: string[]; left_out: string[]; note: string }[];
 };
 
 for (const v of vectors.checks) {
@@ -41,6 +42,12 @@ for (const v of vectors.checks) {
 for (const v of vectors.numbers_on_sign) {
   test(`numbers on the sign: ${v.note}`, () => {
     assert.deepEqual(numbersNotOnSign(v.used, v.sign), v.missing);
+  });
+}
+
+for (const v of vectors.numbers_left_out) {
+  test(`numbers left out: ${v.note}`, () => {
+    assert.deepEqual(numbersLeftOut(v.used, v.sign), v.left_out);
   });
 }
 

@@ -463,8 +463,8 @@ export function check(text: string): Check {
 }
 
 /**
- * The light check's second half: every number in the math must be one of the sign's numbers,
- * each used no more often than the sign shows it. Returns the numbers that don't match.
+ * The check's second half: every number in the math must be one of the sign's numbers, each
+ * used no more often than the sign shows it. Returns the numbers that don't match.
  */
 export function numbersNotOnSign(used: string[], onSign: string[]): string[] {
   const left = new Map<string, number>();
@@ -480,6 +480,15 @@ export function numbersNotOnSign(used: string[], onSign: string[]): string[] {
     else missing.push(n);
   }
   return missing;
+}
+
+/**
+ * The sign's numbers a way leaves out, each as often as it is left out. A new way uses every
+ * number on the sign (Jamie, 2026-11-12: "require every number in new ways, keep the first-era
+ * ways"), so this must come back empty.
+ */
+export function numbersLeftOut(used: string[], onSign: string[]): string[] {
+  return numbersNotOnSign(onSign, used);
 }
 
 // ---------------------------------------------------------------------------------------------

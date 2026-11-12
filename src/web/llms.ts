@@ -26,7 +26,7 @@ function shape(data: OpenData) {
 }
 
 const GAME = [
-  'A way is accepted when the math is true and every number in it is one of the numbers on the sign, each used no more often than the sign shows it. Using every number is encouraged, not required. Anyone can find another way on any sign. There are no points, scores or rankings.',
+  'A way is accepted when the math is true and every number in it is one of the numbers on the sign, each used no more often than the sign shows it. Since 12 November 2026 a new way uses every number on the sign; ways found before then stay as they are. Anyone can find another way on any sign. There are no points, scores or rankings.',
   'Jamie Thingelstad started the game in 2005 as roadsignmath.com, with signs sent in by other players until 2014. This site and the iPhone app are its new era. The first era’s signs that have a photo and math today’s checker accepts are here too, with the days they were found and posted; all 251 are kept in the archive on Things I’ve built.',
   'Each sign has a page at `/signs/<id>` and each player at `/players/<id>`, by the `id` in the open files; the older addresses by slug and handle lead there. A place marked approximate has its pin on the town the post or the sign names, not the exact spot. `found_on` is the day in the finder’s own time; other times are UTC.'
 ];

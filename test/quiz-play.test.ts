@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import sharp from 'sharp';
 import { createApp } from '../src/api/app.ts';
-import { check, numbersNotOnSign } from '../src/domain/equation.ts';
+import { check, numbersLeftOut, numbersNotOnSign } from '../src/domain/equation.ts';
 import type { Player } from '../src/domain/types.ts';
 import { MemoryMailer } from '../src/mail/mailer.ts';
 import { MemoryNewsletter } from '../src/newsletter.ts';
@@ -513,8 +513,21 @@ test('the keypad never runs two tiles together, and holds Send for math the sign
   assert.equal(works.send.disabled, false);
   assert.ok(works.status.textContent.includes('It works: both sides are 19.'));
 
+  // True math that leaves a number out holds Send and names it (Jamie, 2026-11-12).
+  const short = keypad(['2', '2', '4', '8']);
+  short.tiles[0].click();
+  short.key('+');
+  short.tiles[1].click();
+  short.key('=');
+  short.tiles[2].click();
+  assert.equal(short.field.value, '2 + 2 = 4');
+  assert.equal(short.send.disabled, true);
+  assert.ok(short.status.textContent.includes('Now use every number: 8 is left out.'));
+
   // The keypad's guard is the server's own count of the sign's numbers.
-  const context: { RSMCheck?: { numbersNotOnSign: typeof numbersNotOnSign } } = {};
+  const context: {
+    RSMCheck?: { numbersNotOnSign: typeof numbersNotOnSign; numbersLeftOut: typeof numbersLeftOut };
+  } = {};
   runInNewContext(`${CHECKER_JS};this.RSMCheck=RSMCheck;`, context);
   for (const [used, on] of [
     [
@@ -528,8 +541,8 @@ test('the keypad never runs two tiles together, and holds Send for math the sign
     [['1.50'], ['1.5']]
   ])
     assert.equal(
-      JSON.stringify(context.RSMCheck!.numbersNotOnSign(used, on)),
-      JSON.stringify(numbersNotOnSign(used, on))
+      JSON.stringify([context.RSMCheck!.numbersNotOnSign(used, on), context.RSMCheck!.numbersLeftOut(used, on)]),
+      JSON.stringify([numbersNotOnSign(used, on), numbersLeftOut(used, on)])
     );
 });
 

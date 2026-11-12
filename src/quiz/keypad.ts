@@ -54,7 +54,9 @@ export const KEYPAD_JS = `(() => {
     else {
       const r = check(text);
       const extra = r.ok ? window.RSMCheck.numbersNotOnSign(r.numbers, tiles.map((t) => t.dataset.v)) : [];
+      const left = r.ok && !extra.length ? window.RSMCheck.numbersLeftOut(r.numbers, tiles.map((t) => t.dataset.v)) : [];
       if (r.ok && extra.length) say('wait', extra.join(', ') + (extra.length === 1 ? ' isn’t' : ' aren’t') + ' on the sign that often.');
+      else if (r.ok && left.length) say('wait', 'It’s true. Now use every number: ' + left.join(', ') + (left.length === 1 ? ' is' : ' are') + ' left out.');
       else if (r.ok) {
         works = true;
         const all = used === tiles.length ? (tiles.length > 2 ? 'All ' + tiles.length + ' numbers used' : 'All numbers used') : '';

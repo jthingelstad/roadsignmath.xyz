@@ -8,7 +8,7 @@ import type { Player } from '../src/domain/types.ts';
 import { MemoryMailer } from '../src/mail/mailer.ts';
 import { MemoryPhotoStore } from '../src/photos.ts';
 import { MemoryStore } from '../src/store/memory.ts';
-import { REORDERED, YOURS } from '../src/posting/posting.ts';
+import { leftOutMessage, REORDERED, YOURS } from '../src/posting/posting.ts';
 import { addPlayer, nowSeconds } from '../src/store/store.ts';
 import { ada, ben, sign } from './support/fixtures.ts';
 import { ScriptedModerator } from './support/moderator.ts';
@@ -415,6 +415,39 @@ test('another way must be true, from the sign, and new', async () => {
   assert.equal((await add('7 + 7 = 14')).res.status, 400, 'the sign shows one 7');
   assert.equal((await add('7 + 12')).res.status, 400);
   assert.equal((await t.call('POST', `/signs/${posted.id}/ways`, { body: { text: '7 = 7' } })).res.status, 401);
+});
+
+test('a new way uses every number on the sign; ways from before stay', async () => {
+  const t = await setup();
+  const numbers = ['7', '12', '19', '1'].map((value) => ({ value }));
+  const short = await t.post({ numbers });
+  assert.equal(short.res.status, 400);
+  assert.equal(short.body.error.message, 'Use every number on the sign: 1 is left out');
+  assert.equal(short.body.error.message, leftOutMessage(['1']));
+
+  const { body: posted } = await t.post({ numbers, way: '(7 + 12) × 1 = 19' });
+  const add = (text: string) => t.call('POST', `/signs/${posted.id}/ways`, { as: 'ben', body: { text } });
+  const solve = (text: string, as = 'cy') => t.call('POST', `/signs/${posted.id}/solve`, { as, body: { text } });
+  const twoOut = await add('19 − 12 = 7');
+  assert.equal(twoOut.res.status, 400);
+  assert.match(twoOut.body.error.message, /1 is left out$/);
+  assert.equal((await solve('19 − 12 = 7')).res.status, 400);
+  assert.equal((await add('(19 − 12) ÷ 1 = 7')).res.status, 201);
+
+  // A way written before the rule stays on the sign, and isn't sent again as found too.
+  await t.store.addWay({
+    id: '01JZZZZZZZZZZZZZZZZZZZZZZZ',
+    signId: posted.id,
+    playerId: posted.posted_by?.id ?? (await t.store.allSigns())[0].postedBy,
+    text: '7 + 12 = 19',
+    value: '19',
+    numbers: ['7', '12', '19'],
+    createdAt: '2010-01-01T00:00:00.000Z'
+  });
+  assert.ok((await t.store.listWays(posted.id)).some((w) => w.text === '7 + 12 = 19'));
+  const old = await solve('7 + 12 = 19');
+  assert.equal(old.res.status, 400);
+  assert.equal(old.body.error.message, leftOutMessage(['1']));
 });
 
 test('solving a sign: a new way goes on, and one already there credits you on it', async () => {

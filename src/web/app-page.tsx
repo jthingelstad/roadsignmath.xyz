@@ -233,7 +233,7 @@ export function mountAppPage(site: Hono, { urls }: { urls: Urls }): void {
                 </li>
                 <li>
                   <h3>Make it true</h3>
-                  <p>Use the numbers with any math you like. It just has to be true.</p>
+                  <p>Use every number with any math you like. It just has to be true.</p>
                 </li>
                 <li>
                   <h3>Put it on the map</h3>
