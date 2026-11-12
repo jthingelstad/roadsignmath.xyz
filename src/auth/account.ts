@@ -15,6 +15,7 @@ import type { Tinylytics } from '../tinylytics.ts';
 import { nowSeconds, type PlayerChanges, type Store } from '../store/store.ts';
 import type { Newsletter, RemoveOutcome } from '../newsletter.ts';
 import type { SignInFront } from '../mail/signin.ts';
+import { product } from '../product.ts';
 
 export const NAME_MAX = 40;
 export const BIO_MAX = 160;
@@ -71,6 +72,13 @@ export async function updateMe(store: Store, player: Player, body: Record<string
     }
   }
   if (!done) await store.updatePlayer(player.id, changes);
+  const part =
+    changes.name !== undefined && changes.bio !== undefined
+      ? 'name-and-bio'
+      : changes.name !== undefined
+        ? 'name'
+        : 'bio';
+  product({ action: 'profile', part, first: !!changes.name && !kept.name });
   return (await store.getPlayer(player.id)) ?? fail('unauthorized', 'That account is gone');
 }
 
@@ -105,6 +113,7 @@ export async function setAvatar(
   );
   const sized = await avatarRenditions(bytes).catch(() => fail('bad_request', 'That photo couldn’t be read'));
   const verdict = await moderate(() => moderator.reviewAvatar(sized.large));
+  if (verdict.verdict !== 'ok') product({ action: 'photo-refused' });
   if (verdict.verdict !== 'ok') fail('refused', verdict.reason || 'That photo can’t be your profile photo.');
   const id = ulid().toLowerCase();
   // Under the player's lease, which deleting the account holds too: a delete either sees this
@@ -130,6 +139,7 @@ export async function setAvatar(
       return fail('unauthorized', 'That account is gone');
     }
     await dropPhoto(photos, set.previous);
+    product({ action: 'profile', part: 'photo' });
     // Read consistently, so the answer never carries the photo just replaced.
     return (await store.getPlayer(player.id, true)) ?? fail('unauthorized', 'That account is gone');
   });
@@ -153,6 +163,7 @@ export async function removeAvatar(deps: { store: Store; photos: PhotoStore }, p
     const set = await deps.store.setAvatar(player.id, null);
     if (!set) return fail('unauthorized', 'That account is gone');
     await dropPhoto(deps.photos, set.previous);
+    product({ action: 'profile', part: 'photo-removed' });
     return (await deps.store.getPlayer(player.id, true)) ?? fail('unauthorized', 'That account is gone');
   });
 }
@@ -194,6 +205,7 @@ export async function removePlayer(
 ): Promise<RemoveOutcome | undefined> {
   const email = player.email;
   await deleteAccount(deps, player);
+  product({ action: 'account-deleted' });
   if (!email || !deps.newsletter) return undefined;
   const outcome = await deps.newsletter.remove(email);
   console.log({ event: 'newsletter', op: 'remove', outcome });

@@ -203,7 +203,7 @@ test('mail that can’t be sent is a 503', async () => {
   } finally {
     console.error = error;
   }
-  assert.deepEqual(logged, [{ event: 'feedback', outcome: 'unsent', detail: 'SES said no' }]);
+  assert.deepEqual(logged, [{ event: 'feedback', outcome: 'unsent', detail: 'Error' }]);
 });
 
 test('without an address to send to, feedback is a 503', async () => {

@@ -30,6 +30,7 @@ import { appSiteAssociation } from '../web/apple.ts';
 import { notFoundPage } from '../web/not-found.tsx';
 import { frontOf } from '../front.ts';
 import { createQuiz } from '../quiz/quiz.tsx';
+import { Census } from '../census.ts';
 import { createSite } from '../web/site.tsx';
 import {
   addWay,
@@ -84,6 +85,8 @@ export type ApiOptions = {
   edgeCache?: EdgeCache;
   /** Opens Quiz whatever `QUIZ_OPEN` says: tests and `npm run dev`'s Quiz port. */
   quizOpen?: boolean;
+  /** Logs the hourly census (src/census.ts): the live server only. */
+  census?: boolean;
 };
 
 /** The viewer's two-letter country from CloudFront, when it sent one. */
@@ -669,6 +672,7 @@ export function createApp(given: ApiOptions): Hono {
     heartCounts: given.heartCounts ?? new HeartCounts(given.tinylytics)
   };
   const app = new Hono();
+  if (given.census) app.use('*', new Census(given.store).middleware());
   // A page write through either front clears the site's cache, so the middleware is outside both.
   if (changes) app.use('*', changes.middleware());
   const site = siteApp(options);

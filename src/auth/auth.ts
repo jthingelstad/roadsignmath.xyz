@@ -10,6 +10,7 @@ import { AVATAR_COLORS, type Login, type Player, type Session } from '../domain/
 import type { Mailer } from '../mail/mailer.ts';
 import { signInMail, type SignInFront } from '../mail/signin.ts';
 import { emailHash, normalizeEmail, nowSeconds, type Store } from '../store/store.ts';
+import { failure, product } from '../product.ts';
 
 export const LOGIN_TTL = 15 * 60;
 export const MAX_CODE_ATTEMPTS = 5;
@@ -75,7 +76,12 @@ export async function startSignIn(
     expiresAt: now + LOGIN_TTL
   };
   await deps.store.putLogin(login);
-  await deps.mailer.send(signInMail(email, deps.link(login.id, token), code, deps.front));
+  const front = deps.front ?? 'app';
+  await deps.mailer.send(signInMail(email, deps.link(login.id, token), code, deps.front)).catch((err: unknown) => {
+    failure('signin-mail', 'unsent', front);
+    throw err;
+  });
+  product({ action: 'signin-start', front });
   return { loginId: login.id, expiresIn: LOGIN_TTL };
 }
 
@@ -149,6 +155,7 @@ export async function finishSignIn(
     lastUsedAt: at,
     expiresAt: now + SESSION_IDLE
   });
+  product({ action: 'signin-finish', front: via, outcome: isNew ? 'new' : 'returning' });
   return { token: `rsm_${player.id}_${secret}`, player, isNew };
 }
 

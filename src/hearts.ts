@@ -18,6 +18,7 @@
 // takes the kudo back.
 
 import { createHash, randomUUID } from 'node:crypto';
+import { product } from './product.ts';
 import { LIMITS } from './api/contract.ts';
 import { fail } from './api/errors.ts';
 import { limit } from './api/input.ts';
@@ -199,6 +200,8 @@ export async function setHeart(deps: HeartDeps, player: Player, sign: Sign, on: 
       await store.deleteHeart(player.id, sign.id);
     }
     counts.adjust(path, on ? 1 : -1, started);
+    // Hearts through the server are the app's; the website's go straight to Tinylytics.
+    product({ action: 'heart', front: 'app', outcome: on ? 'given' : 'taken-back' });
     return await stateOf(deps, sign, on);
   } finally {
     await store.endLease(lease, holder).catch(() => undefined);

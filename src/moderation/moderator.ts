@@ -6,6 +6,7 @@
 // are in POLICY below.
 
 import Anthropic from '@anthropic-ai/sdk';
+import { failure } from '../product.ts';
 
 export const MODEL = 'claude-haiku-5-5';
 
@@ -181,6 +182,7 @@ export class ClaudeModerator implements Moderator {
 
   async reviewPost(post: Post): Promise<PostVerdict> {
     const answer = (await this.ask(POST_PROMPT, POST_SCHEMA, post, described(post))) as PostVerdict | undefined;
+    if (!answer) failure('moderator', 'refused', 'post');
     if (!answer) return { verdict: 'hold', reason: 'Our moderator couldn’t review this post.', alt: [] };
     return answer;
   }
@@ -188,6 +190,7 @@ export class ClaudeModerator implements Moderator {
   async reviewReport(post: Post, report: string): Promise<ReportVerdict> {
     const text = described(post, { report });
     const answer = (await this.ask(REPORT_PROMPT, REPORT_SCHEMA, post, text)) as ReportVerdict | undefined;
+    if (!answer) failure('moderator', 'refused', 'report');
     if (!answer) return { verdict: 'hide', reason: 'Our moderator couldn’t review this post.' };
     return answer;
   }
@@ -196,6 +199,7 @@ export class ClaudeModerator implements Moderator {
     const post: Post = { title: '', numbers: [], photos: [photo] };
     const text = 'The player’s new profile photo.';
     const answer = (await this.ask(AVATAR_PROMPT, AVATAR_SCHEMA, post, text)) as AvatarVerdict | undefined;
+    if (!answer) failure('moderator', 'refused', 'avatar');
     if (!answer) return { verdict: 'hold', reason: 'Our moderator couldn’t look at this photo. Try another one.' };
     return answer;
   }
