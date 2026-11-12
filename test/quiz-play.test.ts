@@ -183,6 +183,13 @@ test('“Try this one in Quiz”: signing in on the way there lands on that sign
   const t = await setup();
   const out = await t.quiz(`/signs/${S1}`);
   assert.equal(out.location, `/signin?to=${S1}`, 'signed out: sign in first, keeping the sign');
+  for (const tail of ['/ways', `/found?way=way-${S1}`]) {
+    assert.equal(
+      (await t.quiz(`/signs/${S1}${tail}`)).location,
+      `/signin?to=${S1}`,
+      `${tail}: signed out, sign in first, keeping the sign`
+    );
+  }
   const page = await t.quiz(`/signin?to=${S1}`);
   assert.ok(page.html.includes(`<input type="hidden" name="to" value="${S1}"/>`));
   const started = await t.quiz('/signin', { form: { email: 'pat@example.com', to: S1 } });
@@ -339,7 +346,8 @@ test('solving: reordered, found too, a new way, your own again, the first way, a
   assert.ok(solved.includes('Signs you’ve solved'));
   assert.ok(solved.includes('First way'));
   assert.ok(solved.includes('New way'), 'Seven Twelve shows its newest solve, the new way');
-  assert.ok(solved.includes(`${SITE}/players/${ben.id}`));
+  assert.ok(solved.includes(`${SITE}/players/${ben.id}`), 'Ben’s ways give him a page: linked');
+  assert.ok(solved.includes('public page on roadsignmath.xyz'));
 
   const done = await t.quiz('/next', { as: 'ben' });
   assert.equal(done.res.status, 200, 'both signs solved: nothing left');
@@ -596,6 +604,8 @@ test('the profile: name, bio, email only she sees, her page, and edits that keep
     !(await t.quiz('/profile', { as: 'ben' })).html.includes('/players/01JBBBBBBBBBBBBBBBBBBBBBBB'),
     'no link to a page not there'
   );
+  const benSolved = (await t.quiz('/solved', { as: 'ben' })).html;
+  assert.ok(!benSolved.includes('/players/01JBBBBBBBBBBBBBBBBBBBBBBB'), 'nor from the solved list');
 
   const saved = await t.quiz('/profile', { as: 'ada', form: { name: 'Ada Lovelace', bio: '' } });
   assert.equal(saved.res.status, 303);

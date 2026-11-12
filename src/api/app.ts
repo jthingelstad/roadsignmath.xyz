@@ -242,9 +242,9 @@ export function createApi(options: ApiOptions): Hono {
     return newlyEarned(had, now).map((e) => earnedBadgeView(urls, e));
   }
 
-  /** A sign this reader can see, by id or slug. */
+  /** A sign this reader can see, by id (in any case, as the site's pages take it) or slug. */
   const findSign = (signs: Sign[], key: string): Sign =>
-    signs.find((s) => s.id === key || s.slug === key) ?? fail('not_found', 'No sign by that id');
+    signs.find((s) => s.id === key.toUpperCase() || s.slug === key) ?? fail('not_found', 'No sign by that id');
 
   /** A sign and the ways this reader sees, each with who else found it. */
   const detail = async (people: People, blocked: Set<string>, sign: Sign, ways: Way[], hearts: HeartView) =>
@@ -386,11 +386,11 @@ export function createApi(options: ApiOptions): Hono {
     async getPlayer(c, { data, hearts }) {
       const [{ signs, people, blocked }, h] = await Promise.all([data(), hearts()]);
       // A handle, or the player's id: their page's address on the site (/players/<id>), which the
-      // App Store app passes here as it is when it opens a link to that page.
+      // App Store app passes here as it is when it opens a link to that page, in any case.
       const key = pathParam(c, 'handle');
       const player =
         [...people.values()].find((p) => p.handle === key) ??
-        people.get(key) ??
+        people.get(key.toUpperCase()) ??
         fail('not_found', 'No player by that handle');
       const stats = playerStats(player, signs);
       const badges = await badgesOf(player.id, { signs, people, blocked });

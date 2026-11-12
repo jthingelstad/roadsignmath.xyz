@@ -62,8 +62,8 @@ export const HOME_MAP_STYLE = `
   .lmap .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9); }
   .lmap .leaflet-popup-content-wrapper, .lmap .leaflet-popup-tip { background: var(--card); color: var(--ink); }
   .lmap .leaflet-bar a { background: var(--card); color: var(--ink); border-color: var(--line); }
-  .lmap .leaflet-control-attribution { background: rgba(24,32,28,.8); color: var(--ink2); }
-  .lmap .leaflet-control-attribution a { color: var(--ink); }
+  .map .lmap .leaflet-control-attribution { background: rgba(24,32,28,.8); color: var(--ink2); }
+  .map .lmap .leaflet-control-attribution a { color: var(--ink); }
 }
 .lmap .dot, .lmap .bunch { display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 3px solid #fff;
   background: var(--green); color: #fff; font-weight: 900; line-height: 1; box-shadow: 0 1px 4px rgba(0,0,0,.45); cursor: pointer; }

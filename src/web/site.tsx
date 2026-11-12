@@ -806,6 +806,7 @@ export function createSite({
       <Page
         title="Privacy · Road Sign Math"
         description="What Road Sign Math keeps, what is public, and how to delete your account."
+        url={`${urls.site}/privacy`}
       >
         <main id="main" class="wrap" style="padding-top: 32px; padding-bottom: 48px; max-width: 720px">
           <h1>Privacy</h1>
@@ -1039,8 +1040,8 @@ export function createSite({
                   Find a sign. Make the math true.
                 </h1>
                 <p>
-                  Spot a road sign with numbers on it, then use those numbers to write something true. These are the
-                  signs players have found, around the world. Tap a pin to see them.
+                  Spot a road sign with numbers on it, then use every one of those numbers to write something true.
+                  These are the signs players have found, around the world. Tap a pin to see them.
                 </p>
                 <dl class="stats">
                   <div>

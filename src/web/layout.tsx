@@ -90,6 +90,8 @@ h1, h2, h3 { font-weight: 900; letter-spacing: -0.01em; }
 .avatar.ink { color: #18201C; }
 .avatar.photo { overflow: hidden; background: var(--line); }
 .avatar.photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* The darkest avatar colour is close to the dark page's: a faint ring keeps every letter's circle in sight. */
+@media (prefers-color-scheme: dark) { .avatar:not(.photo) { box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); } }
 .plate { background: var(--green); border-radius: 14px; padding: 4px; }
 .plate > span { display: block; border: 2.5px solid #fff; border-radius: 10px; padding: 12px; color: #fff; text-align: center;
   font-weight: 800; font-size: 21px; line-height: 1.3; overflow-x: auto; }

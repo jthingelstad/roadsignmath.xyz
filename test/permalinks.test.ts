@@ -164,6 +164,13 @@ test('the API finds a player by their id as well as by their handle, with the sa
   assert.equal(JSON.parse(byId.text).url, `${SITE}/players/${ada.id}`);
   // A sign by slug or id answers as before, its url now the id's.
   assert.equal(JSON.parse((await get('/api/v1/signs/exit-seven')).text).url, `${SITE}/signs/${EXIT}`);
+  // An id in another case answers as the site's pages do, where links in any case land.
+  const lower = await get(`/api/v1/players/${ada.id.toLowerCase()}`);
+  assert.equal(lower.res.status, 200);
+  assert.deepEqual(JSON.parse(lower.text), JSON.parse(byHandle.text));
+  const sign = await get(`/api/v1/signs/${EXIT.toLowerCase()}`);
+  assert.equal(sign.res.status, 200);
+  assert.equal(JSON.parse(sign.text).url, `${SITE}/signs/${EXIT}`);
   for (const path of ['/api/v1/players/nobody', '/api/v1/players/01JZZZZZZZZZZZZZZZZZZZZZZZ']) {
     assert.equal((await get(path)).res.status, 404, path);
   }
