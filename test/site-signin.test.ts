@@ -6,12 +6,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { runInNewContext } from 'node:vm';
 import { createApp } from '../src/api/app.ts';
 import { MemoryMailer } from '../src/mail/mailer.ts';
 import { MemoryNewsletter } from '../src/newsletter.ts';
 import { MemoryPhotoStore } from '../src/photos.ts';
 import { markerOf } from '../src/quiz/session.ts';
-import { SITE_SIGNIN_OPEN, WHO_SCRIPT, withSignIn } from '../src/web/account.tsx';
+import { SITE_SIGNIN_OPEN, WHO_SCRIPT, onAccountPath, withSignIn } from '../src/web/account.tsx';
 import { MemoryStore } from '../src/store/memory.ts';
 import { addPlayer, nowSeconds } from '../src/store/store.ts';
 import { ada, ben, sign } from './support/fixtures.ts';
@@ -217,7 +218,7 @@ test('open, sign in by code on the site: its own email, the shared cookie and a 
   // The secret is base64url, so it can hold a `_` itself: take all of it, not a piece.
   const secret = /^rsm_[0-9A-Z]{26}_(.{43})$/.exec(token)![1]!;
   assert.ok(!marker.includes(secret), 'the marker holds no secret');
-  assert.match(decodeURIComponent(/^rsm_me=([^;]+)/.exec(marker)![1]!), /^1\.[0-9A-F]{6}\.\.\?$/i);
+  assert.match(decodeURIComponent(/^rsm_me=([^;]+)/.exec(marker)![1]!), /^1\.[0-9A-F]{6}\.\.%3F$/i);
 
   const cookie = `rsm_session=${token}`;
   const name = await t.request('/signin/name', { cookie });
@@ -351,4 +352,209 @@ test('the marker is a colour, a photo id and a letter; the header script checks 
   const once = withSignIn(html);
   assert.equal(withSignIn(once), once, 'added once');
   assert.ok(once.indexOf('class="you"') < once.indexOf('class="get"'));
+});
+
+/** Runs the header's script against a page with "Sign in" and this cookie; what it drew, or undefined. */
+function drawnBy(cookie: string): { href: string; letter?: string; photo?: string } | undefined {
+  type El = { className: string; textContent: string; style: Record<string, string>; children: El[]; src?: string };
+  const el = (): El & Record<string, unknown> => ({
+    className: '',
+    textContent: '',
+    style: {},
+    children: [],
+    setAttribute() {},
+    append(...kids: El[]) {
+      this.children.push(...kids);
+    }
+  });
+  const a = {
+    href: '/signin',
+    kids: [] as El[],
+    setAttribute() {},
+    replaceChildren(...kids: El[]) {
+      this.kids = kids;
+    }
+  };
+  runInNewContext(WHO_SCRIPT, {
+    document: { cookie, querySelector: () => a, createElement: el },
+    decodeURIComponent
+  });
+  if (a.href !== '/you') return undefined;
+  const face = a.kids[1]!;
+  return { href: a.href, letter: face.textContent || undefined, photo: face.children[0]?.src };
+}
+
+test('the marker’s letter is the face’s (ß is SS), encoded, and the header script draws what the server does', () => {
+  assert.equal(markerOf({ name: 'ßeta', avatarColor: '#1F6FB2' }), '1.1F6FB2..SS');
+  assert.equal(markerOf({ name: '.dot', avatarColor: '#1F6FB2' }), '1.1F6FB2..%2E');
+  assert.equal(markerOf({ name: '%x', avatarColor: '#1F6FB2' }), '1.1F6FB2..%25');
+  assert.equal(markerOf({ name: 'élan', avatarColor: '#1F6FB2' }), '1.1F6FB2..%C3%89');
+  assert.equal(markerOf({ name: '  ', avatarColor: '#1F6FB2' }), '1.1F6FB2..%3F');
+  // As a browser holds it: Hono's setCookie encodes the value once more.
+  const jar = (name: string, avatar?: string) =>
+    `x=1; rsm_me=${encodeURIComponent(markerOf({ name, avatarColor: '#1F6FB2', avatar }))}`;
+  for (const [name, letter] of [
+    ['pat', 'P'],
+    ['ßeta', 'SS'],
+    ['.dot', '.'],
+    ['%x', '%'],
+    ['élan', 'É'],
+    ['', '?']
+  ] as const) {
+    assert.deepEqual(drawnBy(jar(name)), { href: '/you', letter, photo: undefined }, name);
+  }
+  assert.equal(drawnBy(jar('Ada', 'av-01'))?.photo, '/p/av-01/thumb.jpg');
+  // Anything else leaves "Sign in" as it is.
+  for (const bad of [
+    'rsm_me=2.1F6FB2..P',
+    'rsm_me=1.red..P',
+    'rsm_me=1.1F6FB2..',
+    'rsm_me=1.1F6FB2..ABCD',
+    'rsm_me=%E0%A4%A'
+  ]) {
+    assert.equal(drawnBy(bad), undefined, bad);
+  }
+});
+
+test('open, the email’s link carries `to` back to the form it started from, and never signs in by itself', async () => {
+  const t = await setup(true);
+  await t.request('/signin', { form: { email: 'pat@example.com', to: '/post' } });
+  const link = /(https:\/\/example\.test\/signin\/link\?[^\s]+)/.exec(t.mailer.sent[0]!.text)![1]!;
+  const url = new URL(link);
+  assert.equal(url.searchParams.get('to'), '/post');
+  const landing = await t.request(url.pathname + url.search);
+  assert.ok(!landing.html.includes('requestSubmit'), 'nothing posts the form but its button');
+  assert.match(landing.html, /<button class="btn" type="submit" autofocus="">Sign in to Road Sign Math<\/button>/);
+  assert.ok(landing.html.includes('name="to" value="/post"'), 'the form carries it on');
+  assert.ok(plain(landing.html).includes('Sign in'));
+  // Only the allowlist's places: anything else is dropped, and a link without its token goes to sign in.
+  const evil = await t.request(`/signin/link?l=x&t=y&to=${encodeURIComponent('https://evil.example')}`);
+  assert.ok(!evil.html.includes('name="to"'));
+  assert.equal((await t.request('/signin/link?to=%2Fpost')).location, '/signin?to=%2Fpost');
+  const posted = await t.request('/signin/link', {
+    form: { login: url.searchParams.get('l')!, token: url.searchParams.get('t')!, to: '/post' }
+  });
+  assert.equal(posted.location, '/signin/name?to=%2Fpost', 'a new player names themself, then the form');
+  // Quiz's link page has no script that posts it either.
+  await t.request('/signin', { form: { email: 'quinn@example.com' }, front: 'quiz' });
+  const quizLink = new URL(/(https:\/\/\S+)/.exec(t.mailer.sent[1]!.text)![1]!);
+  const quizLanding = await t.request(quizLink.pathname + quizLink.search, { front: 'quiz' });
+  assert.ok(quizLanding.html.includes('Sign in to Quiz'));
+  assert.ok(!quizLanding.html.includes('requestSubmit'));
+});
+
+test('open, a code tried on a sign-in already used says it has ended', async () => {
+  const t = await setup(true);
+  const sent = await t.request('/signin', { form: { email: 'pat@example.com' } });
+  const code = /code is (\d{6})/.exec(t.mailer.sent[0]!.subject)![1]!;
+  const loginId = /l=([0-9A-Z]{26})/.exec(sent.location!)![1]!;
+  assert.equal((await t.request('/signin/code', { form: { login: loginId, code } })).res.status, 303);
+  const again = await t.request('/signin/code', { form: { login: loginId, code } });
+  assert.equal(again.res.status, 303);
+  const page = await t.request(again.location!);
+  assert.ok(plain(page.html).includes('That sign-in has ended. Sign in again for a new code.'));
+});
+
+test('open, a page drawn with an error focuses it or its field, and one without takes no focus', async () => {
+  const t = await setup(true);
+  const focused = (html: string) => (html.match(/autofocus/g) ?? []).length;
+  // A bad address: the field, tied to the error.
+  const bad = await t.request('/signin', { form: { email: 'not an address' } });
+  assert.equal(bad.res.status, 400);
+  assert.match(bad.html, /<p class="oops" role="alert" id="form-error">/);
+  assert.match(
+    bad.html,
+    /<input[^>]*name="email"[^>]*aria-invalid="true"[^>]*aria-describedby="form-error"[^>]*autofocus/
+  );
+  assert.equal(focused(bad.html), 1);
+  // A wrong code: the code field.
+  const sent = await t.request('/signin', { form: { email: 'pat@example.com' } });
+  const loginId = /l=([0-9A-Z]{26})/.exec(sent.location!)![1]!;
+  const fresh = await t.request(sent.location!);
+  assert.ok(!fresh.html.includes('aria-invalid'), 'no error, nothing marked');
+  assert.ok(!fresh.html.includes('id="form-error"'));
+  const wrong = await t.request('/signin/code', { form: { login: loginId, code: '000000' } });
+  const wrongPage = await t.request(wrong.location!);
+  assert.match(
+    wrongPage.html,
+    /<input[^>]*name="code"[^>]*aria-invalid="true"[^>]*aria-describedby="form-error"[^>]*autofocus/
+  );
+  assert.equal(focused(wrongPage.html), 1);
+  // An ended sign-in: no field is wrong, so the error itself.
+  const ended = await t.request('/signin/code?l=01JNOTHING00000000000000000');
+  assert.match(ended.html, /<p class="oops" role="alert" id="form-error" tabindex="-1" autofocus="">/);
+  assert.ok(!ended.html.includes('aria-invalid'));
+  // A name that won't do: the name field.
+  const sent2 = await t.request('/signin', { form: { email: 'pat@example.com' } });
+  const code2 = /code is (\d{6})/.exec(t.mailer.sent[1]!.subject)![1]!;
+  const login2 = /l=([0-9A-Z]{26})/.exec(sent2.location!)![1]!;
+  const done = await t.request('/signin/code', { form: { login: login2, code: code2 } });
+  const cookie = cookieNamed(done.cookies, 'rsm_session')!.split(';')[0]!;
+  const namePage = await t.request('/signin/name', { cookie });
+  assert.ok(!namePage.html.includes('aria-invalid') && !namePage.html.includes('autofocus'));
+  const noName = await t.request('/signin/name', { form: { name: '' }, cookie });
+  assert.match(
+    noName.html,
+    /<input[^>]*id="nm"[^>]*aria-invalid="true"[^>]*aria-describedby="form-error"[^>]*autofocus/
+  );
+  const signin = await t.request('/signin');
+  assert.ok(!signin.html.includes('aria-invalid') && !signin.html.includes('id="form-error"'));
+});
+
+test('open, the signed-in side’s pages load no visitor counter; Quiz and the cached pages keep theirs', async () => {
+  const t = await setup(true);
+  // The counter's script (its `data-tinylytics-event` marks do nothing without it).
+  const counted = (html: string) => html.includes('data-site=') || /<script[^>]*tinylytics\.app/.test(html);
+  for (const [path, as] of [
+    ['/signin', undefined],
+    ['/signin/code?l=nothing', undefined],
+    ['/you', 'ada'],
+    ['/you/delete', 'ada'],
+    ['/you/nope', 'ada'],
+    ['/you/nope', undefined],
+    ['/post', 'ada'],
+    ['/you/report/sign/seven-twelve', 'ben'],
+    ['/you/report/duplicate/seven-twelve', 'ben'],
+    ['/you/report/player/ada', 'ben']
+  ] as const) {
+    const { res, html } = await t.request(path, { as });
+    assert.ok(res.status === 200 || res.status === 404, `${path} ${res.status}`);
+    assert.ok(!counted(html), `${path} ${as ?? ''}`);
+  }
+  for (const path of ['/', '/signs', '/signs/seven-twelve', '/about', '/nope']) {
+    assert.ok(counted((await t.request(path)).html), path);
+  }
+  assert.ok(counted((await t.request('/', { front: 'quiz' })).html), 'Quiz’s own pages are as they were');
+  assert.ok(counted((await t.request('/signin', { front: 'quiz' })).html), 'Quiz’s sign-in too');
+  assert.ok(onAccountPath('/signin') && onAccountPath('/signin/code') && onAccountPath('/you/report/player/ada'));
+  assert.ok(!onAccountPath('/signs') && !onAccountPath('/postcards') && !onAccountPath('/youth'));
+});
+
+test('open, the header links Quiz on the sign-in pages and /you, as on the rest of the site', async () => {
+  const t = await setup(true);
+  const quizLink = 'href="https://quiz.example.test/"';
+  for (const [path, as] of [
+    ['/signin', undefined],
+    ['/signin/code?l=nothing', undefined],
+    ['/you', 'ada'],
+    ['/you/delete', 'ada'],
+    ['/post', 'ada']
+  ] as const) {
+    assert.ok((await t.request(path, { as })).html.includes(quizLink), path);
+  }
+});
+
+test('open, a page asks who is signed in once, and sends the cookies again once', async () => {
+  const t = await setup(true);
+  const { cookies } = await t.request('/you', { as: 'ada' });
+  assert.equal(cookies.filter((c) => c.startsWith('rsm_session=')).length, 1);
+  assert.equal(cookies.filter((c) => c.startsWith('rsm_me=')).length, 1);
+  let reads = 0;
+  const getSession = t.store.getSession.bind(t.store);
+  t.store.getSession = async (...args: Parameters<typeof getSession>) => {
+    reads++;
+    return getSession(...args);
+  };
+  await t.request('/post', { as: 'ada' });
+  assert.equal(reads, 1);
 });

@@ -140,8 +140,11 @@ export function mountAccount(app: Hono, front: AccountFront): void {
     app.get(paths.link, async (c) => {
       const loginId = c.req.query('l');
       const token = c.req.query('t');
-      if (!loginId || !token) return go(c, paths.signin);
-      return page(c, <LinkPage here={here} loginId={loginId} token={token} />);
+      // `to` goes through the same allowlist as everywhere else, so the link lands back on the
+      // posting form or a report form it was started from.
+      const to = backTo(c.req.query('to'));
+      if (!loginId || !token) return go(c, withTo(paths.signin, to));
+      return page(c, <LinkPage here={here} loginId={loginId} token={token} to={to} />);
     });
   }
 
@@ -170,7 +173,14 @@ export function mountAccount(app: Hono, front: AccountFront): void {
       const kept = math ?? (to && again?.carry?.to === to ? again.carry.text : undefined);
       return page(
         c,
-        <SignInPage here={here} email={email} error={message} to={to} math={kept} />,
+        <SignInPage
+          here={here}
+          email={email}
+          error={message}
+          badEmail={err.code === 'bad_request'}
+          to={to}
+          math={kept}
+        />,
         err.code === 'bad_request' ? 400 : 429
       );
     }

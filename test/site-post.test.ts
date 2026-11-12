@@ -16,7 +16,15 @@ import { MemoryPhotoStore } from '../src/photos.ts';
 import { productLog } from '../src/product.ts';
 import { MemoryStore } from '../src/store/memory.ts';
 import { addPlayer, nowSeconds } from '../src/store/store.ts';
-import { EXIF_JS } from '../src/web/post-script.ts';
+import {
+  DRAFT_KEY,
+  EXIF_JS,
+  FORGET_DRAFTS_JS,
+  HEIC_PROBE,
+  POST_JS,
+  draftKey,
+  draftOwner
+} from '../src/web/post-script.ts';
 import { ada, ben, sign } from './support/fixtures.ts';
 import { ScriptedModerator } from './support/moderator.ts';
 
@@ -343,7 +351,7 @@ test('open, posted: the sign is the app’s, marked from the site, and a retry m
     const done = await t.request(posted.location!, { as: 'ada' });
     assert.ok(plain(done.html).includes('Twelve Seven is posted'));
     assert.ok(done.html.includes('href="/signs/twelve-seven"'));
-    assert.ok(done.html.includes('rsm-post-draft'), 'the draft kept in the browser goes');
+    assert.ok(done.html.includes(JSON.stringify(draftKey(ada.id))), 'the draft kept in the browser goes');
     assert.equal((await t.request(posted.location!, { as: 'ben' })).location, '/you', 'only its poster');
 
     // The same form sent again (a double tap, a retry) is the same sign.
@@ -440,4 +448,95 @@ test('the browser reads a photo’s place and day from its EXIF, and nothing fro
   assert.deepEqual({ ...read(withGps) }, { lat: 44.98, lng: -93.27, day: '2025-09-01' });
   assert.deepEqual({ ...read(await jpeg()) }, {});
   assert.deepEqual({ ...read(Buffer.from('not a photo at all')) }, {});
+});
+
+test('a draft is kept in the browser under its player, by a hash of their id, never their email', async () => {
+  const t = await setup(true);
+  const mine = draftOwner(ada.id);
+  assert.match(mine, /^[0-9a-f]{16}$/);
+  assert.notEqual(mine, draftOwner(ben.id));
+  assert.equal(draftKey(ada.id), `${DRAFT_KEY}:${mine}`);
+  assert.ok(!draftKey(ada.id).includes(ada.id) && !draftKey(ada.id).includes(ada.email!));
+  const page = await t.request('/post', { as: 'ada' });
+  assert.ok(page.html.includes(`data-draft="${mine}"`));
+  assert.ok(!page.html.includes(ada.email!));
+  assert.ok((await t.request('/post', { as: 'ben' })).html.includes(`data-draft="${draftOwner(ben.id)}"`));
+  assert.ok(POST_JS.includes('form.dataset.draft'), 'the script keeps it under that key');
+});
+
+test('signing out or deleting the account takes every draft in this browser with it', async () => {
+  const t = await setup(true);
+  // The signed-in pages that have those forms carry the script; a signed-out page has nothing to clear.
+  for (const path of ['/you', '/you/delete']) {
+    assert.ok((await t.request(path, { as: 'ada' })).html.includes(FORGET_DRAFTS_JS), path);
+  }
+  assert.ok(!(await t.request('/signin')).html.includes(FORGET_DRAFTS_JS));
+  assert.ok((await t.request('/you', { as: 'ada' })).html.includes('action="/you/signout"'));
+  assert.ok((await t.request('/you/delete', { as: 'ada' })).html.includes('action="/you/delete"'));
+  // Run as a browser would: a submit of either form clears them; any other form leaves them.
+  const kept = new Map<string, string>([
+    [draftKey(ada.id), '{}'],
+    [draftKey(ben.id), '{}'],
+    [DRAFT_KEY, '{}'],
+    ['something-else', 'x']
+  ]);
+  const localStorage = {
+    get length() {
+      return kept.size;
+    },
+    key: (i: number) => [...kept.keys()][i] ?? null,
+    removeItem: (k: string) => void kept.delete(k)
+  };
+  let listener: (e: unknown) => void = () => {};
+  vm.runInNewContext(FORGET_DRAFTS_JS, {
+    window: { localStorage },
+    document: { addEventListener: (_: string, f: (e: unknown) => void) => (listener = f) }
+  });
+  const submit = (action: string) => listener({ target: { getAttribute: () => action } });
+  submit('/you');
+  assert.equal(kept.size, 4, 'saving the profile keeps them');
+  submit('/you/signout');
+  assert.deepEqual([...kept.keys()], ['something-else']);
+});
+
+test('the photo picker offers HEIC only where the script finds this browser can open it', async () => {
+  const t = await setup(true);
+  const page = await t.request('/post', { as: 'ada' });
+  assert.ok(page.html.includes('accept="image/jpeg,image/png,image/webp"'));
+  assert.ok(!/accept="[^"]*heic/.test(page.html), 'without scripts, iOS hands over a JPEG');
+  assert.ok(POST_JS.includes(HEIC_PROBE) && POST_JS.includes("',image/heic,image/heif'"));
+  assert.equal(Buffer.from(HEIC_PROBE, 'base64').subarray(4, 12).toString('latin1'), 'ftypheic');
+  // The sentence about what the script does is there only for it to show.
+  assert.match(
+    page.html,
+    /<span id="photo-reads" hidden="">A photo’s place and day are read from it here, in your browser/
+  );
+  assert.ok(POST_JS.includes("getElementById('photo-reads')"));
+  assert.ok(plain(page.html).includes('Up to 4 photos, the first one of the sign itself.'));
+});
+
+test('the details drawn with an error focus the field it is about, tied to the error', async () => {
+  const t = await setup(true);
+  const photo = await t.upload();
+  const fresh = await t.request('/post', { as: 'ada' });
+  assert.ok(!fresh.html.includes('aria-invalid') && !/<(?:input|textarea|p)[^>]*autofocus/.test(fresh.html));
+  const cases: [Record<string, string>, string][] = [
+    [{ photos: '' }, 'photo-file'],
+    [{ title: '' }, 'title'],
+    [{ label: '' }, 'label'],
+    [{ lng: '' }, 'lng'],
+    [{ lat: '', lng: '5' }, 'lat'],
+    [{ n1_value: 'twelve' }, 'n1'],
+    [{ found_on: '2999-01-01' }, 'found_on']
+  ];
+  for (const [change, id] of cases) {
+    const res = await t.request('/post', { as: 'ada', form: { ...draft(photo, change), go: 'math' } });
+    assert.equal(res.res.status, 400, id);
+    const marked = [...res.html.matchAll(/<(?:input|textarea)[^>]*aria-invalid="true"[^>]*>/g)].map((m) => m[0]);
+    assert.equal(marked.length, 1, `${id}: ${marked.join(' ')}`);
+    assert.ok(marked[0]!.includes(`id="${id}"`), `${id}: ${marked[0]}`);
+    assert.match(marked[0]!, /aria-describedby="form-error"/);
+    assert.match(marked[0]!, /autofocus/);
+    assert.match(res.html, /id="form-error"/);
+  }
 });

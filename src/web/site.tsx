@@ -1793,6 +1793,17 @@ export async function playerPageParts(store: Store, player: Player, shown: Sign[
   return { stats, ways, earned, coFinds, solved };
 }
 
+/**
+ * Whether a player has a page, as `playerPageParts` decides it, the cheap way first: a named player
+ * credited on a shown sign always has one, which needs no read beyond the signs. Only a player with
+ * none of their own needs the ways on every sign (Report this player, `/you`).
+ */
+export async function hasPlayerPage(store: Store, player: Player, shown: Sign[]): Promise<boolean> {
+  if (!player.name) return false;
+  if (shown.some((s) => s.finders.some((f) => f.playerId === player.id))) return true;
+  return (await playerPageParts(store, player, shown)) !== undefined;
+}
+
 // A way found later is dated by its day in US Central, the game's home, as its badges are.
 const CENTRAL_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' });
 const centralDay = (at: string): string => CENTRAL_DAY.format(new Date(at));

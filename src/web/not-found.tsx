@@ -68,7 +68,18 @@ async function newest(store: Store, urls: Urls): Promise<Summary[] | null> {
  * The answer for an address no route took. A GET for one ending in a slash goes to the same
  * address without it (and its query), unless that would leave the site (`//host`).
  */
-export function notFoundPage({ store, urls, quizOpen = QUIZ_OPEN }: { store: Store; urls: Urls; quizOpen?: boolean }) {
+export function notFoundPage({
+  store,
+  urls,
+  quizOpen = QUIZ_OPEN,
+  uncounted = () => false
+}: {
+  store: Store;
+  urls: Urls;
+  quizOpen?: boolean;
+  /** Addresses whose 404 loads no visitor counter (the signed-in side's, `onAccountPath`). */
+  uncounted?: (path: string) => boolean;
+}) {
   const quiz = quizOpen && urls.quiz ? urls.quiz : undefined;
   return async (c: Context): Promise<Response> => {
     const url = new URL(c.req.url);
@@ -94,6 +105,7 @@ export function notFoundPage({ store, urls, quizOpen = QUIZ_OPEN }: { store: Sto
         title="Not found · Road Sign Math"
         description="There's no page at this address. Find your way back to the map, or see every sign."
         quiz={quiz}
+        count={!uncounted(c.req.path)}
         style={LOST_STYLE}
       >
         <main id="main" class="lost">

@@ -32,11 +32,11 @@ import { similarSigns } from '../posting/similar.ts';
 import { sentence, trouble, type Status } from '../quiz/account.tsx';
 import { CHECKER_JS } from '../quiz/checker.ts';
 import { KEYPAD_JS } from '../quiz/keypad.ts';
-import { FORM_STYLE, Keypad, SITE_PATHS } from '../quiz/pages.tsx';
+import { FORM_STYLE, FormError, Keypad, SITE_PATHS, invalidField } from '../quiz/pages.tsx';
 import type { Jar } from '../quiz/session.ts';
 import { sessionViewer } from '../quiz/session.ts';
 import { Page } from './layout.tsx';
-import { DONE_JS, EXIF_JS, POST_JS } from './post-script.ts';
+import { EXIF_JS, POST_JS, doneJs, draftOwner } from './post-script.ts';
 
 export const POST_PATH = '/post';
 
@@ -219,6 +219,30 @@ export function detailsTrouble(d: Draft, now: number): string | undefined {
   return undefined;
 }
 
+/**
+ * The details form's field an error is about, by its id, so the page can focus it and tie it to the
+ * error; undefined when no one field is (the error itself takes the focus then).
+ */
+export function fieldOf(message: string, d: Pick<Draft, 'lat'>): string | undefined {
+  const row = /^(Number|What number) (\d+)/.exec(message);
+  if (row) return `n${Number(row[2]) - 1}${row[1] === 'Number' ? '' : 't'}`;
+  const starts: [string, string][] = [
+    ['Add a photo', 'photo-file'],
+    ['Choose a photo', 'photo-file'],
+    ['Type the numbers', 'n0'],
+    ['Give the sign a title', 'title'],
+    ['The title', 'title'],
+    ['The caption', 'caption'],
+    ['The day found', 'found_on'],
+    ['Say where the sign is', 'label'],
+    ['The place', 'label'],
+    ['The latitude', 'lat'],
+    ['The longitude', 'lng'],
+    ['Type both the latitude and the longitude', d.lat ? 'lng' : 'lat']
+  ];
+  return starts.find(([start]) => message.startsWith(start))?.[1];
+}
+
 // ---------------------------------------------------------------------------------------------
 // Routes
 
@@ -260,8 +284,24 @@ export function mountPost(app: Hono, { options, jar, page, quiz }: PostFront): v
     return similarSigns(signs.filter(visibleTo(player.id, blocked)), lat, lng, values).slice(0, 5);
   }
 
-  const details = (c: Context, d: Draft, extra: { error?: string; said?: string; fresh?: boolean }, status?: Status) =>
-    page(c, <DetailsPage draft={d} quiz={quiz} {...extra} />, status);
+  const details = (
+    c: Context,
+    who: Player,
+    d: Draft,
+    extra: { error?: string; field?: string; said?: string; fresh?: boolean },
+    status?: Status
+  ) =>
+    page(
+      c,
+      <DetailsPage
+        draft={d}
+        quiz={quiz}
+        owner={draftOwner(who.id)}
+        {...extra}
+        field={extra.error ? (extra.field ?? fieldOf(extra.error, d)) : undefined}
+      />,
+      status
+    );
 
   const math = async (
     c: Context,
@@ -286,7 +326,7 @@ export function mountPost(app: Hono, { options, jar, page, quiz }: PostFront): v
   app.get(POST_PATH, async (c) => {
     const who = await poster(c);
     if (who instanceof Response) return who;
-    return details(c, freshDraft(), { fresh: true });
+    return details(c, who, freshDraft(), { fresh: true });
   });
 
   app.post(POST_PATH, async (c) => {
@@ -315,30 +355,31 @@ export function mountPost(app: Hono, { options, jar, page, quiz }: PostFront): v
         const status = trouble(err, ['bad_request', 'too_large', 'rate_limited']);
         const message = sentence((err as ApiError).message);
         if (wantsJson) return c.json({ error: { message } }, status);
-        return details(c, d, { error: message }, status);
+        const room = d.photos.length < LIMITS.photosMax;
+        return details(c, who, d, { error: message, field: room ? 'photo-file' : undefined }, status);
       }
-      if (step === 'photo') return details(c, d, { said: 'Photo added.' });
+      if (step === 'photo') return details(c, who, d, { said: 'Photo added.' });
     } else if (step === 'photo') {
       if (wantsJson) return c.json({ error: { message: 'Choose a photo first.' } }, 400);
-      return details(c, d, { error: 'Choose a photo first.' }, 400);
+      return details(c, who, d, { error: 'Choose a photo first.' }, 400);
     }
 
     if (step.startsWith('drop:')) {
       d.photos = d.photos.filter((p) => p !== step.slice(5));
-      return details(c, d, { said: 'Photo removed.' });
+      return details(c, who, d, { said: 'Photo removed.' });
     }
     if (step === 'more') {
       d.rows = Math.min(LIMITS.numbersMax, d.rows + 1);
-      return details(c, d, {});
+      return details(c, who, d, {});
     }
     if (step === 'person') {
       d.shownPeople = Math.min(PEOPLE, d.shownPeople + 1);
-      return details(c, d, {});
+      return details(c, who, d, {});
     }
-    if (step === 'back') return details(c, d, {});
+    if (step === 'back') return details(c, who, d, {});
 
     const wrong = detailsTrouble(d, Math.floor(Date.now() / 1000));
-    if (wrong) return details(c, d, { error: wrong }, 400);
+    if (wrong) return details(c, who, d, { error: wrong }, 400);
     if (step !== 'post' && step !== 'unsolved') return math(c, who, d, {});
 
     const tried = step === 'post' && typeof body.text === 'string' ? body.text : undefined;
@@ -372,7 +413,7 @@ export function mountPost(app: Hono, { options, jar, page, quiz }: PostFront): v
     if (who instanceof Response) return who;
     const sign = await store.getSign(c.req.param('id').toUpperCase());
     if (!sign || sign.postedBy !== who.id) return go(c, SITE_PATHS.profile);
-    return page(c, <DonePage sign={sign} site={options.urls.site} quiz={quiz} />);
+    return page(c, <DonePage sign={sign} site={options.urls.site} quiz={quiz} script={doneJs(who.id)} />);
   });
 }
 
@@ -463,6 +504,7 @@ const PostFrame: FC<PropsWithChildren<{ title: string; quiz?: string; script?: s
     description="Post a road sign to Road Sign Math."
     quiz={quiz}
     banner={false}
+    count={false}
     style={FORM_STYLE + KEYPAD_STYLE + POST_STYLE}
     script={script}
   >
@@ -482,11 +524,9 @@ const Message: FC<{ title: string; message: string; quiz?: string }> = ({ title,
   </PostFrame>
 );
 
-const Said: FC<{ error?: string; said?: string }> = ({ error, said }) =>
+const Said: FC<{ error?: string; said?: string; onField?: boolean }> = ({ error, said, onField }) =>
   error ? (
-    <p class="oops" role="alert">
-      {error}
-    </p>
+    <FormError error={error} onField={onField} />
   ) : said ? (
     <p class="note" role="status">
       {said}
@@ -542,13 +582,18 @@ const Kept: FC<{ d: Draft }> = ({ d }) => (
 );
 
 /** Step one: the photos and everything about the sign but the math. */
-export const DetailsPage: FC<{ draft: Draft; quiz?: string; error?: string; said?: string; fresh?: boolean }> = ({
-  draft: d,
-  quiz,
-  error,
-  said,
-  fresh
-}) => {
+export const DetailsPage: FC<{
+  draft: Draft;
+  quiz?: string;
+  /** The player's part of the draft's key in the browser (`draftOwner`). */
+  owner?: string;
+  error?: string;
+  /** The field the error is about (`fieldOf`), which takes the focus. */
+  field?: string;
+  said?: string;
+  fresh?: boolean;
+}> = ({ draft: d, quiz, owner, error, field, said, fresh }) => {
+  const bad = (id: string) => invalidField(!!error && field === id);
   const room = d.photos.length < LIMITS.photosMax;
   const shownPeople = Math.max(
     d.shownPeople,
@@ -561,7 +606,7 @@ export const DetailsPage: FC<{ draft: Draft; quiz?: string; error?: string; said
       <p class="meta">
         Have an iPhone? Posting is easiest in the <a href="/app">Road Sign Math app</a>.
       </p>
-      <Said error={error} said={said} />
+      <Said error={error} said={said} onField={!!field} />
       <form
         id="post-form"
         class="stack"
@@ -569,6 +614,7 @@ export const DetailsPage: FC<{ draft: Draft; quiz?: string; error?: string; said
         action={POST_PATH}
         enctype="multipart/form-data"
         data-fresh={fresh ? '1' : undefined}
+        data-draft={owner}
         data-most={String(LIMITS.photosMax)}
       >
         {/* Enter in any field goes on to the math, never removes a photo or adds a row. */}
@@ -599,14 +645,19 @@ export const DetailsPage: FC<{ draft: Draft; quiz?: string; error?: string; said
               class="field file"
               type="file"
               name="photo"
-              accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+              accept="image/jpeg,image/png,image/webp"
+              {...bad('photo-file')}
             />
             <button id="photo-add" type="submit" name="go" value="photo" class="btn ghost">
               Add this photo
             </button>
             <p class="meta">
-              Up to {LIMITS.photosMax} photos, the first one of the sign itself. A photo’s place and day are read from
-              it here, in your browser, then it is made smaller and sent without them.
+              Up to {LIMITS.photosMax} photos, the first one of the sign itself.{' '}
+              {/* Only true when the script runs, which shows it. */}
+              <span id="photo-reads" hidden>
+                A photo’s place and day are read from it here, in your browser, then it is made smaller and sent without
+                them.
+              </span>
             </p>
           </div>
           <p id="photo-said" class="meta" role="status" aria-live="polite"></p>
@@ -632,6 +683,7 @@ export const DetailsPage: FC<{ draft: Draft; quiz?: string; error?: string; said
                   inputmode="decimal"
                   autocomplete="off"
                   value={n.value}
+                  {...bad(`n${i}`)}
                 />
               </div>
               <div>
@@ -644,6 +696,7 @@ export const DetailsPage: FC<{ draft: Draft; quiz?: string; error?: string; said
                   autocomplete="off"
                   placeholder={i === 0 ? 'Exit 2' : undefined}
                   value={n.text}
+                  {...bad(`n${i}t`)}
                 />
               </div>
               <input type="hidden" name={`n${i}_box`} value={n.box} />
@@ -662,9 +715,9 @@ export const DetailsPage: FC<{ draft: Draft; quiz?: string; error?: string; said
         <fieldset class="part">
           <legend>About it</legend>
           <label for="title">Title</label>
-          <input id="title" class="field" name="title" maxlength={LIMITS.titleMax} value={d.title} />
+          <input id="title" class="field" name="title" maxlength={LIMITS.titleMax} value={d.title} {...bad('title')} />
           <label for="caption">Caption (if you like)</label>
-          <textarea id="caption" class="field" name="caption" maxlength={LIMITS.captionMax}>
+          <textarea id="caption" class="field" name="caption" maxlength={LIMITS.captionMax} {...bad('caption')}>
             {d.caption}
           </textarea>
           <label for="found_on">Day found</label>
@@ -677,6 +730,7 @@ export const DetailsPage: FC<{ draft: Draft; quiz?: string; error?: string; said
             min="2000-01-01"
             value={d.foundOn}
             data-auto={fresh ? '1' : '0'}
+            {...bad('found_on')}
           />
         </fieldset>
 
@@ -725,6 +779,7 @@ export const DetailsPage: FC<{ draft: Draft; quiz?: string; error?: string; said
                 maxlength={LIMITS.placeMax}
                 placeholder="Lanesboro, or I-35W at Exit 2"
                 value={d.label}
+                {...bad('label')}
               />
             </div>
             <div>
@@ -754,11 +809,27 @@ export const DetailsPage: FC<{ draft: Draft; quiz?: string; error?: string; said
           <div class="two">
             <div>
               <label for="lat">Latitude</label>
-              <input id="lat" class="field" name="lat" inputmode="decimal" autocomplete="off" value={d.lat} />
+              <input
+                id="lat"
+                class="field"
+                name="lat"
+                inputmode="decimal"
+                autocomplete="off"
+                value={d.lat}
+                {...bad('lat')}
+              />
             </div>
             <div>
               <label for="lng">Longitude</label>
-              <input id="lng" class="field" name="lng" inputmode="decimal" autocomplete="off" value={d.lng} />
+              <input
+                id="lng"
+                class="field"
+                name="lng"
+                inputmode="decimal"
+                autocomplete="off"
+                value={d.lng}
+                {...bad('lng')}
+              />
             </div>
           </div>
           <label class="check">
@@ -850,11 +921,7 @@ export const MathPage: FC<{
           The first way
         </h2>
         <p class="meta">Build the sign’s math from its numbers. Every number goes in.</p>
-        {error && (
-          <p class="oops" role="alert">
-            {error}
-          </p>
-        )}
+        <FormError error={error} />
         <form id="solve" class="stack" method="post" action={POST_PATH}>
           <Kept d={d} />
           <input type="hidden" name="go" value="post" />
@@ -882,12 +949,17 @@ export const MathPage: FC<{
 };
 
 /** What became of a post: shown, or held with the moderator's note. */
-export const DonePage: FC<{ sign: Sign; site: string; quiz?: string }> = ({ sign, site, quiz }) => {
+export const DonePage: FC<{ sign: Sign; site: string; quiz?: string; script?: string }> = ({
+  sign,
+  site,
+  quiz,
+  script
+}) => {
   const photo = sign.photos[0];
   const held = !isPublic(sign);
   const src = photo ? (held ? `/you/photos/${photo.id}/thumb.jpg` : photoUrl({ site }, photo.id, 'large')) : undefined;
   return (
-    <PostFrame title={held ? 'Held for now' : 'Posted'} quiz={quiz} script={DONE_JS}>
+    <PostFrame title={held ? 'Held for now' : 'Posted'} quiz={quiz} script={script}>
       {held ? (
         <>
           <span class="pill y" style="align-self: flex-start">
