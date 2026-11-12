@@ -1,5 +1,5 @@
 {
-  "description": "Shared test vectors for the Road Sign Math equation checker. The server (src/domain/equation.ts) and the app (RoadSignMathKit) both run every case. tex is the LaTeX both draw the math from (÷ as a stacked fraction). Values: an exact integer, decimal or fraction, or ≈ and six significant digits when a root is irrational. same_way pairs are the same-way rule: two ways are the same when one becomes the other only by reordering what is added or multiplied, dropping brackets that do nothing, or swapping the sides of the =.",
+  "description": "Shared test vectors for the Road Sign Math equation checker. The server (src/domain/equation.ts) and the app (RoadSignMathKit) both run every case. tex is the LaTeX both draw the math from (÷ as a stacked fraction). Values: an exact integer, decimal or fraction, or ≈ and six significant digits when a root is irrational. same_way pairs are the same-way rule: two ways are the same when one becomes the other only by reordering what is added or multiplied, dropping brackets that do nothing, or swapping the sides of the =. numbers_left_out are the sign's numbers a way leaves out, each as often as it is left out: since 2026-11-12 a new way uses every number on the sign, so a way is sent only when this is empty.",
   "checks": [
     {
       "text": "(90 − 82) ÷ 8 × 1 × 2 = 6 ÷ (10 − 7)",
@@ -421,7 +421,7 @@
       "used": ["90", "82", "8"],
       "sign": ["90", "82", "8", "1", "2", "6", "10", "7"],
       "missing": [],
-      "note": "not every number has to be used"
+      "note": "only the numbers used are counted here; numbers_left_out says what a way leaves out"
     },
     {
       "used": ["1.50", "07"],
@@ -580,6 +580,32 @@
       "b": "6 ÷ (10 − 7) = 2 × 1 × (90 − 82) ÷ 8",
       "same": true,
       "note": "I-35W at 82nd Street, turned around"
+    }
+  ],
+  "numbers_left_out": [
+    {
+      "used": ["7", "7", "3", "2", "19", "1"],
+      "sign": ["7", "7", "3", "2", "19", "1"],
+      "left_out": [],
+      "note": "every number used, 7 twice as the sign shows it"
+    },
+    {
+      "used": ["2", "2", "4"],
+      "sign": ["2", "2", "4", "8"],
+      "left_out": ["8"],
+      "note": "one number left out"
+    },
+    {
+      "used": ["7"],
+      "sign": ["7", "7", "3"],
+      "left_out": ["7", "3"],
+      "note": "a number shown twice and used once is left out once"
+    },
+    {
+      "used": ["1.50", "7"],
+      "sign": ["7", "1.5"],
+      "left_out": [],
+      "note": "numbers compare as numbers: 1.50 is 1.5"
     }
   ]
 }

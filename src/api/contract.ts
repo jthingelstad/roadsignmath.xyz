@@ -6,7 +6,7 @@
  * Bump on every change to the surface. tools/export-api-contract.ts refuses a changed surface
  * under a version already in contracts/api-versions.json.
  */
-export const API_VERSION = '1.13.0';
+export const API_VERSION = '1.13.1';
 
 export const LIMITS = {
   /** Signs per page of the feed. */
@@ -550,8 +550,9 @@ export const ROUTES: Route[] = [
     path: '/signs/{id}/ways',
     summary: 'Add another way to make a sign true',
     description:
-      'The math must be true, and every number in it must be one of the sign’s numbers, each used no more ' +
-      'often than the sign shows it. A way someone already found is a conflict, and so is the same way in ' +
+      'The math must be true, every number in it must be one of the sign’s numbers, each used no more ' +
+      'often than the sign shows it, and it must use every number on the sign (since 1.13.1: a 400 names ' +
+      'the numbers left out; ways from before stay). A way someone already found is a conflict, and so is the same way in ' +
       'another order (`same_way` in contracts/equation-vectors.json). Answers with the sign, ' +
       `all its ways, and in \`unlocked\` the badges the way earned you. You need a name first. At most ${LIMITS.waysADay} a day.`,
     params: [signId],

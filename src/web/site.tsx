@@ -1156,7 +1156,7 @@ export function createSite({
                   </span>
                   <h3>Make it true</h3>
                   <p>
-                    Use the numbers with any math you like. It just has to be true. 12 + 1 = 13 is as good as a square
+                    Use every number with any math you like. It just has to be true. 12 + 1 = 13 is as good as a square
                     root.
                   </p>
                 </li>

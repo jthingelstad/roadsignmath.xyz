@@ -6,6 +6,8 @@
 //   npm run owner -- unhide-sign <slug> --to check|live  show a hidden or held sign again
 //   npm run owner -- set-place <slug> --lat=41.575 --lng=-87.26 [--label "…"] [--state IN] [--approximate] --to check|live
 //                                                       put a sign on the map (a label or state left out stays)
+//   npm run owner -- remove-way <slug> --to check        read only: the sign's ways and their ids
+//   npm run owner -- remove-way <slug> --way <id> --to check|live   take one way off the sign
 //   npm run owner -- remove-player <handle> --to check   read only: what removing them would delete
 //   TINYLYTICS_API_KEY=… BUTTONDOWN_API_KEY=… npm run owner -- remove-player <handle> --to live
 //
@@ -29,6 +31,7 @@ const USAGE = [
   'Usage: npm run owner -- hide-sign <slug> --to check|live [--note "…"]',
   '       npm run owner -- unhide-sign <slug> --to check|live',
   '       npm run owner -- set-place <slug> --lat=<n> --lng=<n> [--label "…"] [--state XX] [--approximate] --to check|live',
+  '       npm run owner -- remove-way <slug> [--way <id>] --to check|live',
   '       npm run owner -- remove-player <handle> --to check|live'
 ].join('\n');
 
@@ -37,6 +40,7 @@ const { values, positionals } = parseArgs({
   options: {
     to: { type: 'string' },
     note: { type: 'string' },
+    way: { type: 'string' },
     lat: { type: 'string' },
     lng: { type: 'string' },
     label: { type: 'string' },
@@ -85,6 +89,7 @@ try {
     live ? 'live' : 'check',
     {
       note: values.note,
+      way: values.way,
       place: {
         lat: values.lat === undefined ? undefined : Number(values.lat),
         lng: values.lng === undefined ? undefined : Number(values.lng),
