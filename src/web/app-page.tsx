@@ -122,7 +122,19 @@ export const APP_JSON_LD = {
 
 export function mountAppPage(
   site: Hono,
-  { urls, siteCard, quiz }: { urls: Urls; siteCard?: SiteCard; /** Quiz's address while it is open. */ quiz?: string }
+  {
+    urls,
+    siteCard,
+    quiz,
+    webPosting
+  }: {
+    urls: Urls;
+    siteCard?: SiteCard;
+    /** Quiz's address while it is open. */
+    quiz?: string;
+    /** Whether players can sign in and post on the website (`SITE_SIGNIN_OPEN`). */
+    webPosting?: boolean;
+  }
 ): void {
   // While Quiz is open, the questions say where to play without an iPhone (Jamie, 2026-11-12).
   const faq = quiz
@@ -144,6 +156,24 @@ export function mountAppPage(
             ])
       ])
     : FAQ;
+  // While the website's sign-in is open, the questions say a sign can be posted there too.
+  const after = quiz ? 'No iPhone?' : 'Android?';
+  const asked = webPosting
+    ? faq.flatMap((qa) => [
+        qa,
+        ...(qa[0] !== after
+          ? []
+          : [
+              [
+                'Can I post without the app?',
+                <>
+                  Yes. Sign in on this website and <a href="/post">post a sign</a> from any browser. On an iPhone the
+                  app is the easiest way: it reads the numbers for you.
+                </>
+              ] as const
+            ])
+      ])
+    : faq;
   for (const shot of SHOTS) {
     site.get(`/app/${shot.name}.webp`, (c) =>
       c.body(Buffer.from(APP_SHOTS[shot.name].webp, 'base64'), 200, {
@@ -252,7 +282,7 @@ export function mountAppPage(
                 </ol>
               </div>
               <dl class="faq">
-                {faq.map(([q, a]) => (
+                {asked.map(([q, a]) => (
                   <div>
                     <dt>{q}</dt>
                     <dd>{a}</dd>

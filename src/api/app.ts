@@ -8,6 +8,7 @@ import { catalog, earnedBadges, newlyEarned, type Earned } from '../domain/badge
 import { normalizeNumber } from '../domain/equation.ts';
 import { signComplexity } from '../domain/complexity.ts';
 import { miles } from '../domain/geo.ts';
+import { similarSigns } from '../posting/similar.ts';
 import type { Sign, Way } from '../domain/types.ts';
 import type { Store } from '../store/store.ts';
 import { API_VERSION, LIMITS, ROUTES } from './contract.ts';
@@ -166,21 +167,6 @@ function decodeCursor(raw: string): [string, string] {
     // falls through to the error below
   }
   return fail('bad_request', 'cursor is not one this API gave out');
-}
-
-/** How many of `wanted` the sign shows, each sign number matching once. */
-function sharedNumbers(wanted: string[], sign: Sign): number {
-  const left = new Map<string, number>();
-  for (const n of sign.numbers) left.set(n.value, (left.get(n.value) ?? 0) + 1);
-  let shared = 0;
-  for (const n of wanted) {
-    const count = left.get(n) ?? 0;
-    if (count > 0) {
-      left.set(n, count - 1);
-      shared++;
-    }
-  }
-  return shared;
 }
 
 type Data = { signs: Sign[]; people: People; blocked: Set<string> };
@@ -361,11 +347,7 @@ export function createApi(options: ApiOptions): Hono {
       }
       if (!raw.every((n) => /^\d*\.?\d+$|^\d+\.$/.test(n))) fail('bad_request', 'numbers must be plain numbers');
       const wanted = raw.map(normalizeNumber);
-      const similar = signs
-        .filter((s) => s.place.lat !== undefined && s.place.lng !== undefined)
-        .map((s) => ({ sign: s, miles: miles(lat, lng, s.place.lat!, s.place.lng!) }))
-        .filter((n) => n.miles <= LIMITS.similarMiles && sharedNumbers(wanted, n.sign) * 2 >= wanted.length)
-        .sort((a, b) => a.miles - b.miles);
+      const similar = similarSigns(signs, lat, lng, wanted);
       return c.json({
         signs: similar.map((n) => ({
           ...signSummary(urls, people, n.sign, blocked, h),

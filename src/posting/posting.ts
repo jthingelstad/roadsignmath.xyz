@@ -150,7 +150,7 @@ export async function uploadPhoto(
 // ---------------------------------------------------------------------------------------------
 // Reading a post
 
-type PostInput = {
+export type PostInput = {
   photoIds: string[];
   title: string;
   caption?: string;
@@ -245,7 +245,11 @@ function foundOn(raw: unknown, now: number): string {
   return raw;
 }
 
-function readPost(body: Record<string, unknown>, now: number): PostInput {
+/**
+ * Reads a post as `POST /signs` takes it, refusing what the server would refuse. The website's
+ * posting form (src/web/post.tsx) checks its details with it before the math step.
+ */
+export function readPost(body: Record<string, unknown>, now: number): PostInput {
   only(body, 'The post', ['photo_ids', 'title', 'caption', 'numbers', 'place', 'found_on', 'finders', 'way']);
   const photoIds = list(body.photo_ids, 'photo_ids', 1, LIMITS.photosMax);
   if (!photoIds.every((id) => typeof id === 'string' && /^[0-9a-z]{26}$/.test(id))) {
@@ -346,7 +350,9 @@ export async function postSign(
   deps: PostingDeps,
   player: Player,
   body: Record<string, unknown>,
-  key: string | undefined
+  key: string | undefined,
+  /** Where it was posted from, for the product line: the app (`POST /signs`) or the website. */
+  front: 'app' | 'site' = 'app'
 ): Promise<{ sign: Sign; ways: Way[] }> {
   const { store, photos, moderator } = deps;
   needName(player);
@@ -443,10 +449,9 @@ export async function postSign(
     // The post is made. Its uploads are taken for it, so another post can't use them, and they
     // expire on their own if clearing them fails here.
     for (const photoId of taken) await store.deleteUpload(player.id, photoId).catch(() => undefined);
-    // Only the app posts today (POST /signs).
     product({
       action: 'sign',
-      front: 'app',
+      front,
       outcome: sign.visibility === 'held' ? 'held' : 'shown',
       photos: signPhotos.length,
       numbers: sign.numbers.length,

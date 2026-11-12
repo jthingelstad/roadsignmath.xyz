@@ -6,7 +6,7 @@
 
 import { createContext, useContext, type Child, type FC, type PropsWithChildren } from 'hono/jsx';
 import { texOf } from '../domain/equation.ts';
-import type { Player, Sign, Way } from '../domain/types.ts';
+import type { Player, Sign, SignNumber, Way } from '../domain/types.ts';
 import { LIMITS } from '../api/contract.ts';
 import { BIO_MAX, HOME_MAX, NAME_MAX, WEBSITE_MAX } from '../auth/account.ts';
 import { photoUrl, playerUrl, signPath, signUrl, websiteHost, type People } from '../api/views.ts';
@@ -563,12 +563,9 @@ const SignHead: FC<{ here: Here; sign: Sign; level?: 'h1' | 'h2' }> = ({ here, s
 };
 
 /** The sign's numbers as tiles, each with what it was read from. Buttons on the solve page. */
-const Tiles: FC<{ sign: Sign; buttons?: boolean }> = ({ sign, buttons }) => (
-  <ul
-    class={sign.numbers.length === 4 || sign.numbers.length > 6 ? 'tiles four' : 'tiles'}
-    aria-label="Numbers on the sign"
-  >
-    {sign.numbers.map((n) => (
+const Tiles: FC<{ numbers: SignNumber[]; buttons?: boolean }> = ({ numbers, buttons }) => (
+  <ul class={numbers.length === 4 || numbers.length > 6 ? 'tiles four' : 'tiles'} aria-label="Numbers on the sign">
+    {numbers.map((n) => (
       <li>
         {buttons ? (
           <button
@@ -675,7 +672,7 @@ export const HomePage: FC<{ here: Here; sample?: Sign; more: Sign[] }> = ({ here
                   Found {longDay(sample.foundOn)}
                 </p>
               </div>
-              <Tiles sign={sample} />
+              <Tiles numbers={sample.numbers} />
               <a class="plate try" href={signPath(sample)} aria-label={`Solve ${sample.title}`}>
                 <div class="empty">? = ?</div>
               </a>
@@ -898,6 +895,46 @@ export const NamePage: FC<{ here: Here; player: Player; error?: string; to?: str
   </Frame>
 );
 
+/**
+ * The keypad's parts, inside a form with `id="solve"` and a submit button `id="send"`: a text
+ * field for the math (all a visitor without scripts gets), and the tiles and operator keys that
+ * `KEYPAD_JS` turns on. Quiz's solve page and the website's posting form (src/web/post.tsx) share it.
+ */
+export const Keypad: FC<{ numbers: SignNumber[]; value: string; again?: boolean }> = ({ numbers, value, again }) => (
+  <>
+    <div id="typed" class="stack">
+      <label for="text">Your math</label>
+      <input id="text" class="field" name="text" autocomplete="off" required value={value} />
+      <p class="meta">Use the sign’s numbers and the operators + − × ÷ ^ √ ! ( ) =.</p>
+    </div>
+    <div id="pad" class="stack" hidden>
+      <div class="plate big">
+        <div id="math" class="empty">
+          Tap a number to start
+        </div>
+      </div>
+      <div id="status" class="chk wait" role="status" aria-live="polite">
+        <span class="said">Tap the numbers and operators to build the math.</span>
+      </div>
+      <Tiles numbers={numbers} buttons />
+      <div class="keys" role="group" aria-label="Operators">
+        {KEYS.map(([k, face, label]) => (
+          <button type="button" class="k" data-k={k} aria-label={label}>
+            {face}
+          </button>
+        ))}
+        <button type="button" class="k del" data-k="del" aria-label="Delete">
+          ⌫
+        </button>
+      </div>
+      <p class="meta" style="font-size: 13px">
+        On a keyboard, + - * / ^ ! ( ) = and Backspace work too. Numbers come only from the tiles.
+      </p>
+      {again && <p class="meta">Your math is still here: change it and send again.</p>}
+    </div>
+  </>
+);
+
 // ---------------------------------------------------------------------------------------------
 // A sign to solve
 
@@ -981,43 +1018,7 @@ export const SolvePage: FC<{
               You’re in. Your math is back: tap Send to put it on the sign.
             </p>
           )}
-          <div id="typed" class="stack">
-            <label for="text">Your math</label>
-            <input
-              id="text"
-              class="field"
-              name="text"
-              autocomplete="off"
-              required
-              value={said?.tried ?? carried ?? ''}
-            />
-            <p class="meta">Use the sign’s numbers and the operators + − × ÷ ^ √ ! ( ) =.</p>
-          </div>
-          <div id="pad" class="stack" hidden>
-            <div class="plate big">
-              <div id="math" class="empty">
-                Tap a number to start
-              </div>
-            </div>
-            <div id="status" class="chk wait" role="status" aria-live="polite">
-              <span class="said">Tap the numbers and operators to build the math.</span>
-            </div>
-            <Tiles sign={sign} buttons />
-            <div class="keys" role="group" aria-label="Operators">
-              {KEYS.map(([k, face, label]) => (
-                <button type="button" class="k" data-k={k} aria-label={label}>
-                  {face}
-                </button>
-              ))}
-              <button type="button" class="k del" data-k="del" aria-label="Delete">
-                ⌫
-              </button>
-            </div>
-            <p class="meta" style="font-size: 13px">
-              On a keyboard, + - * / ^ ! ( ) = and Backspace work too. Numbers come only from the tiles.
-            </p>
-            {said && <p class="meta">Your math is still here: change it and send again.</p>}
-          </div>
+          <Keypad numbers={sign.numbers} value={said?.tried ?? carried ?? ''} again={!!said} />
           <button id="send" class="btn" type="submit">
             Send
           </button>
