@@ -155,7 +155,7 @@ export const SORT_NOTES: Record<SortKey, string> = {
 
 export const CHIP_STYLE = `
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.chip { display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border-radius: 999px;
+.chip { position: relative; display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border-radius: 999px;
   border: 1.5px solid var(--line2); background: var(--card); color: var(--ink); font-weight: 700; font-size: 15px; text-decoration: none; }
 .chip[aria-current] { border-color: var(--chip-on); background: var(--chip-on); color: var(--chip-on-ink); font-weight: 800; }
 .chip:hover { border-color: var(--ink); color: var(--ink); }

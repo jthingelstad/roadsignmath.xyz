@@ -100,7 +100,8 @@ const FOLD_SCRIPT = `
   const box = document.querySelector('.filterbox');
   if (!box || !window.matchMedia) return;
   const narrow = window.matchMedia('(max-width: 699px)');
-  const fit = () => { box.open = !narrow.matches; };
+  // Nearby's button is inside the box, so it stays open while it is there to tap.
+  const fit = () => { box.open = !narrow.matches || !!box.querySelector('.locate'); };
   fit();
   narrow.addEventListener?.('change', fit);
 })();`;
@@ -388,7 +389,9 @@ export function mountSigns(site: Hono, { store, urls, people, counts, siteCard }
               <p class="lead">
                 <Facts
                   items={[
-                    `${countSigns(shown.length)} from ${players.size} ${players.size === 1 ? 'player' : 'players'} in ${states.length} ${states.length === 1 ? 'state' : 'states'}`,
+                    year || state
+                      ? `${countSigns(picked.length)} of ${shown.length}`
+                      : `${countSigns(shown.length)} from ${players.size} ${players.size === 1 ? 'player' : 'players'} in ${states.length} ${states.length === 1 ? 'state' : 'states'}`,
                     'Sorted the ways the app sorts them'
                   ]}
                 />

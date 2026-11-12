@@ -225,6 +225,13 @@ test('a filtered /signs names plain /signs as canonical; the filters fold on a p
   assert.match(html, /<details class="filterbox" open="">/);
   assert.match(html, /<span class="now">Popular, 2025, All states<\/span>/);
   assert.ok(html.includes("matchMedia('(max-width: 699px)')"));
+  // Nearby's button is in the box, so the box stays open for it; a filter says how many it left.
+  assert.ok(html.includes("!narrow.matches || !!box.querySelector('.locate')"));
+  assert.match(html, /<p class="lead">[^,]*\d+ signs? of \d+</);
+  assert.match(
+    (await page('/signs?sort=popular')).html,
+    /<p class="lead">[^,]*\d+ signs? from \d+ players? in \d+ states?</
+  );
   // The years sit in one row that scrolls sideways on a phone.
   assert.match(html, /<div class="chips yearchips" role="group" aria-label="Year found">/);
   assert.match(html, /\.filters \.yearchips \{ flex-wrap: nowrap; overflow-x: auto;/);
