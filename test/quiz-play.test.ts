@@ -15,7 +15,10 @@ import { MemoryNewsletter } from '../src/newsletter.ts';
 import { MemoryPhotoStore } from '../src/photos.ts';
 import { CHECKER_JS, CHECKER_SOURCE_SHA } from '../src/quiz/checker.ts';
 import { KEYPAD_JS } from '../src/quiz/keypad.ts';
-import { draw } from '../src/quiz/data.ts';
+import { FIRST_SIGNS, draw, smallFirst } from '../src/quiz/data.ts';
+import { PHOTOS_JS } from '../src/quiz/photos.ts';
+import { whatSwapped } from '../src/quiz/swapped.ts';
+import { SESSION_IDLE } from '../src/auth/auth.ts';
 import { quizOrigin } from '../src/quiz/quiz.tsx';
 import { MemoryStore } from '../src/store/memory.ts';
 import { addPlayer, nowSeconds } from '../src/store/store.ts';
@@ -141,9 +144,16 @@ test('sign in by code: the Quiz email, a cookie only Quiz’s pages send, then a
   const bare = await t.quiz('/signin', { form: { email: 'pat@example.com' }, origin: null });
   assert.equal(bare.res.status, 400, 'nor a POST with no Origin');
 
-  const started = await t.quiz('/signin', { form: { email: 'pat@example.com' } });
+  const sent = await t.quiz('/signin', { form: { email: 'pat@example.com' } });
+  assert.equal(sent.res.status, 303, 'the code page is its own address, so a refresh sends nothing');
+  assert.match(sent.location!, /^\/signin\/code\?l=[0-9A-Z]{26}$/);
+  assert.ok(!sent.location!.includes('example.com'), 'the address never goes in a URL');
+  const started = await t.quiz(sent.location!);
   assert.equal(started.res.status, 200);
   assert.ok(decoded(started.html).includes('Check your email'));
+  assert.ok(started.html.includes('pat@example.com'), 'read from the sign-in’s row');
+  await t.quiz(sent.location!);
+  assert.equal(t.mailer.sent.length, 1, 'showing the code page again sends no email');
   const mail = t.mailer.sent[0];
   assert.equal(mail.to, 'pat@example.com');
   assert.match(mail.text, /Tap to sign in to Road Sign Math Quiz:\nhttps:\/\/quiz\.example\.test\/signin\?l=/);
@@ -153,14 +163,25 @@ test('sign in by code: the Quiz email, a cookie only Quiz’s pages send, then a
   const loginId = /name="login" value="([^"]+)"/.exec(started.html)![1];
 
   const wrong = await t.quiz('/signin/code', {
-    form: { login: loginId, email: 'pat@example.com', code: code === '000000' ? '111111' : '000000' }
+    form: { login: loginId, code: code === '000000' ? '111111' : '000000' }
   });
-  assert.equal(wrong.res.status, 400);
-  assert.ok(decoded(wrong.html).includes('didn’t work') || wrong.html.includes('didn&#39;t'));
+  assert.equal(wrong.res.status, 303);
+  assert.equal(wrong.location, `/signin/code?l=${loginId}&said=wrong`);
+  assert.ok(decoded((await t.quiz(wrong.location!)).html).includes('That code didn’t work.'));
 
-  const done = await t.quiz('/signin/code', { form: { login: loginId, email: 'pat@example.com', code } });
+  const again = await t.quiz('/signin', { form: { login: loginId, again: '1' } });
+  assert.equal(t.mailer.sent.length, 2, 'send again: to the address the sign-in holds');
+  assert.equal(t.mailer.sent[1].to, 'pat@example.com');
+  assert.match(again.location!, /&said=sent$/);
+  assert.ok(decoded((await t.quiz(again.location!)).html).includes('We sent another one.'));
+  const newCode = /code is (\d{6})/.exec(t.mailer.sent[1].subject)![1];
+  const newLogin = /l=([0-9A-Z]{26})/.exec(again.location!)![1];
+
+  const done = await t.quiz('/signin/code', { form: { login: newLogin, code: newCode } });
   assert.equal(done.res.status, 303);
   assert.equal(done.location, '/name');
+  const ended = decoded((await t.quiz(`/signin/code?l=${newLogin}`)).html);
+  assert.ok(ended.includes('That sign-in has ended.'), 'a used sign-in’s code page goes back to the email');
   const cookie = done.res.headers.get('set-cookie')!;
   assert.match(cookie, /^rsm_quiz=rsm_[0-9A-Z]{26}_[\w-]{43};/);
   assert.match(cookie, /HttpOnly/);
@@ -195,14 +216,14 @@ test('“Try this one in Quiz”: signing in on the way there lands on that sign
   }
   const page = await t.quiz(`/signin?to=seven-twelve`);
   assert.ok(page.html.includes(`<input type="hidden" name="to" value="seven-twelve"/>`));
-  const started = await t.quiz('/signin', { form: { email: 'pat@example.com', to: 'seven-twelve' } });
+  const sent = await t.quiz('/signin', { form: { email: 'pat@example.com', to: 'seven-twelve' } });
+  assert.match(sent.location!, /&to=seven-twelve$/);
+  const started = await t.quiz(sent.location!);
   assert.equal(started.html.split(`name="to" value="seven-twelve"`).length - 1, 2, 'the code and send-again forms');
   assert.ok(started.html.includes(`href="/signin?to=seven-twelve"`), 'a different email keeps it too');
   const code = /code is (\d{6})/.exec(t.mailer.sent[0].subject)![1];
   const loginId = /name="login" value="([^"]+)"/.exec(started.html)![1];
-  const done = await t.quiz('/signin/code', {
-    form: { login: loginId, email: 'pat@example.com', code, to: 'seven-twelve' }
-  });
+  const done = await t.quiz('/signin/code', { form: { login: loginId, code, to: 'seven-twelve' } });
   assert.equal(done.location, `/name?to=seven-twelve`, 'a new player gives a name first');
   const jar = done.res.headers.get('set-cookie')!.split(';')[0];
   const naming = await t.quiz(`/name?to=seven-twelve`, { cookie: jar });
@@ -213,7 +234,7 @@ test('“Try this one in Quiz”: signing in on the way there lands on that sign
 
   // By the email's link instead of the code: the link carries the sign too.
   const linked = await t.quiz('/signin', { form: { email: ada.email!, to: 'unsolved-junction' } });
-  assert.equal(linked.res.status, 200);
+  assert.equal(linked.res.status, 303);
   const link = /(https:\/\/quiz\.example\.test\/signin\?[^\s]+)/.exec(t.mailer.sent.at(-1)!.text)![1];
   assert.ok(link.endsWith(`&to=unsolved-junction`), link);
   const opened = await t.quiz(new URL(link).pathname + new URL(link).search);
@@ -464,10 +485,11 @@ class FakeElement {
   }
 }
 
-function keypad(values: string[]) {
+function keypad(values: string[], typed = '') {
   const tiles = values.map((v) => new FakeElement({ v }));
   const keys = ['+', '−', '×', '÷', '=', '(', ')', 'del'].map((k) => new FakeElement({ k }));
   const field = new FakeElement();
+  field.value = typed;
   const pad = Object.assign(new FakeElement(), {
     querySelectorAll: (sel: string) => (sel === '[data-v]' ? tiles : keys)
   });
@@ -748,4 +770,220 @@ test('/privacy and /support say Quiz has Delete my account too', async () => {
   );
   const support = decoded(plain(await (await t.app.request('/support')).text()));
   assert.ok(support.includes('In Quiz, choose your picture at the top of any page to open your profile'));
+});
+
+// ---- Polish (wave 0, 2026-11-12)
+
+test('every photo of the sign, whole, each opening large over the page', async () => {
+  const t = await setup();
+  const two = sign({
+    id: '01JS0000000000000000000003',
+    title: 'Two Shots',
+    postedBy: ben.id,
+    finders: [{ playerId: ben.id, name: ben.name, role: 'found' }],
+    photos: [
+      { id: 'ph-two-a', width: 1600, height: 1200, alt: 'The sign from the road' },
+      { id: 'ph-two-b', width: 1200, height: 1600, alt: 'The sign up close' }
+    ]
+  });
+  await t.store.putSign(two);
+  const page = await t.quiz('/signs/two-shots', { as: 'ada' });
+  assert.equal(page.res.status, 200);
+  for (const id of ['ph-two-a', 'ph-two-b']) {
+    assert.ok(page.html.includes(`<a class="ph" href="${SITE}/p/${id}/large.jpg" data-zoom="">`), id);
+  }
+  assert.ok(page.html.includes('class="gallery many"'));
+  assert.ok(page.html.includes('Enlarge photo 2 of 2: '));
+  assert.ok(page.html.includes('<dialog id="zoom" class="zoom" aria-label="Photo">'));
+  assert.ok(page.html.includes('aria-label="Close the photo"'));
+  assert.ok(page.html.includes(PHOTOS_JS.slice(0, 40)), 'the enlarging script rides along');
+  assert.match(page.html, /\.photo \{[^}]*object-fit: contain/, 'never cropped');
+  assert.doesNotMatch(page.html, /\.photo \{[^}]*object-fit: cover/);
+
+  // The script: a tap opens the large copy in the dialog; closing gives focus back to the photo.
+  const listeners: Record<string, ((e: unknown) => void)[]> = {};
+  const on = (el: Record<string, unknown>, type: string) => (f: (e: unknown) => void) =>
+    (listeners[`${el.name as string}:${type}`] ??= []).push(f);
+  const big: Record<string, unknown> = { name: 'big', src: '', alt: '', removeAttribute: (a: string) => (big[a] = '') };
+  const shown = { alt: 'The sign up close' };
+  let focused = false;
+  const link: Record<string, unknown> = {
+    name: 'link',
+    href: `${SITE}/p/ph-two-b/large.jpg`,
+    focus: () => (focused = true)
+  };
+  link.querySelector = () => shown;
+  link.addEventListener = (type: string, f: (e: unknown) => void) => on(link, type)(f);
+  let open = false;
+  const box: Record<string, unknown> = { name: 'box', querySelector: () => big };
+  box.showModal = () => (open = true);
+  box.close = () => {
+    open = false;
+    for (const f of listeners['box:close'] ?? []) f({});
+  };
+  box.addEventListener = (type: string, f: (e: unknown) => void) => on(box, type)(f);
+  runInNewContext(PHOTOS_JS, {
+    document: { getElementById: () => box, querySelectorAll: () => [link] }
+  });
+  let prevented = false;
+  for (const f of listeners['link:click']) f({ preventDefault: () => (prevented = true) });
+  assert.ok(prevented && open);
+  assert.equal(big.src, `${SITE}/p/ph-two-b/large.jpg`);
+  assert.equal(big.alt, 'The sign up close');
+  for (const f of listeners['box:click']) f({ target: big });
+  assert.equal(open, false, 'a tap on the photo closes it');
+  assert.ok(focused, 'focus goes back to the photo');
+  assert.equal(big.src, '');
+});
+
+test('a new player’s first signs are small ones; then every sign is in the draw', () => {
+  const nums = (n: number) => Array.from({ length: n }, (_, i) => ({ value: String(i + 1), text: String(i + 1) }));
+  const big = sign({ id: 'BIG', title: 'Big', numbers: nums(7) });
+  const small = sign({ id: 'SMALL', title: 'Small', numbers: nums(3) });
+  const one = sign({ id: 'ONE', title: 'One', numbers: nums(1) });
+  assert.deepEqual(
+    smallFirst([big, small, one], 0).map((s) => s.id),
+    ['SMALL'],
+    'two to four numbers first'
+  );
+  assert.deepEqual(
+    smallFirst([big, small], FIRST_SIGNS - 1).map((s) => s.id),
+    ['SMALL']
+  );
+  assert.deepEqual(
+    smallFirst([big, small], FIRST_SIGNS).map((s) => s.id),
+    ['BIG', 'SMALL'],
+    'after ten, all'
+  );
+  assert.deepEqual(
+    smallFirst([big, one], 0).map((s) => s.id),
+    ['BIG', 'ONE'],
+    'no small ones left: all'
+  );
+  assert.deepEqual(
+    smallFirst([big, small], 0, 'small').map((s) => s.id),
+    ['BIG', 'SMALL'],
+    'the only small one was just skipped: another sign instead'
+  );
+});
+
+test('Quiz pages name the site’s Home card, never a sign’s (its card shows the answer)', async () => {
+  const t = await setup();
+  const home = await t.app.request('/', { headers: { 'X-RSM-Front': 'site' } });
+  const card = /<meta property="og:image" content="([^"]+)"/.exec(await home.text())![1];
+  assert.match(card, /^https:\/\/cards\.thingelstad\.com\/rsm\/index\.png\?v=[0-9a-f]{10}$/);
+  for (const [path, as] of [
+    ['/', undefined],
+    ['/signin', undefined],
+    ['/signs/seven-twelve', 'ben'],
+    ['/profile', 'ben']
+  ] as const) {
+    const { html } = await t.quiz(path, { as });
+    assert.ok(html.includes(`<meta property="og:image" content="${card}"/>`), path);
+    assert.ok(html.includes('<meta property="og:image:width" content="1200"/>'), path);
+    assert.ok(html.includes('<meta name="twitter:card" content="summary_large_image"/>'), path);
+    assert.match(html, /<meta property="og:title" content="[^"]+"\/>/, path);
+    assert.ok(html.includes('<meta property="og:site_name" content="Road Sign Math Quiz"/>'), path);
+    assert.ok(!html.includes('/rsm/signs/'), `${path}: no sign card`);
+  }
+});
+
+test('the logo and the profile keep the sign in progress; Skip and Next still draw', async () => {
+  const t = await setup();
+  const page = await t.quiz('/signs/seven-twelve', { as: 'ben' });
+  assert.ok(page.html.includes('<a class="brand" href="/signs/seven-twelve"'), 'the logo goes back to this sign');
+  assert.ok(page.html.includes('href="/profile?at=seven-twelve"'));
+  const profile = await t.quiz('/profile?at=seven-twelve', { as: 'ben' });
+  assert.ok(profile.html.includes('<a class="brand" href="/signs/seven-twelve"'));
+  assert.ok(profile.html.includes('href="/solved?at=seven-twelve"'));
+  assert.ok(profile.html.includes('<a class="txt" href="/signs/seven-twelve"'), 'Back to the signs: this one');
+  const solved = await t.quiz('/solved?at=seven-twelve', { as: 'ben' });
+  assert.ok(solved.html.includes('<a class="txt" href="/signs/seven-twelve"'));
+  for (const bad of ['//evil.example', '../x']) {
+    const p = await t.quiz(`/profile?at=${encodeURIComponent(bad)}`, { as: 'ben' });
+    assert.ok(p.html.includes('<a class="brand" href="/"'), bad);
+  }
+  assert.ok(page.html.includes(`href="/next?after=${S1}"`), 'Skip draws another');
+});
+
+test('a sign taken down mid-play says so plainly and offers another', async () => {
+  const t = await setup();
+  assert.equal((await t.quiz('/signs/seven-twelve', { as: 'ben' })).res.status, 200);
+  await t.store.updateSign(S1, { visibility: 'hidden' });
+  const look = await t.quiz('/signs/seven-twelve', { as: 'ben' });
+  assert.equal(look.res.status, 404);
+  assert.ok(decoded(look.html).includes('This sign isn’t here any more'));
+  assert.ok(look.html.includes('href="/next?after=seven-twelve"'));
+  assert.ok(look.html.includes('Try another sign'));
+  const send = await t.quiz('/signs/seven-twelve/solve', { as: 'ben', form: { text: '19 − 12 = 7' } });
+  assert.equal(send.res.status, 404);
+  assert.ok(decoded(send.html).includes('Your math wasn’t sent.'));
+});
+
+test('the cookie is sent again as the session slides, so the browser’s copy never ends first', async () => {
+  const t = await setup();
+  // The fixture's session ends in an hour: the cookie is re-sent to end with it.
+  const first = await t.quiz('/next', { as: 'ben' });
+  const max = Number(/Max-Age=(\d+)/.exec(first.res.headers.get('set-cookie') ?? '')?.[1]);
+  assert.ok(max > 3500 && max <= 3600, String(max));
+  assert.match(first.res.headers.get('set-cookie')!, /^rsm_quiz=rsm_.*HttpOnly; Secure; SameSite=Lax/);
+  assert.ok(!/Domain=/i.test(first.res.headers.get('set-cookie')!), 'host-only');
+  // Once the session is pushed back, the cookie follows it.
+  const hash = createHash('sha256').update('ben'.padEnd(43, 'x')).digest('hex');
+  const stored = (await t.store.getSession(ben.id, hash))!;
+  await t.store.putSession({ ...stored, lastUsedAt: '2026-01-01T00:00:00.000Z' });
+  const slid = await t.quiz('/next', { as: 'ben' });
+  const after = Number(/Max-Age=(\d+)/.exec(slid.res.headers.get('set-cookie') ?? '')?.[1]);
+  assert.ok(after > SESSION_IDLE - 60 && after <= SESSION_IDLE, String(after));
+});
+
+test('a reordered way names what was swapped, keeps the attempt, and the page has one live region', async () => {
+  const t = await setup();
+  const turned = await t.quiz('/signs/seven-twelve/solve', { as: 'ben', form: { text: '12 + 7 = 19' } });
+  assert.equal(turned.res.status, 409);
+  const html = decoded(turned.html);
+  assert.ok(html.includes('That’s Ada’s way, turned around.'));
+  assert.ok(html.includes('You swapped 7 and 12.'));
+  assert.ok(html.includes('value="12 + 7 = 19"'), 'the attempt stays');
+  assert.ok(html.includes('data-said="That’s Ada’s way, turned around. You swapped 7 and 12."'));
+  assert.ok(html.includes('Your math is still here'));
+  const live = html.match(/aria-live=|role="status"|role="alert"/g) ?? [];
+  assert.equal(live.length, 2, 'the status line’s role and aria-live, on one element');
+  assert.equal((html.match(/<div id="status"[^>]*role="status" aria-live="polite"/g) ?? []).length, 1);
+  assert.ok(html.includes('Tap the numbers and operators to build the math.'));
+  assert.ok(html.includes('the operators + − × ÷'));
+  assert.match(html, /\.k \{[^}]*touch-action: manipulation/);
+  assert.match(html, /\.nt \{[^}]*touch-action: manipulation/);
+  assert.match(html, /\.foot a \{[^}]*min-height: 44px/);
+
+  const bad = decoded((await t.quiz('/signs/seven-twelve/solve', { as: 'ben', form: { text: '7 + 12 = 20' } })).html);
+  assert.equal(
+    (bad.match(/aria-live=|role="status"|role="alert"/g) ?? []).length,
+    2,
+    'an error is read by the status too'
+  );
+});
+
+test('what a reordering swapped, in words', () => {
+  assert.equal(whatSwapped('12 + 7 = 19', '7 + 12 = 19'), 'You swapped 7 and 12.');
+  assert.equal(whatSwapped('19 = 7 + 12', '7 + 12 = 19'), 'You put the two sides of the = the other way round.');
+  assert.equal(
+    whatSwapped('19 = 12 + 7', '7 + 12 = 19'),
+    'You put the two sides of the = the other way round and swapped 7 and 12.'
+  );
+  assert.equal(whatSwapped('5 + 4 + 3 = 12', '3 + 4 + 5 = 12'), 'You swapped 3 and 5.');
+  assert.equal(whatSwapped('4 + 5 + 3 = 12', '3 + 4 + 5 = 12'), 'You moved 3, 4 and 5 around.');
+  assert.equal(whatSwapped('(1 + 2) + 3 = 6', '1 + 2 + 3 = 6'), 'The only difference is brackets that change nothing.');
+  assert.equal(whatSwapped('7 − 4 = 3', '7 − 3 = 4'), undefined, 'not the same way');
+});
+
+test('the keypad puts the attempt back as tiles and operators', () => {
+  const pad = keypad(['7', '12', '19'], '12 + 7 = 19');
+  assert.equal(pad.field.value, '12 + 7 = 19');
+  assert.equal(pad.send.disabled, false);
+  assert.equal(pad.tiles[1].classes.has('used'), true);
+  pad.key('del');
+  assert.equal(pad.field.value, '12 + 7 =');
+  const stray = keypad(['7', '12', '19'], '7 + 7 = 14');
+  assert.equal(stray.field.value, '', 'math the tiles can’t make starts empty');
 });

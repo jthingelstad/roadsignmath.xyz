@@ -4,7 +4,7 @@
 // its own is the solve page's keypad (src/quiz/keypad.ts). Nothing here counts or ranks: no
 // points, scores, streaks, timers or totals.
 
-import type { FC, PropsWithChildren } from 'hono/jsx';
+import { createContext, useContext, type FC, type PropsWithChildren } from 'hono/jsx';
 import { texOf } from '../domain/equation.ts';
 import type { Player, Sign, Way } from '../domain/types.ts';
 import { LIMITS } from '../api/contract.ts';
@@ -14,13 +14,18 @@ import { BRAND_VERSION, LOCKUP_SIZE } from '../web/brand.ts';
 import { BADGE_STYLE, BadgeCards, type BadgeView } from '../web/badges.tsx';
 import { longDay } from '../web/layout.tsx';
 import { mathSvg } from '../web/math.ts';
+import { CARD_HEIGHT, CARD_WIDTH, type Card } from '../web/share.ts';
 import { QUIZ_TINYLYTICS_SITE, TINYLYTICS_SCRIPT } from '../web/tinylytics.ts';
 import { CHECKER_JS } from './checker.ts';
 import { KEYPAD_JS } from './keypad.ts';
+import { PHOTOS_JS } from './photos.ts';
 import type { OnSign, Solve } from './data.ts';
 
 /** Where Quiz's pages link and load from: its own origin, and the site's for photos and logos. */
 export type Here = { site: string; quiz: string };
+
+/** The share card every Quiz page names (src/quiz/share.ts), given once per answer by quiz.tsx. */
+export const ShareCard = createContext<Card | undefined>(undefined);
 
 const STYLE = `
 :root { color-scheme: light dark; --ink: #18201C; --ink2: #3B4540; --soft: #55605A; --line: #D8DED9; --line2: #B9C3BB;
@@ -62,10 +67,26 @@ h1 { margin: 0; font-size: 26px; line-height: 1.12; font-weight: 900; letter-spa
 .h2 { margin: 0; font-size: 19px; font-weight: 900; }
 .meta { margin: 0; font-size: 14px; color: var(--soft); }
 .lede { margin: 0; font-size: 17px; line-height: 1.45; color: var(--ink2); }
-.photo { width: 100%; height: 220px; object-fit: cover; border-radius: 14px; display: block; background: var(--photo); }
+.photo { width: 100%; height: 220px; object-fit: contain; border-radius: 14px; display: block; background: var(--photo); }
+.gallery { display: grid; gap: 8px; }
+.gallery.many { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.gallery.many > .ph:first-child { grid-column: 1 / -1; }
+.ph { position: relative; display: block; border-radius: 14px; overflow: hidden; background: var(--photo); cursor: zoom-in;
+  touch-action: manipulation; }
+.ph .photo { height: 260px; border-radius: 0; }
+.gallery.many > .ph:not(:first-child) .photo { height: 130px; }
+.ph .zoomi { position: absolute; right: 8px; bottom: 8px; display: flex; padding: 6px; border-radius: 8px;
+  background: rgba(24, 32, 28, .72); color: #fff; }
+.ph:focus-visible { outline: 3px solid var(--green-ink); outline-offset: 2px; }
+dialog.zoom { padding: 0; border: 0; margin: 0; background: transparent; width: 100vw; height: 100vh; max-width: 100vw;
+  max-height: 100vh; }
+dialog.zoom::backdrop { background: rgba(10, 14, 12, .9); }
+dialog.zoom img { width: 100%; height: 100%; object-fit: contain; display: block; cursor: zoom-out; }
+.zoom .close { position: fixed; top: 12px; right: 12px; width: 48px; height: 48px; border-radius: 50%; border: 0;
+  background: #fff; color: #18201C; font: 900 26px/1 Overpass, system-ui, sans-serif; cursor: pointer; touch-action: manipulation; }
 .btn { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 0 18px; border-radius: 14px;
   border: 0; background: var(--green); color: #fff; font: inherit; font-size: 17px; font-weight: 800; text-decoration: none;
-  cursor: pointer; width: 100%; }
+  cursor: pointer; width: 100%; touch-action: manipulation; }
 a.btn { color: #fff; }
 .btn.ghost, a.btn.ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--line2); }
 .btn[disabled] { background: var(--line); color: var(--soft); cursor: default; }
@@ -90,14 +111,14 @@ a.btn { color: #fff; }
 .tiles.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .nt { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 54px; padding: 4px;
   border-radius: 10px; border: 1.5px solid var(--green-ink); background: var(--card); color: var(--green-ink); font: inherit;
-  cursor: pointer; width: 100%; }
+  cursor: pointer; width: 100%; touch-action: manipulation; }
 .nt b { font: 700 20px/1.1 'Overpass Mono', ui-monospace, monospace; }
 .nt small { font-size: 11px; font-weight: 700; color: var(--soft); max-width: 100%; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; }
 .nt.used { border-color: var(--line); background: var(--ground); color: var(--soft); cursor: default; }
 .keys { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 7px; }
 .k { height: 46px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit;
-  font-size: 20px; font-weight: 800; cursor: pointer; }
+  font-size: 20px; font-weight: 800; cursor: pointer; touch-action: manipulation; }
 .k.del { grid-column: span 2; }
 .chk { display: flex; gap: 10px; align-items: center; min-height: 46px; padding: 8px 14px; border-radius: 12px; font-size: 15px; }
 .chk .said { flex: 1; }
@@ -140,7 +161,8 @@ label { font-weight: 800; }
 .end > div { border: 3px solid #fff; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; align-items: center;
   gap: 4px; font-weight: 900; letter-spacing: .06em; font-size: 22px; text-align: center; }
 .foot { border-top: 1px solid var(--line); }
-.foot .wrap { display: flex; flex-wrap: wrap; gap: 6px 18px; padding-top: 16px; padding-bottom: 16px; font-size: 14px; font-weight: 700; }
+.foot .wrap { display: flex; flex-wrap: wrap; gap: 4px 10px; padding-top: 10px; padding-bottom: 10px; font-size: 15px; font-weight: 700; }
+.foot a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 8px; margin-left: -8px; }
 .solve { display: grid; gap: 14px; }
 .btn.danger, a.btn.danger { background: transparent; color: var(--bad); border: 1.5px solid var(--bad); }
 .txt.bad { color: var(--bad); }
@@ -160,6 +182,8 @@ label { font-weight: 800; }
   h1 { font-size: 32px; }
   main { padding-top: 32px; }
   .photo { height: 420px; border-radius: 18px; }
+  .ph .photo { height: 420px; }
+  .gallery.many > .ph:not(:first-child) .photo { height: 180px; }
   .solve { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 40px; align-items: start; }
   .solve > .work { position: sticky; top: 24px; }
   .hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 64px; align-items: center; }
@@ -182,77 +206,103 @@ export const Frame: FC<
     description?: string;
     /** Adds Quiz's Tinylytics counter. The sign-in link's page leaves it out: its URL carries the token. */
     count?: boolean;
+    /**
+     * The sign being played, by slug: the logo goes back to it and the profile carries it, so neither
+     * deals a new sign over the one in progress.
+     */
+    at?: string;
   }>
-> = ({ here, title, player, script, description, count = true, children }) => (
-  <html lang="en">
-    <head>
-      <meta charset="utf-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <title>{title === 'Road Sign Math Quiz' ? title : `${title} · Road Sign Math Quiz`}</title>
-      <meta
-        name="description"
-        content={description ?? 'Find the math in road signs spotted on real road trips. Road Sign Math Quiz.'}
-      />
-      <meta name="theme-color" content="#006348" />
-      <link rel="icon" href={`${here.site}/favicon.svg`} type="image/svg+xml" />
-      <link rel="apple-touch-icon" href={`${here.site}/apple-touch-icon.png`} />
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;700;800;900&family=Overpass+Mono:wght@400;700&family=STIX+Two+Text:wght@500&display=swap"
-      />
-      <style dangerouslySetInnerHTML={{ __html: STYLE + BADGE_STYLE }} />
-    </head>
-    <body>
-      <a class="skip" href="#main">
-        Skip to content
-      </a>
-      <header class="top">
-        <div class="wrap">
-          <a class="brand" href="/" aria-label="Road Sign Math Quiz">
-            <picture>
-              <source
-                srcset={`${here.site}/brand/${BRAND_VERSION}/lockup-horizontal-white.svg`}
-                media="(prefers-color-scheme: dark)"
-              />
-              <img
-                src={`${here.site}/brand/${BRAND_VERSION}/lockup-horizontal-color.svg`}
-                alt=""
-                width={String(Math.round((LOCKUP_SIZE.width * 36) / LOCKUP_SIZE.height))}
-                height="36"
-              />
-            </picture>
-            <span class="qtab">QUIZ</span>
-          </a>
-          {player ? (
-            <a class="me" href="/profile" aria-label={`${player.name || 'You'}: your profile`}>
-              <span class="label">Your profile</span>
-              <Face player={player} size={40} here={here} />
+> = ({ here, title, player, script, description, count = true, at, children }) => {
+  const card = useContext(ShareCard);
+  const fullTitle = title === 'Road Sign Math Quiz' ? title : `${title} · Road Sign Math Quiz`;
+  const about = description ?? 'Find the math in road signs spotted on real road trips. Road Sign Math Quiz.';
+  return (
+    <html lang="en">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>{fullTitle}</title>
+        <meta name="description" content={about} />
+        <meta property="og:site_name" content="Road Sign Math Quiz" />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content={fullTitle} />
+        <meta property="og:description" content={about} />
+        {card && (
+          <>
+            <meta property="og:image" content={card.url} />
+            <meta property="og:image:width" content={String(CARD_WIDTH)} />
+            <meta property="og:image:height" content={String(CARD_HEIGHT)} />
+            <meta property="og:image:alt" content={card.alt} />
+            <meta name="twitter:image" content={card.url} />
+            <meta name="twitter:image:alt" content={card.alt} />
+          </>
+        )}
+        <meta name="twitter:card" content={card ? 'summary_large_image' : 'summary'} />
+        <meta name="theme-color" content="#006348" />
+        <link rel="icon" href={`${here.site}/favicon.svg`} type="image/svg+xml" />
+        <link rel="apple-touch-icon" href={`${here.site}/apple-touch-icon.png`} />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;700;800;900&family=Overpass+Mono:wght@400;700&family=STIX+Two+Text:wght@500&display=swap"
+        />
+        <style dangerouslySetInnerHTML={{ __html: STYLE + BADGE_STYLE }} />
+      </head>
+      <body>
+        <a class="skip" href="#main">
+          Skip to content
+        </a>
+        <header class="top">
+          <div class="wrap">
+            <a class="brand" href={at ? `/signs/${at}` : '/'} aria-label="Road Sign Math Quiz">
+              <picture>
+                <source
+                  srcset={`${here.site}/brand/${BRAND_VERSION}/lockup-horizontal-white.svg`}
+                  media="(prefers-color-scheme: dark)"
+                />
+                <img
+                  src={`${here.site}/brand/${BRAND_VERSION}/lockup-horizontal-color.svg`}
+                  alt=""
+                  width={String(Math.round((LOCKUP_SIZE.width * 36) / LOCKUP_SIZE.height))}
+                  height="36"
+                />
+              </picture>
+              <span class="qtab">QUIZ</span>
             </a>
-          ) : (
-            <a class="signin" href="/signin">
-              Sign in
-            </a>
-          )}
-        </div>
-      </header>
-      <main id="main" class="wrap">
-        {children}
-      </main>
-      <footer class="foot">
-        <div class="wrap">
-          <a href={here.site}>roadsignmath.xyz</a>
-          <a href={`${here.site}/rules`}>House rules</a>
-          <a href={`${here.site}/privacy`}>Privacy</a>
-          <a href={`${here.site}/support`}>Help</a>
-        </div>
-      </footer>
-      {script && <script dangerouslySetInnerHTML={{ __html: script }} />}
-      {count && <script defer src={TINYLYTICS_SCRIPT} data-site={QUIZ_TINYLYTICS_SITE} />}
-    </body>
-  </html>
-);
+            {player ? (
+              <a
+                class="me"
+                href={at ? `/profile?at=${at}` : '/profile'}
+                aria-label={`${player.name || 'You'}: your profile`}
+              >
+                <span class="label">Your profile</span>
+                <Face player={player} size={40} here={here} />
+              </a>
+            ) : (
+              <a class="signin" href="/signin">
+                Sign in
+              </a>
+            )}
+          </div>
+        </header>
+        <main id="main" class="wrap">
+          {children}
+        </main>
+        <footer class="foot">
+          <div class="wrap">
+            <a href={here.site}>roadsignmath.xyz</a>
+            <a href={`${here.site}/rules`}>House rules</a>
+            <a href={`${here.site}/privacy`}>Privacy</a>
+            <a href={`${here.site}/support`}>Help</a>
+          </div>
+        </footer>
+        {script && <script dangerouslySetInnerHTML={{ __html: script }} />}
+        {count && <script defer src={TINYLYTICS_SCRIPT} data-site={QUIZ_TINYLYTICS_SITE} />}
+      </body>
+    </html>
+  );
+};
 
 /**
  * A player's face: their profile photo from the site (the small size, or the large one drawn
@@ -309,12 +359,64 @@ const finderNames = (sign: Sign) => names(sign.finders.map((f) => f.name));
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 const countWord = (n: number) => NUMBER_WORDS[n] ?? String(n);
 
-/** The sign's photo, title and where and when it was found. */
+const Zoom = () => (
+  <span class="zoomi" aria-hidden="true">
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.4"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+    </svg>
+  </span>
+);
+
+/**
+ * Every photo of the sign, whole (contained, never cropped, so no number is cut off), each a link
+ * to its large copy that `PHOTOS_JS` opens over the page, with the dialog it opens in.
+ */
+const Photos: FC<{ here: Here; sign: Sign }> = ({ here, sign }) =>
+  sign.photos.length ? (
+    <>
+      <div class={sign.photos.length > 1 ? 'gallery many' : 'gallery'}>
+        {sign.photos.map((photo, i) => (
+          <a class="ph" href={photoUrl(here, photo.id, 'large')} data-zoom="">
+            <span class="vh">
+              {sign.photos.length > 1 ? `Enlarge photo ${i + 1} of ${sign.photos.length}: ` : 'Enlarge photo: '}
+            </span>
+            <img
+              class="photo"
+              src={photoUrl(here, photo.id, 'large')}
+              alt={photo.alt}
+              width={String(photo.width)}
+              height={String(photo.height)}
+              loading={i ? 'lazy' : undefined}
+            />
+            <Zoom />
+          </a>
+        ))}
+      </div>
+      <dialog id="zoom" class="zoom" aria-label="Photo">
+        <form method="dialog">
+          <button class="close" type="submit" aria-label="Close the photo">
+            ×
+          </button>
+        </form>
+        <img alt="" />
+      </dialog>
+    </>
+  ) : null;
+
+/** The sign's photos, title and where and when it was found. */
 const SignHead: FC<{ here: Here; sign: Sign; level?: 'h1' | 'h2' }> = ({ here, sign }) => {
-  const photo = sign.photos[0];
   return (
     <>
-      {photo && <img class="photo" src={photoUrl(here, photo.id, 'large')} alt={photo.alt} />}
+      <Photos here={here} sign={sign} />
       <div>
         <h1>{sign.title}</h1>
         <p class="meta">
@@ -546,7 +648,6 @@ export const CodePage: FC<{
       )}
       <form method="post" action="/signin/code" class="stack">
         <input type="hidden" name="login" value={loginId} />
-        <input type="hidden" name="email" value={email} />
         <BackTo to={to} />
         <label for="code">6-digit code</label>
         <input
@@ -565,7 +666,7 @@ export const CodePage: FC<{
       </form>
       <div class="row">
         <form method="post" action="/signin">
-          <input type="hidden" name="email" value={email} />
+          <input type="hidden" name="login" value={loginId} />
           <input type="hidden" name="again" value="1" />
           <BackTo to={to} />
           <button type="submit" class="txt">
@@ -645,7 +746,7 @@ export const NamePage: FC<{ here: Here; player: Player; error?: string; to?: str
 
 /** What the last send said, shown above the keypad. */
 export type Said =
-  | { kind: 'reordered'; tried: string; way: Way; by?: Player }
+  | { kind: 'reordered'; tried: string; way: Way; by?: Player; swapped?: string }
   | { kind: 'yours'; tried: string }
   | { kind: 'error'; message: string; tried?: string };
 
@@ -659,8 +760,24 @@ export const SolvePage: FC<{
 }> = ({ here, player, sign, on, people, said }) => {
   const poster = people.get(sign.postedBy);
   const unsolved = on.ways.length === 0;
+  const theirs = said?.kind === 'reordered' && said.by?.name ? `${firstName(said.by.name)}’s` : 'a';
+  // What the send said, read out once by the page's one live region (the keypad's status).
+  const announce =
+    said?.kind === 'reordered'
+      ? `That’s ${theirs} way, turned around. ${said.swapped ?? ''}`.trim()
+      : said?.kind === 'yours'
+        ? 'You found that way already.'
+        : said?.kind === 'error'
+          ? said.message.replace(/([^.!?])$/, '$1.')
+          : undefined;
   return (
-    <Frame here={here} title={sign.title} player={player} script={CHECKER_JS + '\n' + KEYPAD_JS}>
+    <Frame
+      here={here}
+      title={sign.title}
+      player={player}
+      at={sign.slug}
+      script={CHECKER_JS + '\n' + KEYPAD_JS + '\n' + PHOTOS_JS}
+    >
       <div class="solve">
         <div class="stack">
           {unsolved && (
@@ -676,51 +793,41 @@ export const SolvePage: FC<{
             </p>
           )}
         </div>
-        <form id="solve" class="stack work" method="post" action={`${signPath(sign)}/solve`}>
+        <form id="solve" class="stack work" method="post" action={`${signPath(sign)}/solve`} data-said={announce}>
           {said?.kind === 'reordered' && (
-            <div class="callout" role="status">
-              <strong>That’s {said.by?.name ? `${firstName(said.by.name)}’s` : 'a'} way, turned around.</strong>
+            <div class="callout">
+              <strong>That’s {theirs} way, turned around.</strong>
               <MathPlate text={said.way.text} mini />
               <span>
-                Swapping the sides of a × or a + doesn’t make a new way. Is there another? Taking away works
-                differently: 7 − 4 = 3 and 7 − 3 = 4 are two ways.
+                {said.swapped ? `${said.swapped} ` : ''}Changing the order of what’s added or multiplied, or which side
+                of the = is which, doesn’t make a new way. Is there another? Taking away works differently: 7 − 4 = 3
+                and 7 − 3 = 4 are two ways.
               </span>
             </div>
           )}
           {said?.kind === 'yours' && (
-            <div class="callout" role="status">
+            <div class="callout">
               <strong>You found that way already.</strong>
               <span>It’s on the sign with your name. Is there another?</span>
             </div>
           )}
-          {said?.kind === 'error' && (
-            <p class="oops" role="alert">
-              {said.message.replace(/([^.!?])$/, '$1.')}
-            </p>
-          )}
+          {said?.kind === 'error' && <p class="oops">{said.message.replace(/([^.!?])$/, '$1.')}</p>}
           <div id="typed" class="stack">
             <label for="text">Your math</label>
-            <input
-              id="text"
-              class="field"
-              name="text"
-              autocomplete="off"
-              required
-              value={said?.kind === 'error' ? (said.tried ?? '') : ''}
-            />
-            <p class="meta">Use the sign’s numbers and + − × ÷ ^ √ ! ( ) =.</p>
+            <input id="text" class="field" name="text" autocomplete="off" required value={said?.tried ?? ''} />
+            <p class="meta">Use the sign’s numbers and the operators + − × ÷ ^ √ ! ( ) =.</p>
           </div>
           <div id="pad" class="stack" hidden>
             <div class="plate big">
-              <div id="math" class="empty" aria-live="polite">
+              <div id="math" class="empty">
                 Tap a number to start
               </div>
             </div>
-            <div id="status" class="chk wait" aria-live="polite">
-              <span class="said">Tap the numbers and signs to build the math.</span>
+            <div id="status" class="chk wait" role="status" aria-live="polite">
+              <span class="said">Tap the numbers and operators to build the math.</span>
             </div>
             <Tiles sign={sign} buttons />
-            <div class="keys" role="group" aria-label="Math keys">
+            <div class="keys" role="group" aria-label="Operators">
               {KEYS.map(([k, face, label]) => (
                 <button type="button" class="k" data-k={k} aria-label={label}>
                   {face}
@@ -733,7 +840,7 @@ export const SolvePage: FC<{
             <p class="meta" style="font-size: 13px">
               On a keyboard, + - * / ^ ! ( ) = and Backspace work too. Numbers come only from the tiles.
             </p>
-            {said && said.kind !== 'error' && <p class="meta">The numbers are back for another try.</p>}
+            {said && <p class="meta">Your math is still here: change it and send again.</p>}
           </div>
           <button id="send" class="btn" type="submit">
             Send
@@ -821,7 +928,7 @@ export const WaysPage: FC<{
 }> = ({ here, player, sign, on, people, blocked }) => {
   const ways = on.ways.filter((w) => !blocked.has(w.playerId));
   return (
-    <Frame here={here} title={`The ways on ${sign.title}`} player={player}>
+    <Frame here={here} title={`The ways on ${sign.title}`} player={player} at={sign.slug}>
       <div class="stack narrow">
         <div>
           <h1>The ways on this sign</h1>
@@ -871,7 +978,7 @@ export const FoundPage: FC<{
     const by = people.get(solve.way.playerId);
     const ways = on.ways.filter((w) => !blocked.has(w.playerId));
     return (
-      <Frame here={here} title="You found it too" player={player}>
+      <Frame here={here} title="You found it too" player={player} script={PHOTOS_JS}>
         <div class="stack narrow">
           <SignHead here={here} sign={sign} />
           <h2 class="h2" style="font-size: 26px">
@@ -921,7 +1028,12 @@ export const FoundPage: FC<{
   const tagTeam = badges.find((b) => b.id === 'tag-team');
   const rest = badges.filter((b) => b.id !== 'tag-team');
   return (
-    <Frame here={here} title={solve.kind === 'first' ? 'You found the math' : 'A new way'} player={player}>
+    <Frame
+      here={here}
+      title={solve.kind === 'first' ? 'You found the math' : 'A new way'}
+      player={player}
+      script={PHOTOS_JS}
+    >
       <div class="stack narrow">
         <SignHead here={here} sign={sign} />
         <h2 class="h2" style="font-size: 26px">
@@ -1060,10 +1172,12 @@ export const SolvedPage: FC<{
   solved: { sign: Sign; solve: Solve }[];
   now: Date;
   hasPage: boolean;
-}> = ({ here, player, solved, now, hasPage }) => (
-  <Frame here={here} title="Signs you’ve solved" player={player}>
+  /** The sign being played, by slug, to go back to. */
+  at?: string;
+}> = ({ here, player, solved, now, hasPage, at }) => (
+  <Frame here={here} title="Signs you’ve solved" player={player} at={at}>
     <div class="stack narrow">
-      <a class="txt" href="/next" style="align-self: flex-start">
+      <a class="txt" href={at ? `/signs/${at}` : '/next'} style="align-self: flex-start">
         Back to the signs
       </a>
       <div>
@@ -1144,12 +1258,14 @@ export const ProfilePage: FC<{
   trouble?: ProfileTrouble;
   /** What they typed, kept when a save failed. */
   typed?: { name: string; bio: string };
-}> = ({ here, player, hasPage, done, trouble, typed }) => {
+  /** The sign being played, by slug, to go back to. */
+  at?: string;
+}> = ({ here, player, hasPage, done, trouble, typed, at }) => {
   const page = playerUrl(here, player);
   return (
-    <Frame here={here} title="Your profile" player={player}>
+    <Frame here={here} title="Your profile" player={player} at={at}>
       <div class="stack narrow">
-        <a class="txt" href="/next" style="align-self: flex-start">
+        <a class="txt" href={at ? `/signs/${at}` : '/next'} style="align-self: flex-start">
           Back to the signs
         </a>
         <h1>Your profile</h1>
@@ -1255,7 +1371,7 @@ export const ProfilePage: FC<{
         </section>
 
         <section class="part" aria-label="Your signs">
-          <a class="txt" href="/solved" style="align-self: flex-start">
+          <a class="txt" href={at ? `/solved?at=${at}` : '/solved'} style="align-self: flex-start">
             Signs you’ve solved
           </a>
         </section>
@@ -1340,18 +1456,20 @@ export const DeletePage: FC<{ here: Here; player: Player; posted: number; error?
 );
 
 /** A page for an error a player can do something about, or can't. */
-export const MessagePage: FC<{ here: Here; player?: Player; title: string; message: string }> = ({
-  here,
-  player,
-  title,
-  message
-}) => (
+export const MessagePage: FC<{
+  here: Here;
+  player?: Player;
+  title: string;
+  message: string;
+  /** The way on, when it is something other than Quiz's home. */
+  action?: { href: string; label: string };
+}> = ({ here, player, title, message, action }) => (
   <Frame here={here} title={title} player={player}>
     <div class="stack narrow">
       <h1>{title}</h1>
       <p class="lede">{message}</p>
-      <a class="btn" href="/">
-        Back to Quiz
+      <a class="btn" href={action?.href ?? '/'}>
+        {action?.label ?? 'Back to Quiz'}
       </a>
     </div>
   </Frame>

@@ -12,6 +12,7 @@
 // pages (src/quiz/session.ts).
 
 import { Hono, type Context } from 'hono';
+import type { Child } from 'hono/jsx';
 import type { ApiOptions } from '../api/app.ts';
 import { LIMITS } from '../api/contract.ts';
 import { ApiError, STATUS, fail } from '../api/errors.ts';
@@ -23,7 +24,18 @@ import { isUlid } from '../domain/ids.ts';
 import type { Player, Sign } from '../domain/types.ts';
 import { REORDERED, YOURS, solveSign } from '../posting/posting.ts';
 import { product } from '../product.ts';
-import { badgesFrom, credits, draw, loadQuiz, onSigns, solvedBy, stillToTry, type OnSign, type Solve } from './data.ts';
+import {
+  badgesFrom,
+  credits,
+  draw,
+  loadQuiz,
+  onSigns,
+  smallFirst,
+  solvedBy,
+  stillToTry,
+  type OnSign,
+  type Solve
+} from './data.ts';
 import {
   AllDonePage,
   CodePage,
@@ -37,6 +49,7 @@ import {
   RemovePhotoPage,
   SignInPage,
   SolvePage,
+  ShareCard,
   SolvedPage,
   WaysPage,
   type Here,
@@ -45,6 +58,8 @@ import {
   type Said
 } from './pages.tsx';
 import { forget, fromQuiz, quizViewer, remember } from './session.ts';
+import { quizCard } from './share.ts';
+import { whatSwapped } from './swapped.ts';
 import { queryOf, signByKey } from '../web/permalinks.ts';
 
 /**
@@ -87,11 +102,15 @@ export function createQuiz(options: QuizOptions): Hono {
 
   const { store, urls, mailer, clientIp } = options;
   const here: Here = { site: urls.site, quiz: urls.quiz ?? quizOrigin(urls.site) };
-  const page = (
-    c: Context,
-    body: { toString(): string },
-    status: 200 | 400 | 404 | 409 | 413 | 422 | 429 | 503 = 200
-  ) => c.html('<!doctype html>' + body.toString(), status, PRIVATE);
+  /**
+   * A page, naming the share card (Home's, src/quiz/share.ts) in its head. A card that can't be
+   * worked out leaves the page without one, never in the way.
+   */
+  const page = async (c: Context, body: Child, status: 200 | 400 | 404 | 409 | 413 | 422 | 429 | 503 = 200) => {
+    const card = await quizCard(store).catch(() => undefined);
+    const html = (<ShareCard.Provider value={card}>{body}</ShareCard.Provider>).toString();
+    return c.html('<!doctype html>' + html, status, PRIVATE);
+  };
   const go = (c: Context, path: string) => c.redirect(path, 303);
   const form = async (c: Context) => {
     const body = await c.req.parseBody();
@@ -139,16 +158,17 @@ export function createQuiz(options: QuizOptions): Hono {
 
   quiz.post('/signin', async (c) => {
     const field = await form(c);
-    const email = field('email').trim();
     const to = backTo(field('to'));
+    // "Send the email again" names the sign-in it follows, whose row holds the address.
+    const again = field('again') === '1' && field('login') ? await store.getLogin(field('login')) : undefined;
+    if (field('again') === '1' && field('login') && !again) return go(c, withTo('/signin', to));
+    const email = again?.email ?? field('email').trim();
     const link = (loginId: string, token: string) =>
       `${here.quiz}/signin?l=${encodeURIComponent(loginId)}&t=${encodeURIComponent(token)}${to ? `&to=${to}` : ''}`;
     try {
       const started = await startSignIn({ store, mailer, link, front: 'quiz' }, email, clientIp(c));
-      return page(
-        c,
-        <CodePage here={here} loginId={started.loginId} email={email} sent={field('again') === '1'} to={to} />
-      );
+      // The code page is a page of its own, so a refresh shows it again instead of sending another email.
+      return go(c, codePath(started.loginId, to, again ? 'sent' : undefined));
     } catch (err) {
       if (!(err instanceof ApiError) || (err.code !== 'bad_request' && err.code !== 'rate_limited')) throw err;
       const message = err.code === 'bad_request' ? 'That doesn’t look like an email address.' : err.message;
@@ -158,6 +178,26 @@ export function createQuiz(options: QuizOptions): Hono {
         err.code === 'bad_request' ? 400 : 429
       );
     }
+  });
+
+  /**
+   * The code page, by the sign-in's id: the address comes from its row, never the URL. A sign-in
+   * that has ended (used, too many wrong codes, or past its 15 minutes) goes back to the email page.
+   */
+  quiz.get('/signin/code', async (c) => {
+    const to = backTo(c.req.query('to'));
+    const loginId = c.req.query('l') ?? '';
+    const said = c.req.query('said');
+    const login = loginId ? await store.getLogin(loginId) : undefined;
+    if (!login) {
+      const ended = said === 'tries' ? CODE_TROUBLE.tries : 'That sign-in has ended. Sign in again for a new code.';
+      return page(c, <SignInPage here={here} error={ended} to={to} />);
+    }
+    const error = said && said in CODE_TROUBLE ? CODE_TROUBLE[said as keyof typeof CODE_TROUBLE] : undefined;
+    return page(
+      c,
+      <CodePage here={here} loginId={login.id} email={login.email} sent={said === 'sent'} error={error} to={to} />
+    );
   });
 
   /** Signs in with the code or the link's token, then on to a name or the signs (the one in `to`). */
@@ -171,14 +211,13 @@ export function createQuiz(options: QuizOptions): Hono {
 
   quiz.post('/signin/code', async (c) => {
     const field = await form(c);
-    const email = field('email');
     const loginId = field('login');
     const to = backTo(field('to'));
     try {
       return await finish(c, { loginId, code: field('code').trim() }, to);
     } catch (err) {
       if (!(err instanceof ApiError) || err.code === 'internal' || err.code === 'unavailable') throw err;
-      return page(c, <CodePage here={here} loginId={loginId} email={email} error={codeTrouble(err)} to={to} />, 400);
+      return go(c, codePath(loginId, to, codeTrouble(err)));
     }
   });
 
@@ -239,10 +278,12 @@ export function createQuiz(options: QuizOptions): Hono {
     const viewer = await playing(c);
     if (viewer instanceof Response) return viewer;
     const data = await loadQuiz(store, viewer.player);
-    const left = stillToTry(data, await onSigns(store, data.signs), viewer.player.id);
-    const sign = draw(left, c.req.query('after'));
-    // Leaving a sign they haven't solved for another is a skip (Next after a send leaves a solved one).
+    const on = await onSigns(store, data.signs);
+    const left = stillToTry(data, on, viewer.player.id);
     const after = c.req.query('after');
+    const solved = solvedBy(data, on, viewer.player.id).length;
+    const sign = draw(smallFirst(left, solved, after), after);
+    // Leaving a sign they haven't solved for another is a skip (Next after a send leaves a solved one).
     if (after && left.some((s) => s.id === after || s.slug === after)) product({ action: 'skip', front: 'quiz' });
     if (!sign) return page(c, <AllDonePage here={here} player={viewer.player} />);
     return go(c, signPath(sign));
@@ -264,25 +305,31 @@ export function createQuiz(options: QuizOptions): Hono {
    * and co-finds, or a not-found page. */
   async function signFor(c: Context, player: Player) {
     const data = await loadQuiz(store, player);
-    const sign = signByKey(data.signs, c.req.param('key') ?? '')?.found;
-    if (!sign)
-      return {
-        missing: page(
-          c,
-          <MessagePage
-            here={here}
-            player={player}
-            title="No sign here"
-            message="That sign isn’t in Quiz. There are others to try."
-          />,
-          404
-        )
-      };
+    const key = c.req.param('key') ?? '';
+    const sign = signByKey(data.signs, key)?.found;
+    if (!sign) return { missing: gone(c, player, key, c.req.method === 'POST') };
     const [ways, coFinds] = await Promise.all([store.listWays(sign.id), store.listCoFinds(sign.id)]);
     // A blocked player's ways are left out, as the API leaves them for this reader.
     const on: OnSign = { ways: ways.filter((w) => !data.blocked.has(w.playerId)), coFinds };
     return { data, sign, on };
   }
+
+  /**
+   * A sign that isn't in Quiz: taken down, hidden or never there (its poster deleted it, a report
+   * hid it, or a link names nothing). Said plainly, with another sign to try.
+   */
+  const gone = (c: Context, player: Player, key: string, sending: boolean) =>
+    page(
+      c,
+      <MessagePage
+        here={here}
+        player={player}
+        title="This sign isn’t here any more"
+        message={`It was taken down or hidden, or the link is wrong, so it isn’t in Quiz.${sending ? ' Your math wasn’t sent.' : ''} There are other signs to try.`}
+        action={{ href: `/next?after=${encodeURIComponent(key)}`, label: 'Try another sign' }}
+      />,
+      404
+    );
 
   const solvePage = (
     c: Context,
@@ -316,11 +363,14 @@ export function createQuiz(options: QuizOptions): Hono {
       return go(c, `${signPath(sign)}/found?way=${encodeURIComponent(solved.way.id)}`);
     } catch (err) {
       if (!(err instanceof ApiError)) throw err;
+      // Gone between the page's read and the write.
+      if (err.code === 'not_found') return gone(c, viewer.player, sign.slug, true);
       if (err.code === 'conflict' && err.message === REORDERED) {
         const key = sameWayKey(text);
         const way = on.ways.find((w) => sameWayKey(w.text) === key);
         if (way) {
-          const said: Said = { kind: 'reordered', tried: text, way, by: data.people.get(way.playerId) };
+          const by = data.people.get(way.playerId);
+          const said: Said = { kind: 'reordered', tried: text, way, by, swapped: whatSwapped(text, way.text) };
           return solvePage(c, viewer.player, sign, on, data, said, 409);
         }
       }
@@ -399,7 +449,14 @@ export function createQuiz(options: QuizOptions): Hono {
     const { hasPage } = await profileOf(viewer.player);
     return page(
       c,
-      <SolvedPage here={here} player={viewer.player} solved={solved} now={new Date()} hasPage={hasPage} />
+      <SolvedPage
+        here={here}
+        player={viewer.player}
+        solved={solved}
+        now={new Date()}
+        hasPage={hasPage}
+        at={playingAt(c)}
+      />
     );
   });
 
@@ -426,7 +483,7 @@ export function createQuiz(options: QuizOptions): Hono {
     status: Parameters<typeof page>[2] = 200
   ) {
     const { hasPage } = await profileOf(player);
-    return page(c, <ProfilePage here={here} player={player} hasPage={hasPage} {...more} />, status);
+    return page(c, <ProfilePage here={here} player={player} hasPage={hasPage} at={playingAt(c)} {...more} />, status);
   }
 
   quiz.get('/profile', async (c) => {
@@ -570,12 +627,28 @@ function trouble(err: unknown, shown: ApiError['code'][]): 200 | 400 | 409 | 413
 /** A server message as a sentence: a capital first, a full stop last. */
 const sentence = (message: string) => message.charAt(0).toUpperCase() + message.slice(1).replace(/([^.!?])$/, '$1.');
 
-/** What went wrong with a code, in words for the code page. */
-function codeTrouble(err: ApiError): string {
-  if (err.code === 'rate_limited') return 'Too many tries. Sign in again for a new code.';
-  if (err.code === 'bad_request') return 'Type the 6-digit code from the email.';
-  return 'That code didn’t work. Check the newest email, or send it again.';
+/** What went wrong with a code, in words for the code page (`said=` on its address). */
+const CODE_TROUBLE = {
+  tries: 'Too many tries. Sign in again for a new code.',
+  format: 'Type the 6-digit code from the email.',
+  wrong: 'That code didn’t work. Check the newest email, or send it again.'
+} as const;
+
+/** What the code page says after a send: another email went, or what went wrong with a code. */
+type CodeSaid = 'sent' | keyof typeof CODE_TROUBLE;
+
+function codeTrouble(err: ApiError): CodeSaid {
+  if (err.code === 'rate_limited') return 'tries';
+  if (err.code === 'bad_request') return 'format';
+  return 'wrong';
 }
+
+/** The code page's address for a sign-in, with the sign to land on and what to say. */
+const codePath = (loginId: string, to: string | undefined, said?: CodeSaid) =>
+  `/signin/code?l=${encodeURIComponent(loginId)}${to ? `&to=${to}` : ''}${said ? `&said=${said}` : ''}`;
+
+/** The sign being played (`?at=`, a checked slug or id) on the profile and solved pages. */
+const playingAt = (c: Context) => backTo(c.req.query('at'));
 
 /** How the player solved this sign with the way named, or (no way named) most recently. */
 function solveFor(sign: Sign, on: OnSign, playerId: string, wayId: string | undefined): Solve | undefined {

@@ -9,18 +9,27 @@ import type { Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { ApiError } from '../api/errors.ts';
 import { SESSION_IDLE, viewerFor, type Viewer } from '../auth/auth.ts';
-import type { Store } from '../store/store.ts';
+import { nowSeconds, type Store } from '../store/store.ts';
 
 export const COOKIE = 'rsm_quiz';
 
 const OPTIONS = { path: '/', httpOnly: true, secure: true, sameSite: 'Lax' } as const;
 
-/** The signed-in player, or undefined. A cookie whose token has ended is cleared. */
+/**
+ * The signed-in player, or undefined. A cookie whose token has ended is cleared. One that works is
+ * sent again to last as long as its session now does: the session is pushed back as it is used
+ * (`viewerFor`), and the browser's copy would otherwise end first, at 180 days from sign-in.
+ */
 export async function quizViewer(store: Store, c: Context): Promise<Viewer | undefined> {
   const token = getCookie(c, COOKIE);
   if (!token) return undefined;
   try {
-    return await viewerFor(store, `Bearer ${token}`);
+    const viewer = await viewerFor(store, `Bearer ${token}`);
+    if (viewer) {
+      const left = Math.min(SESSION_IDLE, viewer.session.expiresAt - nowSeconds());
+      if (left > 0) setCookie(c, COOKIE, token, { ...OPTIONS, maxAge: left });
+    }
+    return viewer;
   } catch (err) {
     if (!(err instanceof ApiError) || err.code !== 'unauthorized') throw err;
     forget(c);

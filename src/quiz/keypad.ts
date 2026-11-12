@@ -4,7 +4,9 @@
 // sign), checked on every tap by the bundled checker (window.RSMCheck, src/quiz/checker.ts) with
 // the server's own rules, and against the sign's numbers as the server checks a way. Send stays
 // off until the math works. On a keyboard the operators,
-// Backspace and Enter work too; digits don't.
+// Backspace and Enter work too; digits don't. The math a send came back with (a reordered way, a
+// way already yours, math that didn't check) is put back on the keypad, and what the send said is
+// read out by the status line, the page's one live region (the form's `data-said`).
 
 export const KEYPAD_JS = `(() => {
   const form = document.getElementById('solve');
@@ -50,7 +52,7 @@ export const KEYPAD_JS = `(() => {
       tile.setAttribute('aria-disabled', String(taken));
     });
     works = false;
-    if (!text) say('wait', 'Tap the numbers and signs to build the math.');
+    if (!text) say('wait', 'Tap the numbers and operators to build the math.');
     else {
       const r = check(text);
       const extra = r.ok ? window.RSMCheck.numbersNotOnSign(r.numbers, tiles.map((t) => t.dataset.v)) : [];
@@ -84,8 +86,29 @@ export const KEYPAD_JS = `(() => {
     key.addEventListener('click', () => (key.dataset.k === 'del' ? back() : tap({ op: key.dataset.k })))
   );
   const KEYS = { '+': '+', '-': '−', '*': '×', x: '×', '/': '÷', '^': '^', '!': '!', '(': '(', ')': ')', '=': '=' };
+  // The math sent last, back on the keypad as tiles and operators; left empty if it can't be.
+  const restore = (text) => {
+    const OPS = Object.assign({ '−': '−', '×': '×', '÷': '÷', '√': '√' }, KEYS);
+    const out = [];
+    let rest = text;
+    while ((rest = rest.trimStart())) {
+      const num = /^\\d+(?:\\.\\d+)?/.exec(rest);
+      if (num) {
+        const last = out[out.length - 1];
+        const i = tiles.findIndex((tile, j) => tile.dataset.v === num[0] && !out.some((t) => t.n === j));
+        if (i < 0 || (last && last.n !== undefined)) return [];
+        out.push({ n: i });
+        rest = rest.slice(num[0].length);
+      } else if (OPS[rest[0]]) {
+        out.push({ op: OPS[rest[0]] });
+        rest = rest.slice(1);
+      } else return [];
+    }
+    return out;
+  };
   document.addEventListener('keydown', (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (document.querySelector && document.querySelector('dialog[open]')) return;
     const at = e.target;
     if (at && (at.tagName === 'INPUT' || at.tagName === 'TEXTAREA' || at.tagName === 'SELECT')) return;
     if (e.key === 'Backspace') { e.preventDefault(); back(); }
@@ -97,5 +120,8 @@ export const KEYPAD_JS = `(() => {
     field.value = math();
     send.disabled = true;
   });
+  if (field.value) tokens = restore(field.value);
   update();
+  const said = form.dataset && form.dataset.said;
+  if (said) setTimeout(() => say('wait', said), 150);
 })();`;
