@@ -15,9 +15,11 @@ us-east-1:
   to the apex). `/api/*` and everything else go to the function, signed with an origin access
   control, so nothing reaches the function except through CloudFront. The website's pages are
   kept at the edge for a day (Popular six hours) and cleared whenever one changes: the function
-  clears the distribution after a request that writes a sign, a way or a player, and each release
-  clears it ([`src/edge-cache.ts`](../src/edge-cache.ts)). The API's public reads are kept a
-  minute. `/p/*` is the shown photos, from the photo bucket, cached for a year.
+  clears the distribution after a request that writes a sign, a way or a player (at most once a
+  minute, with a trailing clear for a write inside that minute), and each release clears it
+  ([`src/edge-cache.ts`](../src/edge-cache.ts)). The API's public reads are kept a minute. The
+  cache key holds only the query parameters the pages and the API read; Quiz keeps nothing but is
+  compressed at the edge. `/p/*` is the shown photos, from the photo bucket, cached for a year.
 - **The table** (`roadsignmath-xyz`): one DynamoDB table, on demand, with point-in-time
   recovery, deletion protection and a TTL on `expiresAt`. A stack delete keeps it.
 - **The photo bucket**: versioned and private. CloudFront reads `p/` only. Uploads nobody posted

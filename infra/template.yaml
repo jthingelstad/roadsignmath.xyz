@@ -373,10 +373,17 @@ Resources:
   # The server decides what is cached: an API read says `public, max-age=60`, a website page or
   # a missing page's 404 adds `s-maxage=86400` (Popular 21600) and the server clears the
   # distribution when a page changes (src/edge-cache.ts), and anything personal or failed says
-  # `no-store`. MinTTL and
-  # DefaultTTL 0 make CloudFront follow that, and MaxTTL a day caps it. Authorization is in the
-  # key, which is also how CloudFront forwards it, so a signed-in answer is never shared; the
-  # query is in the key, so /signs/near?lat=...&lng=... is cached per point.
+  # `no-store`. MinTTL and DefaultTTL 0 make CloudFront follow that, and MaxTTL a day caps it.
+  # Authorization is in the key, which is also how CloudFront forwards it, so a signed-in answer
+  # is never shared.
+  #
+  # The key holds only the query parameters a page reads, and the origin gets only those
+  # (WebRequestPolicy forwards none of its own), so a crawler's made-up query is a hit on the
+  # page it names instead of a miss that reaches the function. test/cache-key.test.ts finds every
+  # parameter a route reads and fails when one is missing here (CloudFront allows ten a policy).
+  # Pages: /signs's sort, year and state, Home's year and at, a player's view. The sign-in link's
+  # l and t are read by the app, never the page, and the share card's v is on the card maker's
+  # address, not ours.
   WebCachePolicy:
     Type: AWS::CloudFront::CachePolicy
     Properties:
@@ -393,12 +400,37 @@ Resources:
             HeaderBehavior: whitelist
             Headers: [Authorization]
           CookiesConfig: { CookieBehavior: none }
-          QueryStringsConfig: { QueryStringBehavior: all }
+          QueryStringsConfig:
+            QueryStringBehavior: whitelist
+            QueryStrings: [sort, year, state, at, view]
+
+  # The API's, the same but for the API's own parameters: /signs/near's and /signs/similar's lat
+  # and lng, /signs/similar's numbers, and a list's cursor and limit.
+  ApiCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub "${AWS::StackName}-api"
+        Comment: The server's Cache-Control, at most a day
+        MinTTL: 0
+        DefaultTTL: 0
+        MaxTTL: 86400
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          HeadersConfig:
+            HeaderBehavior: whitelist
+            Headers: [Authorization]
+          CookiesConfig: { CookieBehavior: none }
+          QueryStringsConfig:
+            QueryStringBehavior: whitelist
+            QueryStrings: [lat, lng, numbers, cursor, limit]
 
   # What the server reads beyond the key: the body's type, the answer it wants, the origin, a
   # post's Idempotency-Key, the app's User-Agent, the viewer's address for rate limits
   # (cloudFrontIp in src/api/app.ts, trusted only because only CloudFront reaches the function),
-  # and the viewer's country, which the app's screen views pass on to Tinylytics.
+  # and the viewer's country, which the app's screen views pass on to Tinylytics. No query
+  # string: the cache policy's reach the origin on their own, and nothing else may.
   WebRequestPolicy:
     Type: AWS::CloudFront::OriginRequestPolicy
     Properties:
@@ -408,7 +440,7 @@ Resources:
           HeaderBehavior: whitelist
           Headers: [Content-Type, Accept, Origin, Idempotency-Key, User-Agent, CloudFront-Viewer-Address, CloudFront-Viewer-Country]
         CookiesConfig: { CookieBehavior: none }
-        QueryStringsConfig: { QueryStringBehavior: all }
+        QueryStringsConfig: { QueryStringBehavior: none }
 
   # www.roadsignmath.xyz answers with a permanent redirect to the same path on the apex.
   WwwRedirectFunction:
@@ -495,7 +527,7 @@ Resources:
             AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
             CachedMethods: [GET, HEAD]
             Compress: true
-            CachePolicyId: !Ref WebCachePolicy
+            CachePolicyId: !Ref ApiCachePolicy
             OriginRequestPolicyId: !Ref WebRequestPolicy
             ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03
             FunctionAssociations:
@@ -565,9 +597,32 @@ Resources:
   # address, so this distribution has no photo origin. The endpoint grant names it beside the
   # site's distribution (tools/web-platform.ts).
 
-  # What Quiz's pages read: the form's type, the answer wanted, the Origin a write is checked
-  # against, the User-Agent, the viewer's address for rate limits and their country, and the
-  # session cookie (rsm_quiz, HttpOnly, src/quiz/session.ts) and nothing else of the cookies.
+  # Nothing of Quiz's is kept (every page says no-store, and MinTTL 0 lets it), but CloudFront
+  # compresses only under a policy that can cache: managed CachingDisabled (every TTL 0) sent
+  # Quiz's pages uncompressed. MaxTTL 1 caps anything that ever forgets to say no-store, and the
+  # session cookie (rsm_quiz, HttpOnly, src/quiz/session.ts) is in the key with every query
+  # string, so even that second is never shared between players. The cookie and the query reach
+  # the server through the key.
+  QuizCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub "${AWS::StackName}-quiz"
+        Comment: Nothing kept, compressed at the edge
+        MinTTL: 0
+        DefaultTTL: 0
+        MaxTTL: 1
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          HeadersConfig: { HeaderBehavior: none }
+          CookiesConfig:
+            CookieBehavior: whitelist
+            Cookies: [rsm_quiz]
+          QueryStringsConfig: { QueryStringBehavior: all }
+
+  # What Quiz's pages read beyond the key: the form's type, the answer wanted, the Origin a write
+  # is checked against, the User-Agent, the viewer's address for rate limits and their country.
   QuizRequestPolicy:
     Type: AWS::CloudFront::OriginRequestPolicy
     Properties:
@@ -576,9 +631,7 @@ Resources:
         HeadersConfig:
           HeaderBehavior: whitelist
           Headers: [Content-Type, Accept, Origin, User-Agent, CloudFront-Viewer-Address, CloudFront-Viewer-Country]
-        CookiesConfig:
-          CookieBehavior: whitelist
-          Cookies: [rsm_quiz]
+        CookiesConfig: { CookieBehavior: none }
         QueryStringsConfig: { QueryStringBehavior: all }
 
   QuizDistribution:
@@ -613,8 +666,7 @@ Resources:
           AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
           CachedMethods: [GET, HEAD]
           Compress: true
-          # Managed CachingDisabled.
-          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          CachePolicyId: !Ref QuizCachePolicy
           OriginRequestPolicyId: !Ref QuizRequestPolicy
           ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03
 
