@@ -82,7 +82,7 @@ ids or ARNs, local paths, or photos of plates or faces that weren't meant to be 
 | `scripts/`, `deploy.sh` | The release: `build-release.sh` builds with no credentials, `release.sh` deploys and probes; `deploy.sh` runs both from the Mac. |
 | `seed/microblog.json` | The 16 micro.blog signs: titles, finders, numbers, places, alt text, and each post's photos as the export names them (`uploads`, which the seed checks against the export and the old `/uploads/` addresses use). |
 | `seed/archive.json` | What the first-era archive doesn't say: every sign's post time and found day with where each came from, corrections, and which photos to swap for a cleaner copy. |
-| `tools/` | `export-api-contract.ts` (`npm run contract`), `us-map.ts` (`npm run us-map`), `app-assets.ts` (`npm run app-assets`), `brand.ts` (`npm run brand`), `seed-archive.ts` (`npm run seed:archive`), `seed-microblog.ts` (`npm run seed`), `newsletter-sync.ts` (`npm run newsletter`), `owner.ts` (`npm run owner`: hide or show a sign, place one on the map, remove a way or a player), `quiz-checker.ts` (`npm run quiz-checker`), and the release tools: `build-server.ts` (`npm run build:server`), `package-native.ts`, `native-artifacts.ts`, `web-platform.ts`, `release-probe.ts`, all run through `release-cli.ts`. |
+| `tools/` | `export-api-contract.ts` (`npm run contract`), `us-map.ts` (`npm run us-map`), `app-assets.ts` (`npm run app-assets`), `brand.ts` (`npm run brand`), `seed-archive.ts` (`npm run seed:archive`), `seed-microblog.ts` (`npm run seed`), `newsletter-sync.ts` (`npm run newsletter`), `owner.ts` (`npm run owner`: hide or show a sign, place one on the map, remove a way or a player, merge two signs, set alt text), `quiz-checker.ts` (`npm run quiz-checker`), and the release tools: `build-server.ts` (`npm run build:server`), `package-native.ts`, `native-artifacts.ts`, `web-platform.ts`, `release-probe.ts`, all run through `release-cli.ts`. |
 | `docs/DEPLOY.md` | How it is hosted, how a release works, and the first deploy step by step. |
 | `contracts/` | `api-surface.json` (OpenAPI 3.1), `api-versions.json` (each version's digest), `equation-vectors.json`. |
 | `design/brand/v1/` | The Road Sign Math identity package 1.0 as the designer supplied it (`START-HERE.txt` first): the five icons, the logos and wordmarks as outlined SVG and PNG, the layers, previews, and Overpass with its SIL Open Font License. The site uses the horizontal lockups and Highway through `src/web/brand.ts`. Keep the package as supplied; a new version goes in its own folder. |
@@ -100,7 +100,7 @@ and filtered in memory; at this size that is cheaper and simpler than indexes.
 | `PLAYERS` | `PLAYER#<playerId>` | a player |
 | `EMAIL#<sha256>` | `EMAIL` | the player id for an email address |
 | `HANDLE#<handle>` | `HANDLE` | the player id holding a handle |
-| `SLUG#<slug>` | `SLUG` | the sign id holding a slug |
+| `SLUG#<slug>` | `SLUG` | the sign id holding a slug (or a merged sign's, the one it went to) |
 | `SIGN#<signId>` | `MATH#<sha256>` | the way id holding that math on the sign |
 | `SIGN#<signId>` | `SAME#<sha256>` | the way id holding that way in any order |
 | `SIGN#<signId>` | `ALSO#<wayId>#<playerId>` | a player who also found that way |
@@ -183,8 +183,14 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
   (the state an upheld report leaves, `hideSign` in `posting.ts`), `unhide-sign <slug>`,
   `set-place <slug>` (coordinates, label, state and whether the pin is approximate; Jamie, 2026-11-11, for
   the signs abroad and Gross Vehicle Weight), `remove-way <slug> --way <id>` (one way off a sign, with its
-  co-finds, the sign's count and first way kept in step; Jamie, 2026-11-12) and `remove-player <handle>` (`removePlayer` in `account.ts`, the same code as `DELETE /me`,
-  newsletter included), each `--to check|live`. `check` only reads; `live` writes the live table
+  co-finds, the sign's count and first way kept in step; Jamie, 2026-11-12), `remove-player <handle>` (`removePlayer` in `account.ts`, the same code as `DELETE /me`,
+  newsletter included), `merge-signs <keep> <drop>` (one road sign posted twice becomes the kept
+  sign, with the photos, dates, place and caption the owner picks, both signs' ways, finders and
+  players' hearts, and the dropped slug's row pointing at it, so its old address is a 301 there;
+  Jamie, 2026-11-12: "Merge the two genesis signs into a single sign with two photos.") and
+  `set-alt --file <alts.json>` (photo alt text from a list, replacing only the generic
+  `plainAlt` unless `--force`; Jamie, 2026-11-12, asking for alt text set from a file after
+  looking at each photo), each `--to check|live`. `check` only reads; `live` writes the live table
   on the owner's word alone and clears the edge once. Never run `--to live` to test anything:
   `test/owner.test.ts` runs it against the memory store. [`docs/DEPLOY.md`](docs/DEPLOY.md) has the
   usage.

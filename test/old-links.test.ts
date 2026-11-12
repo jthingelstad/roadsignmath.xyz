@@ -174,3 +174,20 @@ test('every post in seed/microblog.json goes to the sign the seed made from it',
   assert.equal(gone.headers.get('cache-control'), PAGE_CACHE);
   assert.match(await gone.text(), /This road doesn’t go anywhere/);
 });
+
+test('a post whose sign was merged into another goes there, and so do the photos the merge kept', async () => {
+  const { app, store, signs } = await setup();
+  const [kept, dropped] = signs.testville.photos;
+  // Testville merged into Root Two, keeping its first photo only.
+  await store.updateSign(signs.second.id, {
+    photos: [kept, ...signs.second.photos],
+    merged: [
+      { signId: signs.testville.id, slug: 'testville', at: '2026-11-12T00:00:00.000Z', photosRemoved: [dropped.id] }
+    ]
+  });
+  await store.deleteSign(signs.testville.id);
+  assert.equal(await goes(app, '/2026/01/10/testville.html'), signUrl(urls, signs.second));
+  assert.equal(await goes(app, '/testville'), signUrl(urls, signs.second));
+  assert.equal(await goes(app, '/uploads/2026/aaaa.jpg'), photoUrl(urls, kept.id, 'large'));
+  assert.equal(await goes(app, '/uploads/2026/bbbb.jpg'), null);
+});

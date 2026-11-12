@@ -13,6 +13,20 @@ const kinds: [string, () => Store][] = [
 
 for (const [name, make] of kinds) {
   describe(name, () => {
+    test("a merged sign's slug moves to the kept sign once, and outlives the dropped sign", async () => {
+      const store = make();
+      await addSign(store, sign({ id: 'S1', title: 'Keep' }));
+      await addSign(store, sign({ id: 'S2', title: 'Drop' }));
+      assert.deepEqual(await store.slugHolder('drop'), { signId: 'S2' });
+      assert.equal(await store.moveSlug('drop', 'S3', 'S1'), false, 'only from the sign holding it');
+      assert.equal(await store.moveSlug('drop', 'S2', 'S1'), true);
+      assert.equal(await store.moveSlug('drop', 'S2', 'S1'), true, 'a re-run finds it done');
+      await store.deleteSign('S2');
+      assert.deepEqual(await store.slugHolder('drop'), { signId: 'S1', movedFrom: 'S2' });
+      assert.equal(await store.claimSlug('drop', 'S9'), false, 'a new sign never takes it');
+      assert.equal(await store.slugHolder('nothing'), undefined);
+    });
+
     test('signs round-trip and list', async () => {
       const store = make();
       const a = sign({ id: 'S1', title: 'One' });

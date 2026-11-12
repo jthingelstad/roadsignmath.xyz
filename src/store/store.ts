@@ -32,6 +32,12 @@ export type SignChanges = {
   moderation?: Sign['moderation'] | null;
   /** Replaces the whole place (the owner's `set-place`). */
   place?: Sign['place'];
+  /** The owner's `merge-signs` and `set-alt`: the photos as a whole, in order. */
+  photos?: Sign['photos'];
+  caption?: string | null;
+  foundOn?: string;
+  postedAt?: string;
+  merged?: Sign['merged'];
 };
 
 /**
@@ -53,6 +59,17 @@ export interface Store {
   claimSlug(slug: string, signId: string): Promise<boolean>;
   /** Frees the slug if this sign holds it, for a post that failed before its sign was written. */
   releaseSlug(slug: string, signId: string): Promise<void>;
+  /**
+   * The sign a slug's row points at, and, when the owner's `merge-signs` moved it there, the sign
+   * it was first claimed for. Undefined when no row holds it.
+   */
+  slugHolder(slug: string): Promise<{ signId: string; movedFrom?: string } | undefined>;
+  /**
+   * Points a slug at another sign, for a merge: only while `fromId` holds it (or `toId` already
+   * does). True when `toId` holds it after. Deleting `fromId` then leaves the row alone, so the
+   * old address keeps leading to `toId` and no new sign is ever given the slug.
+   */
+  moveSlug(slug: string, fromId: string, toId: string): Promise<boolean>;
   /** Removes the sign, its ways, its reports (duplicate ones too) and its slug. */
   deleteSign(id: string): Promise<void>;
   /** Oldest first. */
@@ -209,6 +226,10 @@ export const sameWayHashes = (text: string): string[] => [
 ];
 
 export const emailHash = (email: string): string => createHash('sha256').update(normalizeEmail(email)).digest('hex');
+
+/** The ids of signs merged into others (`merge-signs`), so a seed run never brings one back. */
+export const mergedAway = (signs: Sign[]): Set<string> =>
+  new Set(signs.flatMap((s) => (s.merged ?? []).map((m) => m.signId)));
 
 /** For seeding and tests: claims the sign's slug, then writes the row. */
 export async function addSign(store: Store, sign: Sign): Promise<void> {

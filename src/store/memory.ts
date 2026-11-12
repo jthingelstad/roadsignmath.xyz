@@ -34,6 +34,8 @@ export class MemoryStore implements Store {
   private emails = new Map<string, string>();
   private handles = new Map<string, string>();
   private slugs = new Map<string, string>();
+  /** A slug a merge moved, to the sign it was first claimed for. */
+  private movedSlugs = new Map<string, string>();
   private logins = new Map<string, Login>();
   private sessions = new Map<string, Session>();
   private counters = new Map<string, number>();
@@ -79,6 +81,22 @@ export class MemoryStore implements Store {
 
   async releaseSlug(slug: string, signId: string): Promise<void> {
     if (this.slugs.get(slug) === signId) this.slugs.delete(slug);
+  }
+
+  async slugHolder(slug: string): Promise<{ signId: string; movedFrom?: string } | undefined> {
+    const signId = this.slugs.get(slug);
+    if (signId === undefined) return undefined;
+    const movedFrom = this.movedSlugs.get(slug);
+    return movedFrom ? { signId, movedFrom } : { signId };
+  }
+
+  async moveSlug(slug: string, fromId: string, toId: string): Promise<boolean> {
+    const holder = this.slugs.get(slug);
+    if (holder === toId) return true;
+    if (holder !== fromId) return false;
+    this.slugs.set(slug, toId);
+    if (!this.movedSlugs.has(slug)) this.movedSlugs.set(slug, fromId);
+    return true;
   }
 
   async deleteSign(id: string): Promise<void> {

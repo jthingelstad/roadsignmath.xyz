@@ -7,7 +7,7 @@
 //   PLAYERS             PLAYER#<playerId>           a player
 //   EMAIL#<sha256>      EMAIL                       the player id for an email address
 //   HANDLE#<handle>     HANDLE                      the player id holding a handle
-//   SLUG#<slug>         SLUG                        the sign id holding a slug
+//   SLUG#<slug>         SLUG                        the sign id holding a slug (or a merged sign's, the one it went to)
 //   SIGN#<signId>       MATH#<sha256>               the way id holding that math on the sign
 //   SIGN#<signId>       SAME#<sha256>               the way id holding that way in any order
 //   SIGN#<signId>       ALSO#<wayId>#<playerId>     a player who also found that way
@@ -208,6 +208,27 @@ export class DynamoStore implements Store {
 
   async releaseSlug(slug: string, signId: string): Promise<void> {
     await this.unclaim(`SLUG#${slug}`, 'SLUG', 'signId', signId);
+  }
+
+  async slugHolder(slug: string): Promise<{ signId: string; movedFrom?: string } | undefined> {
+    const item = await this.get(`SLUG#${slug}`, 'SLUG', true);
+    if (!item) return undefined;
+    const movedFrom = item.movedFrom as string | undefined;
+    return { signId: item.signId as string, ...(movedFrom ? { movedFrom } : {}) };
+  }
+
+  async moveSlug(slug: string, fromId: string, toId: string): Promise<boolean> {
+    const moved = await this.when(
+      // A slug moved once already (a sign merged into one later merged again) keeps its first sign.
+      new UpdateCommand({
+        TableName: this.table,
+        Key: { pk: `SLUG#${slug}`, sk: 'SLUG' },
+        UpdateExpression: 'SET signId = :to, movedFrom = if_not_exists(movedFrom,:from)',
+        ConditionExpression: 'signId = :from',
+        ExpressionAttributeValues: { ':from': fromId, ':to': toId }
+      })
+    );
+    return moved || (await this.slugHolder(slug))?.signId === toId;
   }
 
   async deleteSign(id: string): Promise<void> {

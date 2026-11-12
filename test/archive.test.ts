@@ -336,6 +336,21 @@ test('a second load writes nothing', async () => {
   assert.equal(deps.stored.length, photosBefore);
 });
 
+test('a sign the owner merged into another is never loaded again', async () => {
+  const deps = await loadSetup();
+  const plan = buildArchivePlan([post('a', 'Oldest', 'Ben Example')], seed);
+  await loadArchive(plan, deps);
+  const old = plan.signs[0];
+  await addSign(deps.store, { ...old, id: '01KEPT0000000000000000000', slug: 'kept', photos: [] });
+  await deps.store.updateSign('01KEPT0000000000000000000', {
+    merged: [{ signId: old.id, slug: old.slug, at: '2026-11-12T00:00:00.000Z', photosRemoved: [] }]
+  });
+  await deps.store.deleteSign(old.id);
+  const again = await loadArchive(buildArchivePlan([post('a', 'Oldest', 'Ben Example')], seed), deps);
+  assert.equal(again.added, 0);
+  assert.equal(await deps.store.getSign(old.id), undefined);
+});
+
 test('today’s players keep their slugs and handles; old ones move aside', async () => {
   const deps = await loadSetup();
   await addSign(deps.store, {

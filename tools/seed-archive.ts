@@ -33,6 +33,7 @@ import {
 } from '../src/seed/archive.ts';
 import { DynamoStore } from '../src/store/dynamo.ts';
 import { MemoryStore } from '../src/store/memory.ts';
+import { mergedAway } from '../src/store/store.ts';
 
 const { values } = parseArgs({
   options: {
@@ -183,7 +184,8 @@ if (live) {
   process.env.AWS_REGION ??= 'us-east-1';
   const store = new DynamoStore(output('TableName'));
   const [signs, players] = await Promise.all([store.allSigns(), store.allPlayers()]);
-  const ids = new Set(signs.map((s) => s.id));
+  // A sign merged into another (`merge-signs`) counts as there: a load never brings it back.
+  const ids = new Set([...signs.map((s) => s.id), ...mergedAway(signs)]);
   const slugs = new Set(signs.map((s) => s.slug));
   const handles = new Set(players.map((p) => p.handle));
   const fresh = plan.signs.filter((s) => !ids.has(s.id));

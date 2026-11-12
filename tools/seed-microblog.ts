@@ -18,7 +18,7 @@ import { DirPhotoStore, S3PhotoStore, renditions, type PhotoStore } from '../src
 import { buildPlan, type FeedItem, type SeedFile } from '../src/seed/microblog.ts';
 import { DynamoStore } from '../src/store/dynamo.ts';
 import { MemoryStore } from '../src/store/memory.ts';
-import { addPlayer, addSign, type Store } from '../src/store/store.ts';
+import { addPlayer, addSign, mergedAway, type Store } from '../src/store/store.ts';
 
 const { values } = parseArgs({
   options: { export: { type: 'string' }, to: { type: 'string', default: 'plan' } }
@@ -63,8 +63,10 @@ if (values.to === 'live') {
   store = memory;
   photos = new DirPhotoStore();
 }
-// A sign already there is left as it is, with its photos and ways: players may have added to it.
-const present = new Set<string>();
+// A sign already there is left as it is, with its photos and ways: players may have added to it. A
+// sign the owner merged into another (`merge-signs`) counts as there too, so it never comes back.
+const merged = mergedAway(await store.allSigns());
+const present = new Set(plan.signs.filter((s) => merged.has(s.id)).map((s) => s.id));
 for (const sign of plan.signs) if (await store.getSign(sign.id)) present.add(sign.id);
 const signs = new Map(plan.signs.map((s) => [s.id, s]));
 for (const photo of plan.photos) {

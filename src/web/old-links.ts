@@ -11,7 +11,9 @@
 //
 // Each post's sign is found at request time: a seeded sign's id ends in the hash of its post
 // (`seedKeys` in src/seed/microblog.ts), so a renamed sign is still found and its address comes
-// from `signUrl`. A sign that is gone or not shown is a 404, and so is a photo it no longer has.
+// from `signUrl`. A post whose sign the owner merged into another (`merge-signs`) goes to that one,
+// found by the `merged` record, and so does each of its photos the merge kept. A sign that is gone
+// or not shown is a 404, and so is a photo it no longer has.
 
 import { Hono, type Context } from 'hono';
 import launch from '../../seed/microblog.json' with { type: 'json' };
@@ -51,13 +53,24 @@ export function createOldLinks({
     return c.redirect(to, 301);
   };
   const shown = async () => (await store.allSigns()).filter(isPublic);
-  const signOf = async (post: string): Promise<Sign | undefined> => {
+  /**
+   * The post's sign, and the id it was seeded with: its own, or, when the owner merged it into
+   * another sign (`merge-signs`), the merged sign's, which the photos it brought still carry.
+   */
+  const signOf = async (post: string): Promise<{ sign: Sign; seededId: string } | undefined> => {
     const hash = hashOf(seedKeys.sign(post));
-    return (await shown()).find((s) => s.id.slice(10) === hash);
+    const signs = await shown();
+    const own = signs.find((s) => s.id.slice(10) === hash);
+    if (own) return { sign: own, seededId: own.id };
+    for (const sign of signs) {
+      const merged = sign.merged?.find((m) => m.signId.slice(10) === hash);
+      if (merged) return { sign, seededId: merged.signId };
+    }
+    return undefined;
   };
   const toSign = (post: string) => async (c: Context) => {
-    const sign = await signOf(post);
-    return sign ? moved(c, signUrl(urls, sign)) : c.notFound();
+    const found = await signOf(post);
+    return found ? moved(c, signUrl(urls, found.sign)) : c.notFound();
   };
 
   const byName = new Map<string, string[]>();
@@ -67,9 +80,9 @@ export function createOldLinks({
     byName.set(name, [...(byName.get(name) ?? []), post]);
     uploads.forEach((upload, i) => {
       old.get(`/${upload}`, async (c) => {
-        const sign = await signOf(post);
-        const id = sign ? `${sign.id.slice(0, 10)}${hashOf(seedKeys.photo(post, i))}`.toLowerCase() : '';
-        return sign?.photos.some((p) => p.id === id) ? moved(c, photoUrl(urls, id, 'large')) : c.notFound();
+        const found = await signOf(post);
+        const id = found ? `${found.seededId.slice(0, 10)}${hashOf(seedKeys.photo(post, i))}`.toLowerCase() : '';
+        return found?.sign.photos.some((p) => p.id === id) ? moved(c, photoUrl(urls, id, 'large')) : c.notFound();
       });
     });
   }
