@@ -82,7 +82,33 @@ const plate = `<table role="presentation" align="center" cellpadding="0" cellspa
 </td></tr>
 </table>`;
 
-function html(link: string, code: string): string {
+/** Where the sign-in started: the iPhone app, or Quiz in a browser. The email says it the same way. */
+export type SignInFront = 'app' | 'quiz';
+
+const WORDS: Record<
+  SignInFront,
+  { title: string; tap: string; textTap: string; type: string; open: string; pixel: string }
+> = {
+  app: {
+    title: 'Sign in to Road Sign Math',
+    tap: 'Tap the button on your iPhone to sign in.',
+    textTap: 'Tap to sign in to Road Sign Math on your iPhone:',
+    type: 'Or type this code in the app',
+    open: 'If the button doesn&rsquo;t work, open this link on your iPhone:',
+    pixel: '/email/signin'
+  },
+  quiz: {
+    title: 'Sign in to Road Sign Math Quiz',
+    tap: 'Tap the button to sign in on this device.',
+    textTap: 'Tap to sign in to Road Sign Math Quiz:',
+    type: 'Or type this code on the sign-in page',
+    open: 'If the button doesn&rsquo;t work, open this link:',
+    pixel: '/email/signin-quiz'
+  }
+};
+
+function html(link: string, code: string, front: SignInFront): string {
+  const words = WORDS[front];
   const href = escapeHtml(link);
   const digits = escapeHtml(code);
   const site = escapeHtml(new URL(link).origin);
@@ -109,8 +135,8 @@ ${plate}
 <tr><td class="card" style="background:${CARD};border:1px solid ${RULE};border-radius:18px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
 <tr><td class="pad" style="padding:34px 40px 8px;">
-<h1 class="ink" style="margin:0 0 10px;font-family:${FONT};font-size:26px;line-height:1.2;font-weight:800;color:${INK};">Sign in to Road Sign Math</h1>
-<p class="ink-2" style="margin:0 0 24px;font-family:${FONT};font-size:17px;line-height:1.5;color:${INK_2};">Tap the button on your iPhone to sign in.</p>
+<h1 class="ink" style="margin:0 0 10px;font-family:${FONT};font-size:26px;line-height:1.2;font-weight:800;color:${INK};">${words.title}</h1>
+<p class="ink-2" style="margin:0 0 24px;font-family:${FONT};font-size:17px;line-height:1.5;color:${INK_2};">${words.tap}</p>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
 <tr><td align="center" style="${green}border-radius:14px;">
 <a href="${href}" style="display:block;padding:16px 24px;font-family:${FONT};font-size:19px;line-height:1.2;font-weight:800;color:#ffffff;text-decoration:none;border-radius:14px;">Sign in</a>
@@ -120,7 +146,7 @@ ${plate}
 <tr><td class="pad" style="padding:26px 40px 0;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
 <td width="50%" valign="middle"><div class="rule" style="border-top:1px solid ${RULE};height:0;font-size:0;line-height:0;">&nbsp;</div></td>
-<td class="ink-3" valign="middle" style="padding:0 12px;white-space:nowrap;font-family:${FONT};font-size:14px;line-height:1;color:${INK_3};">Or type this code in the app</td>
+<td class="ink-3" valign="middle" style="padding:0 12px;white-space:nowrap;font-family:${FONT};font-size:14px;line-height:1;color:${INK_3};">${words.type}</td>
 <td width="50%" valign="middle"><div class="rule" style="border-top:1px solid ${RULE};height:0;font-size:0;line-height:0;">&nbsp;</div></td>
 </tr></table>
 </td></tr>
@@ -135,7 +161,7 @@ ${plate}
 </table>
 </td></tr>
 <tr><td class="pad" style="padding:22px 40px 0;">
-<p class="ink-3" style="margin:0 0 4px;font-family:${FONT};font-size:13px;line-height:1.5;color:${INK_3};text-align:center;">If the button doesn&rsquo;t work, open this link on your iPhone:</p>
+<p class="ink-3" style="margin:0 0 4px;font-family:${FONT};font-size:13px;line-height:1.5;color:${INK_3};text-align:center;">${words.open}</p>
 <p style="margin:0;font-family:${FONT};font-size:13px;line-height:1.5;text-align:center;word-break:break-all;"><a class="link" href="${href}" style="color:${SIGN_GREEN};text-decoration:underline;">${href}</a></p>
 </td></tr>
 <tr><td align="center" style="padding:26px 24px 0;">
@@ -144,21 +170,22 @@ ${plate}
 </table>
 </td></tr>
 </table>
-<img src="${escapeHtml(tinylyticsPixel('/email/signin'))}" alt="" width="1" height="1" style="display:block;width:1px;height:1px;border:0;" />
+<img src="${escapeHtml(tinylyticsPixel(words.pixel))}" alt="" width="1" height="1" style="display:block;width:1px;height:1px;border:0;" />
 </body>
 </html>
 `;
 }
 
 /** The email that carries a sign-in link and code. */
-export function signInMail(to: string, link: string, code: string): Mail {
+export function signInMail(to: string, link: string, code: string, front: SignInFront = 'app'): Mail {
+  const words = WORDS[front];
   return {
     to,
     subject: `Your Road Sign Math code is ${code}`,
     text:
-      `Tap to sign in to Road Sign Math on your iPhone:\n${link}\n\n` +
-      `Or type this code in the app: ${code}\n\n` +
+      `${words.textTap}\n${link}\n\n` +
+      `${words.type}: ${code}\n\n` +
       `It works for 15 minutes. If you didn't ask to sign in, you can ignore this email.\n`,
-    html: html(link, code)
+    html: html(link, code, front)
   };
 }

@@ -4,20 +4,387 @@
 //
 // Until Jamie launches it, `QUIZ_OPEN` is false and every address answers the same short page
 // saying Quiz is coming, kept out of search engines.
+//
+// Open, it is a handful of server-drawn pages (src/quiz/pages.tsx) over the same store and the
+// same rules as the app: sign in by email (the same account), give a name, then a sign at a time
+// to solve. A way goes through `solveSign` exactly as the app's does, marked `quiz`. Nothing is
+// cached anywhere, and nothing a GET does changes anything; every POST must come from Quiz's own
+// pages (src/quiz/session.ts).
 
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import type { ApiOptions } from '../api/app.ts';
+import { ApiError } from '../api/errors.ts';
+import { earnedBadgeView } from '../api/views.ts';
+import { updateMe } from '../auth/account.ts';
+import { finishSignIn, signOut, startSignIn, type Viewer } from '../auth/auth.ts';
+import { sameWayKey } from '../domain/equation.ts';
+import type { Player, Sign } from '../domain/types.ts';
+import { REORDERED, YOURS, solveSign } from '../posting/posting.ts';
+import { badgesFrom, credits, draw, loadQuiz, onSigns, solvedBy, stillToTry, type OnSign, type Solve } from './data.ts';
+import {
+  AllDonePage,
+  CodePage,
+  FoundPage,
+  HomePage,
+  LinkPage,
+  MessagePage,
+  NamePage,
+  SignInPage,
+  SolvePage,
+  SolvedPage,
+  WaysPage,
+  type Here,
+  type Said
+} from './pages.tsx';
+import { forget, fromQuiz, quizViewer, remember } from './session.ts';
 
 /** Whether Quiz is open. Jamie's call; until then every address answers the coming-soon page. */
 export const QUIZ_OPEN = false;
 
 const NO_STORE = { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' };
+const PRIVATE = { 'Cache-Control': 'no-store' };
 
-export function createQuiz(options: ApiOptions): Hono {
+/** Quiz's own origin: its own when given, else the site's with `quiz.` in front. */
+export const quizOrigin = (site: string): string => {
+  const url = new URL(site);
+  if (url.hostname === 'localhost' || /^[\d.]+$/.test(url.hostname)) return site;
+  return `${url.protocol}//quiz.${url.host}`;
+};
+
+type QuizOptions = ApiOptions & { clientIp: (c: Context) => string };
+
+export function createQuiz(options: QuizOptions): Hono {
   const quiz = new Hono();
-  quiz.get('/robots.txt', (c) => c.text('User-agent: *\nDisallow: /\n', 200, NO_STORE));
-  quiz.all('*', (c) => c.html(soon(options.urls.site), 200, NO_STORE));
+  if (!(options.quizOpen ?? QUIZ_OPEN)) {
+    quiz.get('/robots.txt', (c) => c.text('User-agent: *\nDisallow: /\n', 200, NO_STORE));
+    quiz.all('*', (c) => c.html(soon(options.urls.site), 200, NO_STORE));
+    return quiz;
+  }
+
+  const { store, urls, mailer, clientIp } = options;
+  const here: Here = { site: urls.site, quiz: urls.quiz ?? quizOrigin(urls.site) };
+  const page = (c: Context, body: { toString(): string }, status: 200 | 400 | 404 | 409 | 429 = 200) =>
+    c.html('<!doctype html>' + body.toString(), status, PRIVATE);
+  const go = (c: Context, path: string) => c.redirect(path, 303);
+  const form = async (c: Context) => {
+    const body = await c.req.parseBody();
+    return (key: string) => (typeof body[key] === 'string' ? (body[key] as string) : '');
+  };
+
+  /** The signed-in player, or a redirect: to sign in, or to give a name first. */
+  async function playing(c: Context): Promise<Viewer | Response> {
+    const viewer = await quizViewer(store, c);
+    if (!viewer) return go(c, '/signin');
+    if (!viewer.player.name) return go(c, '/name');
+    return viewer;
+  }
+
+  quiz.use('*', async (c, next) => {
+    if (c.req.method === 'POST' && !fromQuiz(c, here.quiz)) {
+      return page(
+        c,
+        <MessagePage here={here} title="That didn’t come from Quiz" message="Go back to Quiz and try again." />,
+        400
+      );
+    }
+    await next();
+  });
+
+  quiz.get('/robots.txt', (c) => c.text('User-agent: *\nAllow: /$\nDisallow: /\n', 200, PRIVATE));
+
+  quiz.get('/', async (c) => {
+    if (await quizViewer(store, c)) return go(c, '/next');
+    const data = await loadQuiz(store, undefined);
+    const withPhoto = data.signs.filter((s) => s.photos.length && s.numbers.length);
+    return page(c, <HomePage here={here} sample={withPhoto[0]} more={withPhoto.slice(1, 4)} />);
+  });
+
+  // ---- Signing in
+
+  quiz.get('/signin', async (c) => {
+    const loginId = c.req.query('l');
+    const token = c.req.query('t');
+    if (loginId && token) return page(c, <LinkPage here={here} loginId={loginId} token={token} />);
+    if (await quizViewer(store, c)) return go(c, '/next');
+    return page(c, <SignInPage here={here} />);
+  });
+
+  quiz.post('/signin', async (c) => {
+    const field = await form(c);
+    const email = field('email').trim();
+    const link = (loginId: string, token: string) =>
+      `${here.quiz}/signin?l=${encodeURIComponent(loginId)}&t=${encodeURIComponent(token)}`;
+    try {
+      const started = await startSignIn({ store, mailer, link, front: 'quiz' }, email, clientIp(c));
+      return page(c, <CodePage here={here} loginId={started.loginId} email={email} sent={field('again') === '1'} />);
+    } catch (err) {
+      if (!(err instanceof ApiError) || (err.code !== 'bad_request' && err.code !== 'rate_limited')) throw err;
+      const message = err.code === 'bad_request' ? 'That doesn’t look like an email address.' : err.message;
+      return page(c, <SignInPage here={here} email={email} error={message} />, err.code === 'bad_request' ? 400 : 429);
+    }
+  });
+
+  /** Signs in with the code or the link's token, then on to a name or the signs. */
+  async function finish(c: Context, input: { loginId: string; code?: string; token?: string }) {
+    const done = await finishSignIn(store, input);
+    // A new player joins the newsletter, as in the app (Jamie, 2026-11-07). Never in the way.
+    if (done.isNew && done.player.email && options.newsletter) {
+      const outcome = await options.newsletter.add(done.player.email);
+      console.log({ event: 'newsletter', op: 'add', outcome });
+    }
+    remember(c, done.token);
+    return go(c, done.player.name ? '/next' : '/name');
+  }
+
+  quiz.post('/signin/code', async (c) => {
+    const field = await form(c);
+    const email = field('email');
+    const loginId = field('login');
+    try {
+      return await finish(c, { loginId, code: field('code').trim() });
+    } catch (err) {
+      if (!(err instanceof ApiError) || err.code === 'internal' || err.code === 'unavailable') throw err;
+      return page(c, <CodePage here={here} loginId={loginId} email={email} error={codeTrouble(err)} />, 400);
+    }
+  });
+
+  quiz.post('/signin/link', async (c) => {
+    const field = await form(c);
+    try {
+      return await finish(c, { loginId: field('login'), token: field('token') });
+    } catch (err) {
+      if (!(err instanceof ApiError) || err.code === 'internal' || err.code === 'unavailable') throw err;
+      return page(
+        c,
+        <MessagePage
+          here={here}
+          title="That link has ended"
+          message="Sign-in links work once, for 15 minutes. Sign in again and we’ll send a new one."
+        />,
+        400
+      );
+    }
+  });
+
+  quiz.get('/name', async (c) => {
+    const viewer = await quizViewer(store, c);
+    if (!viewer) return go(c, '/signin');
+    if (viewer.player.name) return go(c, '/next');
+    return page(c, <NamePage here={here} player={viewer.player} />);
+  });
+
+  quiz.post('/name', async (c) => {
+    const viewer = await quizViewer(store, c);
+    if (!viewer) return go(c, '/signin');
+    const field = await form(c);
+    try {
+      await updateMe(store, viewer.player, { name: field('name') });
+    } catch (err) {
+      if (!(err instanceof ApiError) || (err.code !== 'bad_request' && err.code !== 'rate_limited')) throw err;
+      return page(
+        c,
+        <NamePage here={here} player={viewer.player} error={err.message.replace(/([^.])$/, '$1.')} />,
+        400
+      );
+    }
+    return go(c, '/next');
+  });
+
+  quiz.post('/signout', async (c) => {
+    const viewer = await quizViewer(store, c);
+    if (viewer) await signOut(store, viewer);
+    forget(c);
+    return go(c, '/');
+  });
+
+  // ---- Playing
+
+  quiz.get('/next', async (c) => {
+    const viewer = await playing(c);
+    if (viewer instanceof Response) return viewer;
+    const data = await loadQuiz(store, viewer.player);
+    const left = stillToTry(data, await onSigns(store, data.signs), viewer.player.id);
+    const sign = draw(left, c.req.query('after'));
+    if (!sign) return page(c, <AllDonePage here={here} player={viewer.player} />);
+    return go(c, `/signs/${sign.slug}`);
+  });
+
+  /** A shown sign the player sees, with its ways and co-finds, or a not-found page. */
+  async function signFor(c: Context, player: Player) {
+    const data = await loadQuiz(store, player);
+    const sign = data.signs.find((s) => s.slug === c.req.param('slug'));
+    if (!sign)
+      return {
+        missing: page(
+          c,
+          <MessagePage
+            here={here}
+            player={player}
+            title="No sign here"
+            message="That sign isn’t in Quiz. There are others to try."
+          />,
+          404
+        )
+      };
+    const [ways, coFinds] = await Promise.all([store.listWays(sign.id), store.listCoFinds(sign.id)]);
+    // A blocked player's ways are left out, as the API leaves them for this reader.
+    const on: OnSign = { ways: ways.filter((w) => !data.blocked.has(w.playerId)), coFinds };
+    return { data, sign, on };
+  }
+
+  const solvePage = (
+    c: Context,
+    player: Player,
+    sign: Sign,
+    on: OnSign,
+    data: Awaited<ReturnType<typeof loadQuiz>>,
+    said?: Said,
+    status: 200 | 400 | 409 | 429 = 200
+  ) => page(c, <SolvePage here={here} player={player} sign={sign} on={on} people={data.people} said={said} />, status);
+
+  quiz.get('/signs/:slug', async (c) => {
+    const viewer = await playing(c);
+    if (viewer instanceof Response) return viewer;
+    const got = await signFor(c, viewer.player);
+    if (got.missing) return got.missing;
+    return solvePage(c, viewer.player, got.sign, got.on, got.data);
+  });
+
+  quiz.post('/signs/:slug/solve', async (c) => {
+    const viewer = await playing(c);
+    if (viewer instanceof Response) return viewer;
+    const got = await signFor(c, viewer.player);
+    if (got.missing) return got.missing;
+    const { sign, on, data } = got;
+    const text = (await form(c))('text').trim();
+    try {
+      const solved = await solveSign(options, viewer.player, sign, { text }, 'quiz');
+      return go(c, `/signs/${sign.slug}/found?way=${encodeURIComponent(solved.way.id)}`);
+    } catch (err) {
+      if (!(err instanceof ApiError)) throw err;
+      if (err.code === 'conflict' && err.message === REORDERED) {
+        const key = sameWayKey(text);
+        const way = on.ways.find((w) => sameWayKey(w.text) === key);
+        if (way) {
+          const said: Said = { kind: 'reordered', tried: text, way, by: data.people.get(way.playerId) };
+          return solvePage(c, viewer.player, sign, on, data, said, 409);
+        }
+      }
+      if (err.code === 'conflict' && err.message === YOURS) {
+        return solvePage(c, viewer.player, sign, on, data, { kind: 'yours', tried: text }, 409);
+      }
+      if (err.code === 'bad_request' || err.code === 'conflict' || err.code === 'rate_limited') {
+        const status = err.code === 'bad_request' ? 400 : err.code === 'conflict' ? 409 : 429;
+        return solvePage(
+          c,
+          viewer.player,
+          sign,
+          on,
+          data,
+          { kind: 'error', message: err.message, tried: text },
+          status
+        );
+      }
+      throw err;
+    }
+  });
+
+  quiz.get('/signs/:slug/found', async (c) => {
+    const viewer = await playing(c);
+    if (viewer instanceof Response) return viewer;
+    const got = await signFor(c, viewer.player);
+    if (got.missing) return got.missing;
+    const { sign, on, data } = got;
+    const solve = solveFor(sign, on, viewer.player.id, c.req.query('way'));
+    if (!solve) return go(c, `/signs/${sign.slug}`);
+    const all = await onSigns(store, data.signs);
+    const badges =
+      solve.kind === 'too' ? [] : badgesFrom(data, all, viewer.player.id, sign).map((e) => earnedBadgeView(urls, e));
+    return page(
+      c,
+      <FoundPage
+        here={here}
+        player={viewer.player}
+        sign={sign}
+        on={on}
+        people={data.people}
+        blocked={data.blocked}
+        solve={solve}
+        badges={badges}
+      />
+    );
+  });
+
+  quiz.get('/signs/:slug/ways', async (c) => {
+    const viewer = await playing(c);
+    if (viewer instanceof Response) return viewer;
+    const got = await signFor(c, viewer.player);
+    if (got.missing) return got.missing;
+    return page(
+      c,
+      <WaysPage
+        here={here}
+        player={viewer.player}
+        sign={got.sign}
+        on={got.on}
+        people={got.data.people}
+        blocked={got.data.blocked}
+      />
+    );
+  });
+
+  quiz.get('/solved', async (c) => {
+    const viewer = await playing(c);
+    if (viewer instanceof Response) return viewer;
+    const data = await loadQuiz(store, viewer.player);
+    const solved = solvedBy(data, await onSigns(store, data.signs), viewer.player.id);
+    return page(c, <SolvedPage here={here} player={viewer.player} solved={solved} now={new Date()} />);
+  });
+
+  quiz.notFound((c) =>
+    page(c, <MessagePage here={here} title="Nothing here" message="That page isn’t part of Quiz." />, 404)
+  );
+
+  quiz.onError((err, c) => {
+    if (err instanceof ApiError && err.code === 'unauthorized') {
+      forget(c);
+      return go(c, '/signin');
+    }
+    console.error(err);
+    return c.html(
+      '<!doctype html>' +
+        (
+          <MessagePage
+            here={here}
+            title="Something broke"
+            message="Something went wrong on our side. Try again in a minute."
+          />
+        ).toString(),
+      500,
+      PRIVATE
+    );
+  });
+
   return quiz;
+}
+
+/** What went wrong with a code, in words for the code page. */
+function codeTrouble(err: ApiError): string {
+  if (err.code === 'rate_limited') return 'Too many tries. Sign in again for a new code.';
+  if (err.code === 'bad_request') return 'Type the 6-digit code from the email.';
+  return 'That code didn’t work. Check the newest email, or send it again.';
+}
+
+/** How the player solved this sign with the way named, or (no way named) most recently. */
+function solveFor(sign: Sign, on: OnSign, playerId: string, wayId: string | undefined): Solve | undefined {
+  const at = on.ways.findIndex((w) => w.id === wayId);
+  if (at < 0) return undefined;
+  const way = on.ways[at];
+  if (way.playerId === playerId) {
+    return { kind: at === 0 && !credits(sign, playerId) ? 'first' : 'new', way, at: way.createdAt };
+  }
+  const also = on.coFinds.find((f) => f.wayId === way.id && f.playerId === playerId);
+  return also && { kind: 'too', way, at: also.createdAt };
 }
 
 function soon(site: string): string {
