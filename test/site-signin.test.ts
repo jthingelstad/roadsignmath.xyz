@@ -95,13 +95,23 @@ const plain = (html: string) =>
 /** The cookie by that name a browser keeps: the last one set. */
 const cookieNamed = (cookies: string[], name: string) => cookies.findLast((c) => c.startsWith(`${name}=`));
 
-test('deployed, the website’s sign-in is shut', () => {
-  assert.equal(SITE_SIGNIN_OPEN, false);
+test('deployed, the website’s sign-in is open', () => {
+  assert.equal(SITE_SIGNIN_OPEN, true);
 });
 
-test('shut, the site answers exactly as before: no sign-in, no /you, the same header and cookies', async () => {
+test('with nothing said, the site answers as it does open', async () => {
+  const open = await setup(true);
+  const unsaid = await setup(undefined);
+  for (const path of ['/', '/signs/seven-twelve', '/signin', '/you']) {
+    const a = await open.request(path);
+    const b = await unsaid.request(path);
+    assert.equal(a.res.status, b.res.status, path);
+    assert.equal(a.html, b.html, path);
+  }
+});
+
+test('shut, as it was until Jamie opened it: no sign-in, no /you, no marker, Quiz’s own cookie', async () => {
   const shut = await setup(false);
-  const before = await setup(undefined);
   for (const path of [
     '/',
     '/signs',
@@ -112,11 +122,12 @@ test('shut, the site answers exactly as before: no sign-in, no /you, the same he
     '/signin?l=01JLOGIN&t=tok'
   ]) {
     const a = await shut.request(path);
-    const b = await before.request(path);
-    assert.equal(a.res.status, b.res.status, path);
-    assert.equal(a.html, b.html, path);
-    assert.equal(a.res.headers.get('cache-control'), b.res.headers.get('cache-control'), path);
+    const signedIn = await shut.request(path, { as: 'ada' });
+    assert.equal(a.res.status, 200, path);
+    assert.equal(a.html, signedIn.html, path);
+    assert.deepEqual(signedIn.cookies, [], path);
     assert.ok(!a.html.includes('class="you"'), path);
+    assert.ok(!a.html.includes('rsm_me'), path);
   }
   for (const path of ['/you', '/signin/code', '/signin/link?l=x&t=y', '/post']) {
     assert.equal((await shut.request(path, { as: 'ada' })).res.status, 404, path);

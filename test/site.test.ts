@@ -274,7 +274,7 @@ test('the sign-in link in a browser says where to use it, and is never cached', 
 test('a profile photo stands in for the letter on the player page, who’s playing and the sign', async () => {
   const { app, store, slug } = await setup();
   const letter = await (await app.request('/players/ada')).text();
-  assert.ok(!letter.includes('avatar photo'));
+  assert.ok(!letter.includes('class="avatar photo"'));
   await store.setAvatar(ada.id, 'face1');
   const page = await (await app.request('/players/ada')).text();
   assert.ok(page.includes('<img src="/p/face1/large.jpg" alt="" loading="lazy"/>'), 'the big face');

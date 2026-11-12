@@ -32,11 +32,11 @@ import { MARKER_COOKIE, forget, fromOrigin, jarFor, sessionViewer } from '../qui
 import { POST_PATH, mountPost } from './post.tsx';
 
 /**
- * Whether the website's sign-in is open. Opening it is Jamie's call; until then it stays false and
- * the site answers as it did. `siteSignInOpen` in the options overrides it (tests, and
- * `SITE_SIGNIN_OPEN=1 npm run dev`).
+ * Whether the website's sign-in is open. Jamie opened it on 2026-11-12 ("turn it on for everyone");
+ * false, the site answers as it did before. `siteSignInOpen` in the options overrides it (tests, and
+ * `npm run dev`, which keeps it shut unless `SITE_SIGNIN_OPEN=1`).
  */
-export const SITE_SIGNIN_OPEN = false;
+export const SITE_SIGNIN_OPEN = true;
 
 /**
  * The path groups the signed-in side answers under. Each has a behaviour of its own on the site's
