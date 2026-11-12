@@ -49,12 +49,38 @@ function needName(player: Player): void {
   if (!player.name) fail('bad_request', 'Give your name first');
 }
 
-export async function moderate<T>(ask: () => Promise<T>): Promise<T> {
+/** The count every moderator call shares, across all players, one window a UTC day. */
+export const MODERATOR_CALLS = 'moderator:all';
+
+/**
+ * Asks the moderator, after counting the call against the day's ceiling across all players
+ * (`LIMITS.moderatorCallsADay`), so a runaway or abusive day can't run up the bill. The call is
+ * counted before it is asked, so requests at once overshoot by little. Past the ceiling the request
+ * is what an unavailable moderator makes it, a 503 that changes nothing, so the app keeps its draft
+ * and tries again. A count that can't be read or written never stands in the way: the call goes on.
+ */
+export async function moderate<T>(
+  store: Store,
+  op: 'post' | 'report' | 'avatar',
+  ask: () => Promise<T>,
+  now = nowSeconds()
+): Promise<T> {
+  let calls: number | undefined;
+  try {
+    calls = await store.bump(MODERATOR_CALLS, DAY, now);
+  } catch (err) {
+    // The error's name only, as with the moderator's key.
+    console.error({ event: 'moderator-count', outcome: (err as Error).name });
+  }
+  if (calls !== undefined && calls > LIMITS.moderatorCallsADay) {
+    failure('moderator', 'ceiling', op);
+    return fail('unavailable', 'Our moderator is busy today. Try again tomorrow.');
+  }
   try {
     return await ask();
   } catch (err) {
     if (err instanceof ModeratorUnavailable) {
-      failure('moderator', 'unavailable');
+      failure('moderator', 'unavailable', op);
       return fail('unavailable', 'Our moderator couldn’t look just now. Try again in a minute.');
     }
     throw err;
@@ -363,7 +389,7 @@ export async function postSign(
       numbers: input.numbers.map((n) => n.value),
       photos: uploads.map((u) => u.large)
     };
-    const verdict = await moderate(() => moderator.reviewPost(post));
+    const verdict = await moderate(store, 'post', () => moderator.reviewPost(post), now);
 
     slug = await reserveSlug(store, id, input.title);
     // A held post's photos never reach the public p/ folder.
@@ -618,7 +644,7 @@ async function judgeReport(
     numbers: sign.numbers.map((n) => n.value),
     photos: larges
   };
-  const verdict = await moderate(() => moderator.reviewReport(post, reason));
+  const verdict = await moderate(store, 'report', () => moderator.reviewReport(post, reason), now);
   const at = isoNow(now);
   const report: Report = {
     signId: sign.id,

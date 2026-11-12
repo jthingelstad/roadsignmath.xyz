@@ -42,6 +42,11 @@ export const LIMITS = {
   postsADay: 20,
   waysADay: 100,
   reportsADay: 20,
+  /**
+   * Moderator calls a UTC day across all players: posts, reports and profile photos together.
+   * Past it they answer 503 as when the moderator is down. The number is the owner's to change.
+   */
+  moderatorCallsADay: 300,
   /** Hearts given or taken back a day per player. */
   heartsADay: 200,
   /** App screen views: in one batch, batches an hour from one network, and batches an hour in all. */

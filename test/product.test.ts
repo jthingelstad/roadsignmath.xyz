@@ -55,7 +55,7 @@ test('the fields a product line may carry are these and no others', () => {
       assert.ok(allowed === 'count' || allowed === 'flag', field);
     }
   }
-  assert.deepEqual(FAILURES, { moderator: ['unavailable', 'refused'], 'signin-mail': ['unsent'] });
+  assert.deepEqual(FAILURES, { moderator: ['unavailable', 'refused', 'ceiling'], 'signin-mail': ['unsent'] });
 });
 
 test('a product line drops any field or word it doesn’t know', () => {
@@ -257,7 +257,7 @@ test('failures are counted lines by kind and outcome, with no address', async ()
   const events = logged.map((args) => (args as unknown[])[0]).filter((e) => typeof e === 'object' && e && 'event' in e);
   assert.deepEqual(events, [
     { event: 'signin-mail', outcome: 'unsent', op: 'app' },
-    { event: 'moderator', outcome: 'unavailable' }
+    { event: 'moderator', outcome: 'unavailable', op: 'report' }
   ]);
   assert.ok(!JSON.stringify(events).includes('@'));
 });
