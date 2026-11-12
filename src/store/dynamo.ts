@@ -209,6 +209,9 @@ export class DynamoStore implements Store {
   async deleteSign(id: string): Promise<void> {
     const sign = await this.getSign(id);
     await this.deletePartition(`SIGN#${id}`);
+    // A co-find added while the partition went, before its way did, isn't in that read. Its way is
+    // gone now, so none can be added after this consistent sweep.
+    for (const coFind of await this.listCoFinds(id)) await this.deleteCoFind(coFind);
     if (sign) await this.unclaim(`SLUG#${sign.slug}`, 'SLUG', 'signId', id);
     await this.delete('SIGNS', `SIGN#${id}`);
   }

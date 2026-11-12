@@ -440,6 +440,32 @@ test('DynamoStore adds a way in one transaction of the documented shape', async 
   for (const i of items) assert.equal(Object.values(i)[0].TableName, 'test-table');
 });
 
+test('DynamoStore leaves no co-find behind when one is added while its sign is deleted', async () => {
+  const fake = new FakeDynamo('test-table');
+  const store = new DynamoStore('test-table', fake);
+  await store.putSign(sign({ id: 'S1', title: 'One' }));
+  const w = way('S1', { id: 'w1' });
+  await store.putWay(w);
+  // Right after the deletion reads the partition, a solve credits Ben on the way still there.
+  const send = fake.send.bind(fake);
+  let raced: string | undefined;
+  fake.send = async (command: object) => {
+    const answer = await send(command);
+    const { constructor, input } = command as { constructor: { name: string }; input: Record<string, unknown> };
+    if (raced === undefined && constructor.name === 'QueryCommand' && input.KeyConditionExpression === 'pk = :pk') {
+      raced = await store.addCoFind(
+        { signId: 'S1', wayId: 'w1', playerId: ben.id, createdAt: '2026-01-11T00:00:00.000Z', via: 'app' },
+        w
+      );
+    }
+    return answer;
+  };
+  await store.deleteSign('S1');
+  assert.equal(raced, 'added');
+  assert.deepEqual(await store.listCoFinds('S1'), []);
+  assert.deepEqual(await store.listWays('S1'), []);
+});
+
 test('DynamoStore adds a co-find in one transaction that checks its way is still there', async () => {
   const fake = new FakeDynamo('test-table');
   const store = new DynamoStore('test-table', fake);
