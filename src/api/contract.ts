@@ -568,9 +568,10 @@ export const ROUTES: Route[] = [
     summary: 'Solve a sign: a new way, or one someone found already',
     description:
       'The math is checked as for adding a way. A new way goes on the sign (`result` is `new_way`) and ' +
-      'earns badges as one would. The same way as one already on the sign, written just so or in another ' +
-      'order (`same_way` in contracts/equation-vectors.json), credits you on that way instead (`also_found`: ' +
-      'you found it too, once, and it earns no badge). Your own way is a conflict. `way` is the way it made ' +
+      'earns badges as one would. The same math as a way already on the sign credits you on that way ' +
+      'instead (`also_found`: you found it too, once, and it earns no badge). A way already there in another ' +
+      'order (`same_way` in contracts/equation-vectors.json) earns nothing and is a conflict, as is your own ' +
+      'way. `way` is the way it made ' +
       'or found. Answers with the sign and all its ways, each with who else found it. You need a name ' +
       `first. Either counts toward the ${LIMITS.waysADay} ways a day.`,
     params: [signId],

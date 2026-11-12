@@ -197,10 +197,12 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
   `.data/mail/` like the sign-in email.
 - **Solving** (`solveSign` in `src/posting/posting.ts`): `POST /signs/{id}/solve`, signed in, takes
   a way like `POST /signs/{id}/ways` and never answers a repeat with a 409. A way new to the sign is
-  added (`result: "new_way"`, with `unlocked` like a posted way); one that is the same way as
-  another player's is a co-find (`result: "also_found"`, with that way and `unlocked: []`): the way
+  added (`result: "new_way"`, with `unlocked` like a posted way); the same math as another
+  player's way is a co-find (`result: "also_found"`, with that way and `unlocked: []`): the way
   stays its first finder's, and the solver is added to its `also_found_by`, once. Co-finds earn no
-  badges. Your own way again is a 409 (`YOURS`, no full stop). Both count toward
+  badges. A reordering of a way there earns nothing (Jamie, 2026-11-11: no credit and no "also
+  found by"), so it is the same 409 `REORDERED` as a way; your own way again is a 409 (`YOURS`, no
+  full stop). Both count toward
   `LIMITS.waysADay`. `via` records `app` or `quiz`. Every way (`GET /signs/{id}` and the sign page)
   carries `also_found_by`, oldest first, less blocked players and players with no name. A co-find
   goes with its way and its sign. `POST /signs/{id}/ways` is unchanged for the App Store app.

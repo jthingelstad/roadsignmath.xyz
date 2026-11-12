@@ -475,9 +475,10 @@ export const YOURS = 'You found that way already';
 export type Solved = { result: 'new_way' | 'also_found'; way: Way; ways: Way[] };
 
 /**
- * Solves a sign (Jamie, 2026-11-11): a new way goes on as `addWay` adds it; the same way as one
- * already there, by the same-way rule, credits the player on that way instead ("You found it
- * too"), once. Their own way is a conflict. Either counts toward the day's ways.
+ * Solves a sign (Jamie, 2026-11-11): a new way goes on as `addWay` adds it; the same math as one
+ * already there credits the player on that way instead ("You found it too"), once. A reordering
+ * of one there earns nothing (Jamie: no credit and no "also found by"), so it is the same conflict
+ * as in `addWay`, and so is the player's own way. Either answer counts toward the day's ways.
  */
 export async function solveSign(
   { store }: PostingDeps,
@@ -487,20 +488,25 @@ export async function solveSign(
   via: CoFind['via']
 ): Promise<Solved> {
   const way = sentWay(player, sign, body);
+  const refuse = (repeat: { way: Way; exactly: boolean }) => {
+    if (!repeat.exactly) fail('conflict', REORDERED);
+    if (repeat.way.playerId === player.id) fail('conflict', YOURS);
+  };
   let repeat = sameAs(await store.listWays(sign.id), way.text);
-  if (repeat?.way.playerId === player.id) fail('conflict', YOURS);
+  if (repeat) refuse(repeat);
   await waysLimit(store, player);
   if (!repeat) {
     const added = await writeWay(store, player, sign, way);
+    if (added === 'reordered') fail('conflict', REORDERED);
     const ways = await store.listWays(sign.id);
     if (added === 'added') {
       const mine = ways.find((w) => w.playerId === player.id && w.text === way.text)!;
       return { result: 'new_way', way: mine, ways };
     }
-    // Someone sent the same way a moment before: theirs is the way, and this one found it too.
+    // Someone sent the same math a moment before: theirs is the way, and this one found it too.
     repeat = sameAs(ways, way.text) ?? fail('conflict', TAKEN);
+    refuse(repeat);
   }
-  if (repeat.way.playerId === player.id) fail('conflict', YOURS);
   const credited = await store.addCoFind(
     { signId: sign.id, wayId: repeat.way.id, playerId: player.id, createdAt: new Date().toISOString(), via },
     repeat.way

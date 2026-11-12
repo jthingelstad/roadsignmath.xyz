@@ -433,9 +433,13 @@ test('solving a sign: a new way goes on, and one already there credits you on it
     'the first way on an unsolved sign'
   );
 
-  const too = await solve('12 + 7 = 19', 'cy');
+  const turned = await solve('12 + 7 = 19', 'cy');
+  assert.equal(turned.res.status, 409, 'the same way in another order earns nothing');
+  assert.equal(turned.body.error.message, REORDERED);
+
+  const too = await solve('7 + 12 = 19', 'cy');
   assert.equal(too.res.status, 200);
-  assert.equal(too.body.result, 'also_found', 'the same way in another order is found too');
+  assert.equal(too.body.result, 'also_found');
   assert.equal(too.body.way.id, first.body.way.id);
   assert.deepEqual(too.body.way.also_found_by, [{ handle: 'cy', name: 'Cy' }]);
   assert.deepEqual(too.body.unlocked, [], 'finding a way already there earns no badge');
@@ -446,7 +450,7 @@ test('solving a sign: a new way goes on, and one already there credits you on it
   assert.equal(again.body.result, 'also_found');
   assert.equal(again.body.way.also_found_by.length, 1, 'once');
 
-  const own = await solve('19 = 12 + 7', 'ben');
+  const own = await solve('7 + 12 = 19', 'ben');
   assert.equal(own.res.status, 409);
   assert.equal(own.body.error.message, YOURS);
   assert.ok(!YOURS.endsWith('.'));
@@ -461,7 +465,8 @@ test('solving a sign: a new way goes on, and one already there credits you on it
 test('who also found a way leaves out a player you blocked', async () => {
   const t = await setup();
   const { body: posted } = await t.post();
-  await t.call('POST', `/signs/${posted.id}/solve`, { as: 'cy', body: { text: '12 + 7 = 19' } });
+  const [first] = await t.store.listWays(posted.id);
+  await t.call('POST', `/signs/${posted.id}/solve`, { as: 'cy', body: { text: first.text } });
   await t.call('POST', '/players/cy/block', { as: 'ben' });
   const seen = await t.call('GET', `/signs/${posted.id}`, { as: 'ben' });
   assert.deepEqual(seen.body.ways[0].also_found_by, []);
@@ -473,7 +478,7 @@ test('the same way solved twice at once: one way, and the other found it too', a
   const t = await setup();
   const { body: posted } = await t.post({ way: undefined });
   const solve = (text: string, as: string) => t.call('POST', `/signs/${posted.id}/solve`, { as, body: { text } });
-  const both = await Promise.all([solve('7 + 12 = 19', 'ben'), solve('12 + 7 = 19', 'cy')]);
+  const both = await Promise.all([solve('7 + 12 = 19', 'ben'), solve('7 + 12 = 19', 'cy')]);
   assert.deepEqual(both.map((a) => a.body.result).sort(), ['also_found', 'new_way']);
   assert.equal((await t.store.listWays(posted.id)).length, 1);
   assert.equal((await t.store.listCoFinds(posted.id)).length, 1);
@@ -484,7 +489,7 @@ test('deleting an account takes its co-finds, and the co-finds on its ways', asy
   const { body: posted } = await t.post({ way: undefined });
   const solve = (text: string, as: string) => t.call('POST', `/signs/${posted.id}/solve`, { as, body: { text } });
   await solve('7 + 12 = 19', 'ben');
-  await solve('12 + 7 = 19', 'cy');
+  await solve('7 + 12 = 19', 'cy');
   await solve('19 − 12 = 7', 'cy');
   await solve('19 − 12 = 7', 'ben');
   assert.equal((await t.store.listCoFinds(posted.id)).length, 2);
