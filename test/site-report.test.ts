@@ -586,3 +586,94 @@ test('a duplicate’s other sign is found by its address, slug, id or a title on
   assert.equal(signNamed(signs, ''), undefined);
   assert.equal(signNamed(signs, 'http://[bad'), undefined);
 });
+
+/** Counts the store's reads while `work` runs, by method. */
+async function storeReads(store: MemoryStore, work: () => Promise<void>) {
+  const calls: string[] = [];
+  const names = Object.getOwnPropertyNames(Object.getPrototypeOf(store)).filter(
+    (n) => n !== 'constructor' && typeof (store as unknown as Record<string, unknown>)[n] === 'function'
+  );
+  const own = store as unknown as Record<string, (...args: unknown[]) => unknown>;
+  const kept = new Map(names.map((n) => [n, own[n]!]));
+  for (const [n, f] of kept) {
+    own[n] = function (this: unknown, ...args: unknown[]) {
+      calls.push(n);
+      return f.apply(store, args);
+    };
+  }
+  try {
+    await work();
+  } finally {
+    for (const n of names) delete own[n];
+  }
+  return calls;
+}
+
+test('open, signed out, every report route goes straight to sign in and reads nothing', async () => {
+  const t = await setup(true);
+  const paths = [...FORMS, '/you/report/sign/no-such-sign', '/you/report/player/nobody'];
+  const calls = await storeReads(t.store, async () => {
+    for (const path of paths) {
+      const out = await t.request(path);
+      assert.equal(out.res.status, 303, `${path} ${out.res.status}`);
+      const back = path.replace(/\/done$/, '');
+      assert.equal(out.location, `/signin?to=${encodeURIComponent(back)}`, path);
+      const posted = await t.request(path.replace(/\/done$/, ''), { form: { note: '' } });
+      assert.equal(posted.location, `/signin?to=${encodeURIComponent(back)}`, `POST ${path}`);
+    }
+  });
+  assert.deepEqual(calls, [], 'not a sign, a player, a way or a report');
+  // A key of the wrong shape is a 404 before the session or anything else is read: only the 404
+  // page's own newest signs are.
+  const bad = await storeReads(t.store, async () => {
+    assert.equal((await t.request('/you/report/sign/Twelve-Seven', { as: 'ada' })).res.status, 404);
+    assert.equal((await t.request('/you/report/player/a--b', { form: { note: '' } })).res.status, 404);
+  });
+  assert.deepEqual(bad, ['allSigns', 'allPlayers', 'allSigns', 'allPlayers']);
+});
+
+test('open, Report this player asks for the ways only when the player has no sign of their own', async () => {
+  const t = await setup(true);
+  const credited = await storeReads(t.store, async () => {
+    assert.equal((await t.request('/you/report/player/ben', { as: 'ada' })).res.status, 200);
+  });
+  assert.ok(!credited.includes('listWays') && !credited.includes('listCoFinds'), credited.join(' '));
+  // A player with no sign: a way found on another's is what gives them a page.
+  await addPlayer(t.store, {
+    id: '01JCCCCCCCCCCCCCCCCCCCCCCC',
+    handle: 'cy',
+    name: 'Cy',
+    avatarColor: '#004C80',
+    createdAt: '2026-01-03T00:00:00.000Z'
+  });
+  const none = await storeReads(t.store, async () => {
+    assert.equal((await t.request('/you/report/player/cy', { as: 'ada' })).res.status, 404);
+  });
+  assert.ok(none.includes('listWays'), 'without a sign, the ways decide');
+});
+
+test('open, a report form drawn with an error focuses the field it is about, or the error', async () => {
+  const t = await setup(true);
+  const long = 'x'.repeat(LIMITS.reportMax + 1);
+  const fresh = await t.request('/you/report/sign/twelve-seven', { as: 'ada' });
+  assert.ok(!fresh.html.includes('aria-invalid') && !fresh.html.includes('id="form-error"'));
+  assert.ok(!/<(?:input|textarea|p)[^>]*autofocus/.test(fresh.html), 'no error, no focus taken');
+  const note = await t.request('/you/report/sign/twelve-seven', { as: 'ada', form: { note: long } });
+  assert.equal(note.res.status, 400);
+  assert.match(
+    note.html,
+    /<textarea[^>]*id="note"[^>]*aria-invalid="true"[^>]*aria-describedby="form-error"[^>]*autofocus/
+  );
+  const other = await t.request('/you/report/duplicate/twelve-seven', { as: 'ada', form: { other: 'nowhere-at-all' } });
+  assert.equal(other.res.status, 400);
+  assert.match(
+    other.html,
+    /<input[^>]*aria-describedby="form-error other-hint"[^>]*aria-invalid="true"[^>]*autofocus/,
+    'the address typed'
+  );
+  const none = await t.request('/you/report/duplicate/twelve-seven', { as: 'ada', form: {} });
+  assert.match(none.html, /<p class="oops" role="alert" id="form-error" tabindex="-1" autofocus="">/, 'nothing picked');
+  assert.ok(!none.html.includes('aria-invalid'));
+  const player = await t.request('/you/report/player/ben', { as: 'ada', form: { note: long } });
+  assert.match(player.html, /<textarea[^>]*id="note"[^>]*aria-invalid="true"/);
+});

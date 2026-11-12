@@ -30,6 +30,7 @@ import { onSigns, credits } from '../quiz/data.ts';
 import { Face, Frame, MessagePage, SITE_PATHS, type Here } from '../quiz/pages.tsx';
 import { QUIZ_OPEN, quizOrigin } from '../quiz/quiz.tsx';
 import { MARKER_COOKIE, forget, fromOrigin, jarFor, sessionViewer } from '../quiz/session.ts';
+import { FORGET_DRAFTS_JS } from './post-script.ts';
 import { POST_PATH, mountPost } from './post.tsx';
 import { mountReports, reportBackTo } from './report.tsx';
 
@@ -46,6 +47,13 @@ export const SITE_SIGNIN_OPEN = true;
  * checks the two lists agree). `/post` is posting from the website (src/web/post.tsx).
  */
 export const ACCOUNT_PATHS = ['/signin', '/signin/*', '/you', '/you/*', '/post', '/post/*'] as const;
+
+/**
+ * Whether a path is on the signed-in side (`ACCOUNT_PATHS`, the report forms under `/post` too).
+ * Its pages, a 404 among them, load no visitor counter: they are a person's own, not the site's.
+ */
+export const onAccountPath = (path: string): boolean =>
+  ACCOUNT_PATHS.some((p) => (p.endsWith('/*') ? path.startsWith(p.slice(0, -1)) : path === p));
 
 const NO_STORE = { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' };
 
@@ -65,7 +73,7 @@ const WHO_STYLE = `<style>.top .you { display: inline-flex; align-items: center;
 @media (max-width: 759px) { .top .you .label { display: none; } .top .lockup img { height: 28px; } }</style>`;
 
 /**
- * Reads `rsm_me` (no secret: a colour, a photo id, a first letter) and puts the player's face where
+ * Reads `rsm_me` (no secret: a colour, a photo id, a first letter, `markerOf`) and puts the player's face where
  * "Sign in" is, linking `/you`. Each part is checked before it is used, and the letter goes in as
  * text, so a marker someone else set can't put anything else on the page.
  */
@@ -73,8 +81,17 @@ export const WHO_SCRIPT = `(() => {
   const a = document.querySelector('.top .you');
   const m = document.cookie.split('; ').find((c) => c.startsWith('${MARKER_COOKIE}='));
   if (!a || !m) return;
-  const p = decodeURIComponent(m.slice(${MARKER_COOKIE.length + 1})).split('.');
-  if (p.length !== 4 || p[0] !== '1' || !/^[0-9a-fA-F]{6}$/.test(p[1]) || !/^[\\w-]*$/.test(p[2]) || [...p[3]].length !== 1) return;
+  let p;
+  try {
+    p = decodeURIComponent(m.slice(${MARKER_COOKIE.length + 1})).split('.');
+    // The letter is encoded on its own (a dot or a % in it can't break the parts): one character,
+    // in capitals, which can be up to three (ß is SS).
+    if (p.length === 4) p[3] = decodeURIComponent(p[3]);
+  } catch (e) {
+    return;
+  }
+  const n = p.length === 4 ? [...p[3]].length : 0;
+  if (p[0] !== '1' || !/^[0-9a-fA-F]{6}$/.test(p[1]) || !/^[\\w-]*$/.test(p[2]) || n < 1 || n > 3) return;
   const face = document.createElement('span');
   face.setAttribute('aria-hidden', 'true');
   if (p[2]) {
@@ -135,13 +152,19 @@ type AccountOptions = ApiOptions & { clientIp: (c: Context) => string };
 /** The signed-in side, mounted on the site before its pages while `SITE_SIGNIN_OPEN`. */
 export function createAccount(options: AccountOptions): Hono {
   const { store, urls } = options;
-  const here: Here = { site: urls.site, quiz: urls.quiz ?? quizOrigin(urls.site), front: 'site' };
+  const quizAt = urls.quiz ?? quizOrigin(urls.site);
+  const quizOpen = options.quizOpen ?? QUIZ_OPEN;
+  // The header's Quiz link, as the site's other pages have it, while Quiz is open.
+  const here: Here = { site: urls.site, quiz: quizAt, front: 'site', quizNav: quizOpen ? quizAt : undefined };
   const jar = jarFor(urls.site, true);
   const app = new Hono();
 
   const page = async (c: Context, body: Child, status: Status = 200) => {
     const viewer = await sessionViewer(store, c, jar);
-    const html = withSignIn('<!doctype html>' + (body as { toString(): string }).toString(), viewer?.player, urls.site);
+    let html = withSignIn('<!doctype html>' + (body as { toString(): string }).toString(), viewer?.player, urls.site);
+    // Signed in, signing out or deleting the account also clears this browser's unposted drafts.
+    const end = html.lastIndexOf('</body>');
+    if (viewer && end >= 0) html = html.slice(0, end) + `<script>${FORGET_DRAFTS_JS}</script>` + html.slice(end);
     return c.html(html, status, NO_STORE);
   };
   const go = (c: Context, path: string) => c.redirect(path, 303);
@@ -165,18 +188,22 @@ export function createAccount(options: AccountOptions): Hono {
     });
   }
 
-  /** Whether the site has a page for the player yet (a sign or a way), and the signs they posted. */
+  /**
+   * Whether the site has a page for the player yet (a sign or a way), and the signs they posted. A
+   * credit on a shown sign answers it from the signs alone; only without one are the ways read.
+   */
   async function profileOf(player: Player) {
     const signs = await store.allSigns();
     const shown = signs.filter(isPublic);
+    const posted = signs.filter((s) => s.postedBy === player.id).length;
+    if (shown.some((s) => credits(s, player.id))) return { hasPage: true, posted };
     const on = await onSigns(store, shown);
     const hasPage = shown.some(
       (s) =>
-        credits(s, player.id) ||
         on.get(s.id)?.ways.some((w) => w.playerId === player.id) ||
         on.get(s.id)?.coFinds.some((f) => f.playerId === player.id)
     );
-    return { hasPage, posted: signs.filter((s) => s.postedBy === player.id).length };
+    return { hasPage, posted };
   }
 
   const posted = async (player: Player) =>
@@ -198,8 +225,8 @@ export function createAccount(options: AccountOptions): Hono {
     deletedWords: 'It’s gone, with everything it made, here, in Quiz and in the app. Thanks for playing Road Sign Math.'
   });
 
-  mountPost(app, { options, jar, page, quiz: (options.quizOpen ?? QUIZ_OPEN) ? here.quiz : undefined });
-  mountReports(app, { options, jar, page, quiz: (options.quizOpen ?? QUIZ_OPEN) ? here.quiz : undefined });
+  mountPost(app, { options, jar, page, quiz: here.quizNav });
+  mountReports(app, { options, jar, page, quiz: here.quizNav });
 
   /** A sign of theirs, by id, in any state, or undefined. */
   const yourSign = async (player: Player, id: string) => (await posted(player)).find((s) => s.id === id.toUpperCase());

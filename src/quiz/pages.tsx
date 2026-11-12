@@ -19,6 +19,7 @@ import { QUIZ_TINYLYTICS_SITE, TINYLYTICS_SCRIPT } from '../web/tinylytics.ts';
 import { CHECKER_JS } from './checker.ts';
 import { KEYPAD_JS } from './keypad.ts';
 import { PHOTOS_JS } from './photos.ts';
+import { faceLetter } from './session.ts';
 import type { OnSign, Solve } from './data.ts';
 
 /**
@@ -26,7 +27,13 @@ import type { OnSign, Solve } from './data.ts';
  * sign-in and profile pages are shared with the site's signed-in side (src/web/account.tsx), which
  * gives `front: 'site'`: the same pages in the site's frame, at the site's paths, with its words.
  */
-export type Here = { site: string; quiz: string; front?: 'quiz' | 'site' };
+export type Here = {
+  site: string;
+  quiz: string;
+  front?: 'quiz' | 'site';
+  /** On the site's front, Quiz's address for the header's Quiz link, only while Quiz is open. */
+  quizNav?: string;
+};
 
 /** Where each shared page lives on a front. */
 export type Paths = {
@@ -316,6 +323,31 @@ const BackTo: FC<{ to?: string }> = ({ to }) => (to ? <input type="hidden" name=
 /** Carries the math a signed-out player built on the sign through signing in (checked by Quiz). */
 const Carry: FC<{ math?: string }> = ({ math }) => (math ? <input type="hidden" name="math" value={math} /> : null);
 
+/** The id of a form's error, which the field it is about names (`aria-describedby`). */
+export const ERROR_ID = 'form-error';
+
+/**
+ * A form's error. Drawn with the page, it takes the focus (`autofocus`, no script needed) unless
+ * the field it is about does (`onField`), so a screen reader and a keyboard start where the trouble
+ * is. A page with no error has none of this, and nothing takes the focus.
+ */
+export const FormError: FC<{ error?: string; onField?: boolean }> = ({ error, onField }) =>
+  error ? (
+    <p
+      class="oops"
+      role="alert"
+      id={ERROR_ID}
+      tabindex={onField ? undefined : -1}
+      autofocus={onField ? undefined : true}
+    >
+      {error}
+    </p>
+  ) : null;
+
+/** What a field with the error carries: marked invalid, tied to the error, and focused. */
+export const invalidField = (bad: boolean | undefined) =>
+  bad ? { 'aria-invalid': 'true', 'aria-describedby': ERROR_ID, autofocus: true } : {};
+
 /** Quiz's frame: header with the logo and the Quiz tab, the page, and a footer to the site. */
 export const Frame: FC<
   PropsWithChildren<{
@@ -324,7 +356,11 @@ export const Frame: FC<
     player?: Player;
     script?: string;
     description?: string;
-    /** Adds Quiz's Tinylytics counter. The sign-in link's page leaves it out: its URL carries the token. */
+    /**
+     * Adds Quiz's Tinylytics counter. The sign-in link's page leaves it out: its URL carries the
+     * token. On the site's front it is always out: those are the account pages, which show the
+     * player's email.
+     */
     count?: boolean;
     /**
      * The sign being played, by slug: the logo goes back to it and the profile carries it, so neither
@@ -334,12 +370,14 @@ export const Frame: FC<
   }>
 > = ({ here, title, player, script, description, count = true, at, children }) => {
   if (onSite(here)) {
-    // The site's own frame: its header (the face swapped in by src/web/account.tsx), its footer.
+    // The site's own frame: its header (the face swapped in by src/web/account.tsx, Quiz while it is
+    // open), its footer, and no third-party counter on a page about the player's account.
     return (
       <Page
         title={`${title} · Road Sign Math`}
         description={description ?? 'Your Road Sign Math account.'}
-        count={count}
+        quiz={here.quizNav}
+        count={false}
         banner={false}
         style={FORM_STYLE}
         script={script}
@@ -456,7 +494,7 @@ export const Face: FC<{ player: Pick<Player, 'name' | 'avatarColor' | 'avatar'>;
       class={player.avatarColor.toUpperCase() === '#F2B300' ? 'av ink' : 'av'}
       style={`width: ${size}px; height: ${size}px; background: ${player.avatarColor}; font-size: ${Math.round(size * 0.42)}px`}
     >
-      {[...(player.name.trim() || '?')][0].toUpperCase()}
+      {faceLetter(player.name)}
     </span>
   );
 
@@ -719,13 +757,15 @@ export const HomePage: FC<{ here: Here; sample?: Sign; more: Sign[] }> = ({ here
   </Frame>
 );
 
-export const SignInPage: FC<{ here: Here; error?: string; email?: string; to?: string; math?: string }> = ({
-  here,
-  error,
-  email,
-  to,
-  math
-}) => (
+export const SignInPage: FC<{
+  here: Here;
+  error?: string;
+  /** The error is about the email typed (not, say, a limit or a sign-in that ended). */
+  badEmail?: boolean;
+  email?: string;
+  to?: string;
+  math?: string;
+}> = ({ here, error, badEmail, email, to, math }) => (
   <Frame here={here} title="Sign in">
     <div class="stack narrow">
       <h1>{math ? 'Sign in to send it' : onSite(here) ? 'Sign in' : 'Sign in to play'}</h1>
@@ -740,16 +780,21 @@ export const SignInPage: FC<{ here: Here; error?: string; email?: string; to?: s
           ? 'One account for roadsignmath.xyz, Quiz and the Road Sign Math app. Already play? Use the same email.'
           : 'One account for Quiz and the Road Sign Math app. Already play in the app? Use the same email.'}
       </p>
-      {error && (
-        <p class="oops" role="alert">
-          {error}
-        </p>
-      )}
+      <FormError error={error} onField={badEmail} />
       <form method="post" action={pathsOf(here).signin} class="stack">
         <BackTo to={to} />
         <Carry math={math} />
         <label for="em">Email</label>
-        <input id="em" class="field" type="email" name="email" autocomplete="email" required value={email ?? ''} />
+        <input
+          id="em"
+          class="field"
+          type="email"
+          name="email"
+          autocomplete="email"
+          required
+          value={email ?? ''}
+          {...invalidField(!!error && badEmail)}
+        />
         <button class="btn" type="submit">
           Email me a code
         </button>
@@ -793,11 +838,7 @@ export const CodePage: FC<{
           <p class="meta">Your math is kept. It’s back on the sign once you’re in.</p>
         </div>
       )}
-      {error && (
-        <p class="oops" role="alert">
-          {error}
-        </p>
-      )}
+      <FormError error={error} onField />
       <form method="post" action={pathsOf(here).code} class="stack">
         <input type="hidden" name="login" value={loginId} />
         <BackTo to={to} />
@@ -811,6 +852,7 @@ export const CodePage: FC<{
           pattern="[0-9]{6}"
           maxlength={6}
           required
+          {...invalidField(!!error)}
         />
         <button class="btn" type="submit">
           Sign in
@@ -835,8 +877,9 @@ export const CodePage: FC<{
 );
 
 /**
- * Where the email's link lands. Mail scanners follow links, so opening it changes nothing: the
- * button (pressed for you when scripts run) sends the link's token, and that signs you in.
+ * Where the email's link lands. Mail scanners follow links, and some run a page's scripts, so
+ * opening it changes nothing and nothing presses its button for you: the button, focused, sends the
+ * link's token, and that signs you in.
  */
 export const LinkPage: FC<{ here: Here; loginId: string; token: string; to?: string }> = ({
   here,
@@ -844,19 +887,14 @@ export const LinkPage: FC<{ here: Here; loginId: string; token: string; to?: str
   token,
   to
 }) => (
-  <Frame
-    here={here}
-    title="Signing you in"
-    count={false}
-    script="document.getElementById('go').requestSubmit && document.getElementById('go').requestSubmit();"
-  >
+  <Frame here={here} title="Sign in" count={false}>
     <div class="stack narrow">
-      <h1>Signing you in…</h1>
+      <h1>Sign in</h1>
       <form id="go" method="post" action={pathsOf(here).link} class="stack">
         <input type="hidden" name="login" value={loginId} />
         <input type="hidden" name="token" value={token} />
         <BackTo to={to} />
-        <button class="btn" type="submit">
+        <button class="btn" type="submit" autofocus>
           {onSite(here) ? 'Sign in to Road Sign Math' : 'Sign in to Quiz'}
         </button>
       </form>
@@ -875,16 +913,21 @@ export const NamePage: FC<{ here: Here; player: Player; error?: string; to?: str
     <div class="stack narrow">
       <h1>You’re in. What should we call you?</h1>
       <p class="lede">Your name goes beside the ways you find, on the signs and in the app.</p>
-      {error && (
-        <p class="oops" role="alert">
-          {error}
-        </p>
-      )}
+      <FormError error={error} onField />
       <form method="post" action={pathsOf(here).name} class="stack">
         <BackTo to={to} />
         <Carry math={math} />
         <label for="nm">Your name</label>
-        <input id="nm" class="field" type="text" name="name" autocomplete="given-name" maxlength={40} required />
+        <input
+          id="nm"
+          class="field"
+          type="text"
+          name="name"
+          autocomplete="given-name"
+          maxlength={40}
+          required
+          {...invalidField(!!error)}
+        />
         <p class="meta">It also makes your page’s address on roadsignmath.xyz, for good.</p>
         <button class="btn" type="submit">
           {onSite(here) ? 'Save my name' : 'Start playing'}

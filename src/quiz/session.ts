@@ -51,15 +51,19 @@ export const jarFor = (site: string, shared: boolean): Jar => ({ shared, domain:
 const sharedOptions = (jar: Jar) => ({ ...OPTIONS, ...(jar.domain && { domain: jar.domain }) });
 
 /**
- * The marker's value: `1.<colour>.<photo id>.<first letter>`, each part checked again by the
- * script that reads it. Nothing in it is private: all of it is on the player's public page.
+ * The marker's value: `1.<colour>.<photo id>.<letter>`, each part checked again by the script that
+ * reads it. The letter is the face's, the first character of the name in capitals as `Face` draws
+ * it (`ß` is `SS`), percent-encoded with its dots too, so no name can add a part or leave the
+ * script without one. Nothing in it is private: all of it is on the player's public page.
  */
 export function markerOf(player: Pick<Player, 'name' | 'avatarColor' | 'avatar'>): string {
   const color = /^#[0-9A-Fa-f]{6}$/.test(player.avatarColor) ? player.avatarColor.slice(1) : '006348';
   const photo = player.avatar && /^[\w-]+$/.test(player.avatar) ? player.avatar : '';
-  const letter = [...(player.name.trim() || '?')][0]!.toUpperCase();
-  return `1.${color}.${photo}.${letter}`;
+  return `1.${color}.${photo}.${encodeURIComponent(faceLetter(player.name)).replace(/\./g, '%2E')}`;
 }
+
+/** The letter a face without a photo shows: the name's first character in capitals, or `?`. */
+export const faceLetter = (name: string): string => [...(name.trim() || '?')][0]!.toUpperCase();
 
 function keep(c: Context, jar: Jar, token: string, player: Player, maxAge: number): void {
   if (!jar.shared) {
@@ -76,7 +80,21 @@ function keep(c: Context, jar: Jar, token: string, player: Player, maxAge: numbe
  * (`viewerFor`), and the browser's copy would otherwise end first, at 180 days from sign-in. While
  * the shared cookie is on, Quiz's own moves to it, and the marker is sent again with today's face.
  */
-export async function sessionViewer(store: Store, c: Context, jar: Jar): Promise<Viewer | undefined> {
+export function sessionViewer(store: Store, c: Context, jar: Jar): Promise<Viewer | undefined> {
+  // Once a request: a handler and the page it draws ask the same question, and the cookies it
+  // sends again go out once.
+  let viewer = viewers.get(c);
+  if (!viewer) {
+    viewer = readViewer(store, c, jar);
+    viewers.set(c, viewer);
+  }
+  return viewer;
+}
+
+/** Each request's answer to `sessionViewer`, until it signs in or out (`remember`, `forget`). */
+const viewers = new WeakMap<Context, Promise<Viewer | undefined>>();
+
+async function readViewer(store: Store, c: Context, jar: Jar): Promise<Viewer | undefined> {
   const shared = getCookie(c, SESSION_COOKIE);
   const own = getCookie(c, COOKIE);
   const token = shared ?? own;
@@ -113,6 +131,7 @@ export async function sessionViewer(store: Store, c: Context, jar: Jar): Promise
 
 /** Keeps a new token for as long as a session lasts unused (it is pushed back as it is used). */
 export function remember(c: Context, jar: Jar, token: string, player: Player): void {
+  viewers.delete(c);
   keep(c, jar, token, player, SESSION_IDLE);
 }
 
@@ -126,6 +145,7 @@ export function freshMarker(c: Context, jar: Jar, player: Player): void {
 
 /** Signs this browser out: Quiz's own cookie as always, and the shared ones when it has them. */
 export function forget(c: Context, jar: Jar): void {
+  viewers.set(c, Promise.resolve(undefined));
   deleteCookie(c, COOKIE, OPTIONS);
   if (jar.shared || getCookie(c, SESSION_COOKIE) !== undefined || getCookie(c, MARKER_COOKIE) !== undefined) {
     deleteCookie(c, SESSION_COOKIE, sharedOptions(jar));

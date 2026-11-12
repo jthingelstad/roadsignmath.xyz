@@ -11,13 +11,32 @@
 // - The place can be picked on a map (Leaflet and OpenStreetMap's tiles, as on Home), never from
 //   the browser's own location.
 // - The form is kept in this browser (localStorage) until the sign posts, so a closed tab or a
-//   lost connection loses nothing.
+//   lost connection loses nothing. It is kept under the player (`draftKey`, from a hash of their
+//   id, never their email), so on a shared browser the next player never sees it, and signing out
+//   or deleting the account takes every draft away (`FORGET_DRAFTS_JS`).
+// - HEIC is added to the photo picker only where this browser can open one (a tiny HEIC is tried);
+//   without scripts the picker leaves it out, so iOS Safari hands over a JPEG the server takes.
 // - On the math step, Quiz's keypad (src/quiz/keypad.ts) builds the math from the tiles.
 
+import { createHash } from 'node:crypto';
 import { MAP_LIBRARIES, MAP_TILES, US_VIEW } from './home-map.ts';
 
-/** Where the draft is kept in the browser until the sign posts. */
+/**
+ * Where drafts are kept in the browser until the sign posts: this, then `:` and the player's
+ * `draftOwner`. Before 2026-11-12 one draft was kept here for whoever was signed in.
+ */
 export const DRAFT_KEY = 'rsm-post-draft';
+
+/** A player's own part of the draft's key: a hash of their id (not the id, never the email). */
+export const draftOwner = (playerId: string): string =>
+  createHash('sha256').update(`rsm-post-draft:${playerId}`).digest('hex').slice(0, 16);
+
+/** The key a player's draft is kept under. */
+export const draftKey = (playerId: string): string => `${DRAFT_KEY}:${draftOwner(playerId)}`;
+
+/** A 2-pixel HEIC, made with macOS `sips`: a browser that can open it can open the player's. */
+export const HEIC_PROBE =
+  'AAAAJGZ0eXBoZWljAAAAAG1pZjFNaVBybWlhZk1pSEJoZWljAAABh21ldGEAAAAAAAAAIWhkbHIAAAAAAAAAAHBpY3QAAAAAAAAAAAAAAAAAAAAAJGRpbmYAAAAcZHJlZgAAAAAAAAABAAAADHVybCAAAAABAAAADnBpdG0AAAAAAAEAAAAjaWluZgAAAAAAAQAAABVpbmZlAgAAAAABAABodmMxAAAAAOdpcHJwAAAAxmlwY28AAAATY29scm5jbHgAAgACAAaAAAAADGNsbGkAywBAAAAAFGlzcGUAAAAAAAAAAgAAAAIAAAAJaXJvdAAAAAAQcGl4aQAAAAADCAgIAAAAcmh2Y0MBA3AAAACwAAAAAAAe8AD8/fj4AAALA6AAAQAXQAEMAf//A3AAAAMAsAAAAwAAAwAecCShAAEAJEIBAQNwAAADALAAAAMAAAMAHqAUIEHAoQQYh7kWVTcCAgYAgKIAAQAJRAHAYXLIQFMkAAAAGWlwbWEAAAAAAAAAAQABBoECAwWGhAAAAB5pbG9jAAAAAEQAAAEAAQAAAAEAAAG7AAAAPwAAAAFtZGF0AAAAAAAAAE8AAAA7KAGvovpGgXz//drP//bl+y/QCj1X/7QnyPm7sv+mUPdMsmf6IPnCOd4c8OZz7/blQi9hX4K3CEmyK4A=';
 
 /**
  * Reads a photo's EXIF for its place and day: `window.RSMExif.read(bytes)` gives `{ lat, lng, day }`,
@@ -117,6 +136,10 @@ export const POST_JS = `(() => {
   const day = form.elements.namedItem('found_on');
   const approx = form.elements.namedItem('approximate');
   const store = (() => { try { return window.localStorage; } catch (e) { return undefined; } })();
+  // This player's draft (data-draft, from their id). The one from before drafts had owners can't be
+  // told apart from another player's, so it goes.
+  const KEY = /^[0-9a-f]{16}$/.test(form.dataset.draft || '') ? '${DRAFT_KEY}:' + form.dataset.draft : undefined;
+  try { if (store) store.removeItem('${DRAFT_KEY}'); } catch (e) { /* nothing kept */ }
   const say = (words) => { said.textContent = words; };
   const ids = () => Array.from(shots.querySelectorAll('input[name="photos"]')).map((i) => i.value);
   const room = () => {
@@ -127,13 +150,13 @@ export const POST_JS = `(() => {
 
   // ---- The draft, kept in this browser until the sign posts
   const save = () => {
-    if (!store) return;
+    if (!store || !KEY) return;
     const data = { photos: ids() };
     for (const el of Array.from(form.elements)) {
       if (!el.name || el.tagName === 'BUTTON' || el.type === 'file' || el.name === 'photos') continue;
       data[el.name] = el.type === 'checkbox' ? (el.checked ? '1' : '') : el.value;
     }
-    try { store.setItem('${DRAFT_KEY}', JSON.stringify(data)); } catch (e) { /* full or blocked: the form still works */ }
+    try { store.setItem(KEY, JSON.stringify(data)); } catch (e) { /* full or blocked: the form still works */ }
   };
   let timer;
   const later = () => { clearTimeout(timer); timer = setTimeout(save, 300); };
@@ -250,9 +273,22 @@ export const POST_JS = `(() => {
     e.preventDefault();
     say('Wait a moment: a photo is still being sent.');
   });
+  // What the script does with a photo, said only now that it runs.
+  const reads = document.getElementById('photo-reads');
+  if (reads) reads.hidden = false;
   if (file) {
     file.multiple = true;
     if (add) add.hidden = true;
+    // HEIC only where this browser can open it (and so read, turn and shrink it).
+    (async () => {
+      try {
+        const bytes = Uint8Array.from(atob('${HEIC_PROBE}'), (ch) => ch.charCodeAt(0));
+        const probe = await createImageBitmap(new Blob([bytes], { type: 'image/heic' }));
+        if (probe && probe.width) file.accept += ',image/heic,image/heif';
+      } catch (e) {
+        // This browser can't open HEIC: the picker keeps to JPEG, PNG and WebP.
+      }
+    })();
     file.addEventListener('change', async () => {
       const picked = Array.from(file.files || []).slice(0, Math.max(0, MOST - ids().length));
       file.value = '';
@@ -414,7 +450,7 @@ export const POST_JS = `(() => {
   // ---- A draft from before, back in a fresh form
   const fresh = form.dataset.fresh === '1';
   let kept;
-  try { kept = fresh && store ? JSON.parse(store.getItem('${DRAFT_KEY}') || 'null') : undefined; } catch (e) { kept = undefined; }
+  try { kept = fresh && store && KEY ? JSON.parse(store.getItem(KEY) || 'null') : undefined; } catch (e) { kept = undefined; }
   if (kept && typeof kept === 'object') {
     for (const [name, value] of Object.entries(kept)) {
       const el = form.elements.namedItem(name);
@@ -438,5 +474,24 @@ export const POST_JS = `(() => {
   room();
 })();`;
 
-/** The posted page's: the draft is done with. */
-export const DONE_JS = `try { window.localStorage.removeItem('${DRAFT_KEY}'); } catch (e) { /* nothing kept */ }`;
+/** The posted page's: the player's draft is done with. */
+export const doneJs = (playerId: string): string =>
+  `try { window.localStorage.removeItem(${JSON.stringify(draftKey(playerId))}); } catch (e) { /* nothing kept */ }`;
+
+/**
+ * On the signed-in side's pages: signing out, or deleting the account, takes every draft kept in
+ * this browser with it, so the next player on it finds none.
+ */
+export const FORGET_DRAFTS_JS = `document.addEventListener('submit', (e) => {
+  const action = e.target && e.target.getAttribute && e.target.getAttribute('action');
+  if (action !== '/you/signout' && action !== '/you/delete') return;
+  try {
+    const store = window.localStorage;
+    for (let i = store.length - 1; i >= 0; i--) {
+      const key = store.key(i);
+      if (key === '${DRAFT_KEY}' || (key && key.startsWith('${DRAFT_KEY}:'))) store.removeItem(key);
+    }
+  } catch (err) {
+    /* nothing kept */
+  }
+});`;

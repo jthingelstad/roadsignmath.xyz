@@ -14,9 +14,11 @@
 // - `/you/report/player/<handle>`: the app's report of a player (`reportPlayer`), emailed to the
 //   owner. One per player; nothing is hidden.
 //
-// Each POST goes on to the same path with `/done`, which says what became of it. Signed out, a form
-// goes to sign in and comes back (`reportBackTo`, the allowlist the sign-in's `to` takes). A sign or
-// player with no page here is a 404, as the page is. Reports, their limits, their emails to the
+// Each POST goes on to the same path with `/done`, which says what became of it. Every route asks
+// who is signed in before anything else: signed out, a form goes straight to sign in and comes back
+// (`reportBackTo`, the allowlist the sign-in's `to` takes), reading nothing but the session, and a
+// key that isn't slug-shaped is a 404 before any read. A sign or player with no page here is a 404,
+// as the page is. Reports, their limits, their emails to the
 // owner and their product lines (marked `front: 'site'`) are the app's, not copies.
 
 import type { Context, Hono } from 'hono';
@@ -29,13 +31,13 @@ import type { Player, Sign } from '../domain/types.ts';
 import { reportDuplicate, reportPlayer, reportSign } from '../posting/posting.ts';
 import { similarSigns } from '../posting/similar.ts';
 import { sentence, trouble, type Status } from '../quiz/account.tsx';
-import { FORM_STYLE, SITE_PATHS } from '../quiz/pages.tsx';
+import { FORM_STYLE, FormError, SITE_PATHS, invalidField } from '../quiz/pages.tsx';
 import { sessionViewer, type Jar } from '../quiz/session.ts';
 import { mailDuplicate, mailPlayerReport, mailReport } from '../reports.ts';
 import { Page } from './layout.tsx';
 import { Facts } from './cards.tsx';
 import { playerByKey, signByKey } from './permalinks.ts';
-import { playerPageParts } from './site.tsx';
+import { hasPlayerPage } from './site.tsx';
 
 export const REPORT_PATH = '/you/report';
 
@@ -116,8 +118,12 @@ export function mountReports(app: Hono, { options, jar, page, quiz }: ReportFron
   const mail = { store, mailer: options.mailer, urls, to: options.feedbackTo };
   const go = (c: Context, path: string) => c.redirect(path, 303);
 
-  /** The player, or a redirect to sign in (or to give a name first) and back to `back`. */
-  async function reporter(c: Context, back: string): Promise<Player | Response> {
+  /**
+   * The player, or a redirect to sign in (or to give a name first) and back to the form. Asked first
+   * on every route, so a signed-out visitor costs one session read and nothing more.
+   */
+  async function reporter(c: Context, kind: ReportKind): Promise<Player | Response> {
+    const back = reportPath(kind, c.req.param('key') ?? '');
     const viewer = await sessionViewer(store, c, jar);
     if (!viewer) return go(c, `${SITE_PATHS.signin}?to=${encodeURIComponent(back)}`);
     if (!viewer.player.name) return go(c, `${SITE_PATHS.name}?to=${encodeURIComponent(back)}`);
@@ -160,12 +166,17 @@ export function mountReports(app: Hono, { options, jar, page, quiz }: ReportFron
 
   /** The player a form is for, by handle, when their page answers, else undefined. */
   async function pagedPlayer(key: string): Promise<Player | undefined> {
-    if (!KEY.test(key) || key.length > KEY_MAX) return undefined;
     const named = playerByKey(await store.allPlayers(), key);
     if (!named?.canonical) return undefined;
     const shown = (await store.allSigns()).filter(isPublic);
-    return (await playerPageParts(store, named.found, shown)) ? named.found : undefined;
+    return (await hasPlayerPage(store, named.found, shown)) ? named.found : undefined;
   }
+
+  /** A key of a slug's or handle's shape, else undefined (a 404 before anything is read). */
+  const keyOf = (c: Context) => {
+    const key = c.req.param('key') ?? '';
+    return KEY.test(key) && key.length <= KEY_MAX ? key : undefined;
+  };
 
   // ---- Report this sign
 
@@ -173,31 +184,31 @@ export function mountReports(app: Hono, { options, jar, page, quiz }: ReportFron
    * The sign a sign report is about: one whose page answers, or one this player already reported
    * (it may have come down since, and they see what became of it).
    */
-  async function reportedSign(c: Context, key: string) {
-    const viewer = await sessionViewer(store, c, jar);
-    const sign = await shownSign(key, viewer?.player);
-    if (sign || !viewer || !KEY.test(key))
-      return { sign, earlier: sign && (await store.getReport(sign.id, viewer?.player.id ?? '')) };
+  async function reportedSign(key: string, player: Player) {
+    const sign = await shownSign(key, player);
+    if (sign) return { sign, earlier: await store.getReport(sign.id, player.id) };
     const any = (await store.allSigns()).find((s) => s.slug === key);
-    const earlier = any ? await store.getReport(any.id, viewer.player.id) : undefined;
+    const earlier = any ? await store.getReport(any.id, player.id) : undefined;
     return earlier ? { sign: any, earlier } : { sign: undefined, earlier: undefined };
   }
 
   app.get(`${REPORT_PATH}/sign/:key`, async (c) => {
-    const key = c.req.param('key');
-    const { sign, earlier } = await reportedSign(c, key);
-    if (!sign) return c.notFound();
-    const who = await reporter(c, reportPath('sign', key));
+    const key = keyOf(c);
+    if (!key) return c.notFound();
+    const who = await reporter(c, 'sign');
     if (who instanceof Response) return who;
+    const { sign, earlier } = await reportedSign(key, who);
+    if (!sign) return c.notFound();
     if (earlier) return page(c, <SignReported sign={sign} outcome={earlier} site={urls.site} quiz={quiz} already />);
     return page(c, <SignReportPage sign={sign} urls={urls} quiz={quiz} yours={sign.postedBy === who.id} />);
   });
 
   app.post(`${REPORT_PATH}/sign/:key`, async (c) => {
-    const key = c.req.param('key');
-    const who = await reporter(c, reportPath('sign', key));
+    const key = keyOf(c);
+    if (!key) return c.notFound();
+    const who = await reporter(c, 'sign');
     if (who instanceof Response) return who;
-    const { sign, earlier } = await reportedSign(c, key);
+    const { sign, earlier } = await reportedSign(key, who);
     if (!sign) return c.notFound();
     if (earlier) return go(c, `${reportPath('sign', key)}/done`);
     const note = tidy(one((await c.req.parseBody()) as Body, 'note'));
@@ -233,11 +244,12 @@ export function mountReports(app: Hono, { options, jar, page, quiz }: ReportFron
   });
 
   app.get(`${REPORT_PATH}/sign/:key/done`, async (c) => {
-    const key = c.req.param('key');
-    const { sign, earlier } = await reportedSign(c, key);
-    if (!sign) return c.notFound();
-    const who = await reporter(c, reportPath('sign', key));
+    const key = keyOf(c);
+    if (!key) return c.notFound();
+    const who = await reporter(c, 'sign');
     if (who instanceof Response) return who;
+    const { sign, earlier } = await reportedSign(key, who);
+    if (!sign) return c.notFound();
     if (!earlier) return go(c, reportPath('sign', key));
     return page(c, <SignReported sign={sign} outcome={earlier} site={urls.site} quiz={quiz} />);
   });
@@ -245,19 +257,20 @@ export function mountReports(app: Hono, { options, jar, page, quiz }: ReportFron
   // ---- Report a duplicate
 
   app.get(`${REPORT_PATH}/duplicate/:key`, async (c) => {
-    const key = c.req.param('key');
-    const viewer = await sessionViewer(store, c, jar);
-    const sign = await shownSign(key, viewer?.player);
-    if (!sign) return c.notFound();
-    const who = await reporter(c, reportPath('duplicate', key));
+    const key = keyOf(c);
+    if (!key) return c.notFound();
+    const who = await reporter(c, 'duplicate');
     if (who instanceof Response) return who;
+    const sign = await shownSign(key, who);
+    if (!sign) return c.notFound();
     const choices = await similarTo(who, sign);
     return page(c, <DuplicatePage sign={sign} urls={urls} quiz={quiz} choices={choices} />);
   });
 
   app.post(`${REPORT_PATH}/duplicate/:key`, async (c) => {
-    const key = c.req.param('key');
-    const who = await reporter(c, reportPath('duplicate', key));
+    const key = keyOf(c);
+    if (!key) return c.notFound();
+    const who = await reporter(c, 'duplicate');
     if (who instanceof Response) return who;
     const sign = await shownSign(key, who);
     if (!sign) return c.notFound();
@@ -302,12 +315,12 @@ export function mountReports(app: Hono, { options, jar, page, quiz }: ReportFron
   });
 
   app.get(`${REPORT_PATH}/duplicate/:key/done`, async (c) => {
-    const key = c.req.param('key');
-    const viewer = await sessionViewer(store, c, jar);
-    const sign = await shownSign(key, viewer?.player);
-    if (!sign) return c.notFound();
-    const who = await reporter(c, reportPath('duplicate', key));
+    const key = keyOf(c);
+    if (!key) return c.notFound();
+    const who = await reporter(c, 'duplicate');
     if (who instanceof Response) return who;
+    const sign = await shownSign(key, who);
+    if (!sign) return c.notFound();
     if (!(await store.getDuplicate(sign.id, who.id))) return go(c, reportPath('duplicate', key));
     return page(c, <DuplicateNoted sign={sign} quiz={quiz} />);
   });
@@ -315,11 +328,12 @@ export function mountReports(app: Hono, { options, jar, page, quiz }: ReportFron
   // ---- Report this player
 
   app.get(`${REPORT_PATH}/player/:key`, async (c) => {
-    const key = c.req.param('key');
+    const key = keyOf(c);
+    if (!key) return c.notFound();
+    const who = await reporter(c, 'player');
+    if (who instanceof Response) return who;
     const player = await pagedPlayer(key);
     if (!player) return c.notFound();
-    const who = await reporter(c, reportPath('player', key));
-    if (who instanceof Response) return who;
     if (await store.getPlayerReport(player.id, who.id)) {
       return page(c, <PlayerReported player={player} quiz={quiz} already />);
     }
@@ -327,8 +341,9 @@ export function mountReports(app: Hono, { options, jar, page, quiz }: ReportFron
   });
 
   app.post(`${REPORT_PATH}/player/:key`, async (c) => {
-    const key = c.req.param('key');
-    const who = await reporter(c, reportPath('player', key));
+    const key = keyOf(c);
+    if (!key) return c.notFound();
+    const who = await reporter(c, 'player');
     if (who instanceof Response) return who;
     const player = await pagedPlayer(key);
     if (!player) return c.notFound();
@@ -358,11 +373,12 @@ export function mountReports(app: Hono, { options, jar, page, quiz }: ReportFron
   });
 
   app.get(`${REPORT_PATH}/player/:key/done`, async (c) => {
-    const key = c.req.param('key');
+    const key = keyOf(c);
+    if (!key) return c.notFound();
+    const who = await reporter(c, 'player');
+    if (who instanceof Response) return who;
     const player = await pagedPlayer(key);
     if (!player) return c.notFound();
-    const who = await reporter(c, reportPath('player', key));
-    if (who instanceof Response) return who;
     if (!(await store.getPlayerReport(player.id, who.id))) return go(c, reportPath('player', key));
     return page(c, <PlayerReported player={player} quiz={quiz} />);
   });
@@ -403,6 +419,7 @@ const ReportFrame: FC<PropsWithChildren<{ title: string; quiz?: string }>> = ({ 
     description="Report something on Road Sign Math."
     quiz={quiz}
     banner={false}
+    count={false}
     style={FORM_STYLE + REPORT_STYLE}
   >
     <main id="main" class="wrap acct">
@@ -411,12 +428,16 @@ const ReportFrame: FC<PropsWithChildren<{ title: string; quiz?: string }>> = ({ 
   </Page>
 );
 
-const Oops: FC<{ error?: string }> = ({ error }) =>
-  error ? (
-    <p class="oops" role="alert">
-      {error}
-    </p>
-  ) : null;
+/** A report form's error, focused when the page is drawn with it (the field it is about, if any, instead). */
+const Oops: FC<{ error?: string; onField?: boolean }> = ({ error, onField }) => (
+  <FormError error={error} onField={onField} />
+);
+
+/** Whether a report form's error is about its note. */
+const aboutNote = (error?: string) => !!error && /^Your note/.test(error);
+
+/** Whether a duplicate report's error is about the other sign's address. */
+const aboutOther = (error?: string) => !!error && /^No sign has that address/.test(error);
 
 /** The sign a report is about: its first photo, title and place, linked to its page while it is shown. */
 const AboutSign: FC<{ sign: Sign; site: string }> = ({ sign, site }) => {
@@ -433,10 +454,10 @@ const AboutSign: FC<{ sign: Sign; site: string }> = ({ sign, site }) => {
 };
 
 /** "Anything to add?", the app's optional note. */
-const NoteField: FC<{ note?: string; max: number }> = ({ note, max }) => (
+const NoteField: FC<{ note?: string; max: number; bad?: boolean }> = ({ note, max, bad }) => (
   <>
     <label for="note">Anything to add?</label>
-    <textarea id="note" name="note" class="field" maxlength={max} placeholder="Optional">
+    <textarea id="note" name="note" class="field" maxlength={max} placeholder="Optional" {...invalidField(bad)}>
       {note ?? ''}
     </textarea>
   </>
@@ -466,8 +487,8 @@ const SignReportPage: FC<{ sign: Sign; urls: Urls; quiz?: string; yours: boolean
           Is this sign inappropriate? The moderator takes another look, and if it agrees, the sign comes down for
           everyone.
         </p>
-        <NoteField note={note} max={REPORT_NOTE_MAX} />
-        <Oops error={error} />
+        <NoteField note={note} max={REPORT_NOTE_MAX} bad={aboutNote(error)} />
+        <Oops error={error} onField={aboutNote(error)} />
         <button class="btn warn" type="submit">
           Report as inappropriate
         </button>
@@ -574,13 +595,15 @@ const DuplicatePage: FC<{
         autocomplete="off"
         spellcheck={false}
         value={typed ?? ''}
-        aria-describedby="other-hint"
+        aria-describedby={aboutOther(error) ? 'form-error other-hint' : 'other-hint'}
+        aria-invalid={aboutOther(error) ? 'true' : undefined}
+        autofocus={aboutOther(error) ? true : undefined}
       />
       <p class="meta" id="other-hint">
         The other sign’s page, like roadsignmath.xyz/signs/its-name, or its name as it is in that address.
       </p>
-      <NoteField note={note} max={LIMITS.reportMax} />
-      <Oops error={error} />
+      <NoteField note={note} max={LIMITS.reportMax} bad={aboutNote(error)} />
+      <Oops error={error} onField={aboutNote(error) || aboutOther(error)} />
       <button class="btn" type="submit">
         Report as a duplicate
       </button>
@@ -623,8 +646,8 @@ const PlayerReportPage: FC<{ player: Player; quiz?: string; yourself: boolean; n
           Is something on <a href={playerPath(player)}>{player.name}’s page</a> inappropriate? Your report goes to
           Jamie, who runs Road Sign Math, with your name. Nothing comes down on its own.
         </p>
-        <NoteField note={note} max={REPORT_NOTE_MAX} />
-        <Oops error={error} />
+        <NoteField note={note} max={REPORT_NOTE_MAX} bad={aboutNote(error)} />
+        <Oops error={error} onField={aboutNote(error)} />
         <button class="btn warn" type="submit">
           Report as inappropriate
         </button>

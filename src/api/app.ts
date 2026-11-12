@@ -32,7 +32,7 @@ import { notFoundPage } from '../web/not-found.tsx';
 import { frontOf } from '../front.ts';
 import { createQuiz } from '../quiz/quiz.tsx';
 import { Census } from '../census.ts';
-import { SITE_SIGNIN_OPEN, createAccount, signInHeader } from '../web/account.tsx';
+import { SITE_SIGNIN_OPEN, createAccount, onAccountPath, signInHeader } from '../web/account.tsx';
 import { createSite } from '../web/site.tsx';
 import { mergedSlugs } from '../web/permalinks.ts';
 import {
@@ -712,7 +712,8 @@ function siteApp(options: ApiOptions & { heartCounts: HeartCounts }): Hono {
     app.route('/', createAccount({ ...options, clientIp: options.clientIp ?? cloudFrontIp }));
   }
   app.route('/', createSite(options));
-  const page = notFoundPage(options);
+  const signInOpen = options.siteSignInOpen ?? SITE_SIGNIN_OPEN;
+  const page = notFoundPage({ ...options, uncounted: (path) => signInOpen && onAccountPath(path) });
   app.notFound((c) => {
     if (!c.req.path.startsWith('/api/')) return page(c);
     c.header('API-Version', API_VERSION);
