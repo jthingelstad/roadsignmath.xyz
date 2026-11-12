@@ -121,7 +121,7 @@ test('hide-sign --to live hides it as an upheld report does, and clears the edge
   assert.ok(await photos.get(`ph-${S1}`, 'large', 'held'));
   assert.equal(edgeCache.clears, 1);
   // Gone from the site, the feeds and the API.
-  assert.equal((await app.request(`/signs/${S1}`)).status, 404);
+  assert.equal((await app.request('/signs/exit-seven')).status, 404);
   assert.ok(!(await (await app.request('/feed.json')).text()).includes('exit-seven'));
   assert.equal((await app.request('/api/v1/signs/exit-seven')).status, 404);
   assert.deepEqual(await runOwner(deps, 'hide-sign', 'exit-seven', 'live'), [
@@ -140,7 +140,7 @@ test('hide-sign --to live hides it as an upheld report does, and clears the edge
   assert.equal(back.visibility, 'shown');
   assert.equal(back.moderation, undefined);
   assert.ok(await photos.get(`ph-${S1}`, 'large', 'shown'));
-  assert.equal((await app.request(`/signs/${S1}`)).status, 200);
+  assert.equal((await app.request('/signs/exit-seven')).status, 200);
   assert.equal(edgeCache.clears, 2);
 });
 

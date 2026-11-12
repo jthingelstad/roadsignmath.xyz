@@ -19,15 +19,13 @@ export const cardVersion = (shows: unknown[]): string =>
   createHash('sha256').update(JSON.stringify(shows)).digest('hex').slice(0, 10);
 
 /**
- * A sign's card path: its old address by slug, not its page's address by id. The card maker
- * takes only lowercase letters, digits and hyphens after `/rsm/signs/` and fetches
- * roadsignmath.xyz at the same path, following a 301 on the same site to the page, which names
- * this card as its og:image. So the cards keep working, and keep their cached drawings, with no
- * change on cards.thingelstad.com.
+ * A sign's card path: its page's address by slug. The card maker takes only lowercase letters,
+ * digits and hyphens after `/rsm/signs/` and fetches roadsignmath.xyz at the same path, the page
+ * that names this card as its og:image. Never an id: the card maker refuses capitals.
  */
 export const signCardPath = (sign: { slug: string }): string => `/signs/${sign.slug}`;
 
-/** A player's card path: their old address by handle, for the same reasons as a sign's. */
+/** A player's card path: their page's address by handle, for the same reasons as a sign's. */
 export const playerCardPath = (player: { handle: string }): string => `/players/${player.handle}`;
 
 /** The card for the page at path ("/" is Home), showing `shows`. */

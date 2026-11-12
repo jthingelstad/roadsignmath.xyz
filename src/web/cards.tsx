@@ -37,7 +37,7 @@ export const Facts: FC<{ items: (string | false | null | undefined)[] }> = ({ it
 
 /**
  * Tinylytics' kudos button, filled in by its script with ❤️ and the count. The count is kept at
- * the sign's heart path (its old address by slug, `heartPath`), the same one the app's hearts
+ * the sign's heart path (its address by slug, `heartPath`), the same one the app's hearts
  * use, so both add up together. It is not the page's address: never move it there.
  */
 export const Heart: FC<{ sign: { slug: string; title: string } }> = ({ sign }) => (

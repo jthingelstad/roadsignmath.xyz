@@ -86,7 +86,7 @@ test('a report Claude upholds emails Jamie the sign, its link, the reason, the v
   const lines = mail.text.split('\n');
   assert.deepEqual(lines.slice(0, 10), [
     'Cara (@cara) reported “Exit Seven”.',
-    'https://example.test/signs/01JS0000000000000000000001',
+    'https://example.test/signs/exit-seven',
     '',
     'Reason: Spam, not a sign',
     '',
@@ -143,8 +143,8 @@ test('a duplicate report is emailed too, labelled as a duplicate', async () => {
   assert.equal(mail.subject, 'Road Sign Math duplicate: Exit Seven');
   assert.deepEqual(mail.text.split('\n').slice(0, 5), [
     'Cara (@cara) says “Exit Seven” is a duplicate of “Mile Twelve”.',
-    'This one: https://example.test/signs/01JS0000000000000000000001',
-    'Same as: https://example.test/signs/01JS0000000000000000000002',
+    'This one: https://example.test/signs/exit-seven',
+    'Same as: https://example.test/signs/mile-twelve',
     '',
     'Note: Same exit, other side'
   ]);

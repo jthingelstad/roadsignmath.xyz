@@ -1650,9 +1650,6 @@ const PlayerPage: FC<{
           <Crumbs trail={[{ name: 'All players', href: '/players' }, { name: player.name }]} />
           <div class="who-is h-card">
             <data hidden class="u-url" value={`${urls.site}${base}`} />
-            {/* Its old address too: the card maker asks for the card there (src/web/share.ts), and
-                finds the h-card by the address it fetched, which comes here with a 301. */}
-            <data hidden class="u-url" value={`${urls.site}${playerCardPath(player)}`} />
             {photo && <data hidden class="u-photo" value={photo} />}
             <data hidden class="p-avatar-color" value={player.avatarColor} />
             <data hidden class="p-sign-count" value={String(stats.sign_count)} />

@@ -57,7 +57,7 @@ test('an address with no page answers 404 with the way back and the three newest
       /<a href="\/"><span aria-hidden="true">←<\/span> Back to the map<\/a><a href="\/signs">See every sign<\/a>/
     );
     const newest = [...html.matchAll(/<li><a href="\/signs\/([^"]+)">/g)].map((m) => m[1]);
-    assert.deepEqual(newest, [id(4), id(3), id(2)], path);
+    assert.deepEqual(newest, ['sign-4', 'sign-3', 'sign-2'], path);
     assert.ok(!html.includes('Held Back'));
   }
 });
@@ -90,7 +90,7 @@ test('a page asked for with a trailing slash goes to the address without it', as
   const { page } = await setup();
   for (const [from, to] of [
     ['/signs/', '/signs'],
-    [`/signs/${id(1)}/?sort=latest`, `/signs/${id(1)}?sort=latest`],
+    ['/signs/sign-1/?sort=latest', '/signs/sign-1?sort=latest'],
     ['/about//', '/about'],
     ['/nowhere/', '/nowhere']
   ]) {
@@ -160,7 +160,7 @@ test('the header and footer show the horizontal logo, colour on light and white 
   const lockup = (alt: string, height: number) =>
     `<picture class="lockup"><source srcset="/brand/${BRAND_VERSION}/lockup-horizontal-white.svg" media="(prefers-color-scheme: dark)"/>` +
     `<img src="/brand/${BRAND_VERSION}/lockup-horizontal-color.svg" alt="${alt}" width="${Math.round((LOCKUP_SIZE.width * height) / LOCKUP_SIZE.height)}" height="${height}"/></picture>`;
-  for (const path of ['/', `/signs/${id(1)}`, '/about', '/nowhere']) {
+  for (const path of ['/', '/signs/sign-1', '/about', '/nowhere']) {
     const { html } = await page(path);
     // The header's link home is named by the logo's alt text, the site's name.
     assert.ok(html.includes(`<a class="brand" href="/">${lockup('Road Sign Math', 44)}</a>`), path);
@@ -265,9 +265,9 @@ test('every page starts with a skip link to its one main, and the footer names t
   for (const path of [
     '/',
     '/signs',
-    `/signs/${id(1)}`,
+    '/signs/sign-1',
     '/players',
-    `/players/${ada.id}`,
+    '/players/ada',
     '/app',
     '/about',
     '/privacy',

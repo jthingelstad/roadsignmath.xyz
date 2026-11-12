@@ -34,8 +34,8 @@ export const HEADER_FIELDS: Field[] = [
 ];
 
 export const SIGN_FIELDS: Field[] = [
-  ['id', 'string', 'The sign’s id, the last part of its page’s address, /signs/<id>. Never changes.'],
-  ['slug', 'string', 'Its name in its old address, /signs/<slug>, which still leads to its page. Never changes.'],
+  ['id', 'string', 'The sign’s id. Never changes.'],
+  ['slug', 'string', 'Its name in its address, /signs/<slug>. Never changes.'],
   ['url', 'string', 'Its page.'],
   ['title', 'string', 'Its title, as the poster wrote it.'],
   ['caption', 'string or null', 'What the poster wrote about it.'],
@@ -80,12 +80,8 @@ export const SIGN_FIELDS: Field[] = [
 ];
 
 export const PLAYER_FIELDS: Field[] = [
-  ['id', 'string', 'Their id, the last part of their page’s address, /players/<id>. Never changes.'],
-  [
-    'handle',
-    'string',
-    'Their handle, in their old address, /players/<handle>, which still leads to their page. Never changes.'
-  ],
+  ['id', 'string', 'Their id. Never changes.'],
+  ['handle', 'string', 'Their handle, in their address, /players/<handle>. Never changes.'],
   ['name', 'string', 'Their name.'],
   ['url', 'string', 'Their page.'],
   ['feed_url', 'string', 'Their JSON Feed; feed.xml beside it is Atom.'],
@@ -118,7 +114,7 @@ export const PLAYER_FIELDS: Field[] = [
 export const GEO_FIELDS: Field[] = [
   ['id', 'string', 'The sign’s id, the last part of its page’s address.'],
   ['geometry.coordinates', 'array', '[longitude, latitude], in that order, as GeoJSON has it.'],
-  ['properties.slug', 'string', 'Its name in its old address, which still leads to its page.'],
+  ['properties.slug', 'string', 'Its name in its address.'],
   ['properties.title', 'string', 'Its title.'],
   ['properties.url', 'string', 'Its page.'],
   ['properties.found_on', 'string', 'The day it was found, YYYY-MM-DD.'],

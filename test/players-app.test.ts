@@ -208,8 +208,8 @@ test('the header names Map, Signs, Players and About, and marks the page you are
     '<a href="/" aria-current="page">Map</a><a href="/signs">Signs</a><a href="/players">Players</a><a href="/about">About</a>'
   );
   assert.match(nav((await page('/about')).html), /<a href="\/about" aria-current="page">About<\/a>/);
-  assert.match(nav((await page(`/players/${ada.id}`)).html), /<a href="\/players" aria-current="page">Players<\/a>/);
-  assert.match(nav((await page(`/signs/${id(2)}`)).html), /<a href="\/signs" aria-current="page">Signs<\/a>/);
+  assert.match(nav((await page('/players/ada')).html), /<a href="\/players" aria-current="page">Players<\/a>/);
+  assert.match(nav((await page('/signs/ada-new')).html), /<a href="\/signs" aria-current="page">Signs<\/a>/);
 });
 
 test('the sitemap lists /players and /app', async () => {
