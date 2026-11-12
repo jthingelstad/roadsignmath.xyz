@@ -951,7 +951,8 @@ export function createSite({
           <h2>What’s public</h2>
           <p>
             What you post is public, in the app and on this website: your signs’ photos, where each sign was found, the
-            math, your caption, the ways you find on any sign, your name, your profile photo and your badges.
+            math, your caption, the ways you find on any sign, your name, your profile photo, the bio, website and home
+            you add to your profile, and your badges.
           </p>
           <p>
             It is shared under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>, so anyone may use
@@ -969,7 +970,10 @@ export function createSite({
           </p>
           <h2>Who helps run it</h2>
           <ul>
-            <li>Claude, Anthropic’s AI, looks at each photo and post before it goes up.</li>
+            <li>
+              Claude, Anthropic’s AI, looks at each photo and post before it goes up, and at the words you put on your
+              profile.
+            </li>
             <li>
               Amazon Web Services hosts this website, the app’s server and the photos, and sends the sign-in emails.
             </li>
@@ -996,11 +1000,15 @@ export function createSite({
             When you report a sign, Claude looks at it again, and Jamie gets an email about it: the sign, your reason,
             what Claude decided and your player name. Your email address is never in it.
           </p>
+          <p>
+            When you report a player, Jamie gets an email about it: their name and page, your reason and your player
+            name. Claude doesn’t look at it and nothing is hidden. Your email address is never in it.
+          </p>
           <h2>Leaving</h2>
           <p>
             Delete my account, in the app’s settings or on your profile in Quiz, deletes your account and everything you
-            made: your signs and their photos, the ways you added, your hearts, your profile photo and your email
-            address, which leaves the newsletter too.
+            made: your signs and their photos, the ways you added, your hearts, your profile photo, your website and
+            home, any reports you made, and your email address, which leaves the newsletter too.
           </p>
           <p>
             Road Sign Math keeps backup copies so a mistake can be undone. Anything deleted is gone from them within a
@@ -1035,8 +1043,8 @@ export function createSite({
             <li>Post road signs, with math that’s true.</li>
             <li>Nothing hateful, sexual, violent or cruel, and no photos that aren’t yours to share.</li>
             <li>
-              Claude looks at every post. Anything that breaks these rules comes down, and so can the account that
-              posted it.
+              Claude looks at every post and every profile. Anything that breaks these rules comes down, and so can the
+              account that posted it.
             </li>
             <li>Never play while you drive. The passenger snaps the sign.</li>
             <li>It’s a hobby: free, as is, and no promise it’ll be here forever.</li>
