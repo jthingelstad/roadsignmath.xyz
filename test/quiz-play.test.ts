@@ -6,10 +6,12 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
+import sharp from 'sharp';
 import { createApp } from '../src/api/app.ts';
 import { check, numbersNotOnSign } from '../src/domain/equation.ts';
 import type { Player } from '../src/domain/types.ts';
 import { MemoryMailer } from '../src/mail/mailer.ts';
+import { MemoryNewsletter } from '../src/newsletter.ts';
 import { MemoryPhotoStore } from '../src/photos.ts';
 import { CHECKER_JS, CHECKER_SOURCE_SHA } from '../src/quiz/checker.ts';
 import { KEYPAD_JS } from '../src/quiz/keypad.ts';
@@ -34,12 +36,16 @@ const nameless: Player = {
 async function setup() {
   const store = new MemoryStore();
   const mailer = new MemoryMailer();
+  const photos = new MemoryPhotoStore();
+  const moderator = new ScriptedModerator();
+  const newsletter = new MemoryNewsletter();
   const app = createApp({
     store,
     urls: { site: SITE },
     mailer,
-    photos: new MemoryPhotoStore(),
-    moderator: new ScriptedModerator(),
+    photos,
+    moderator,
+    newsletter,
     clientIp: () => '192.0.2.1',
     quizOpen: true
   });
@@ -70,21 +76,33 @@ async function setup() {
   );
   const quiz = async (
     path: string,
-    init: { method?: string; form?: Record<string, string>; as?: string; cookie?: string; origin?: string | null } = {}
+    init: {
+      method?: string;
+      form?: Record<string, string>;
+      /** A multipart form, as a file input sends it. */
+      upload?: FormData;
+      as?: string;
+      cookie?: string;
+      origin?: string | null;
+    } = {}
   ) => {
     const headers: Record<string, string> = { 'X-RSM-Front': 'quiz' };
     const cookie = init.cookie ?? (init.as ? `rsm_quiz=${tokens[init.as]}` : undefined);
     if (cookie) headers.cookie = cookie;
-    let body: string | undefined;
+    let body: string | FormData | undefined;
     if (init.form) {
       headers['content-type'] = 'application/x-www-form-urlencoded';
       body = new URLSearchParams(init.form).toString();
-      if (init.origin !== null) headers.origin = init.origin ?? QUIZ;
-    }
-    const res = await app.request(path, { method: init.method ?? (init.form ? 'POST' : 'GET'), headers, body });
+    } else if (init.upload) body = init.upload;
+    if (body !== undefined && init.origin !== null) headers.origin = init.origin ?? QUIZ;
+    const res = await app.request(path, {
+      method: init.method ?? (body !== undefined ? 'POST' : 'GET'),
+      headers,
+      body
+    });
     return { res, html: await res.text(), location: res.headers.get('location') };
   };
-  return { store, mailer, quiz, tokens };
+  return { app, store, mailer, photos, moderator, newsletter, quiz, tokens };
 }
 
 const plain = (html: string) => html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ');
@@ -481,4 +499,192 @@ test('the keypad never runs two tiles together, and holds Send for math the sign
       JSON.stringify(context.RSMCheck!.numbersNotOnSign(used, on)),
       JSON.stringify(numbersNotOnSign(used, on))
     );
+});
+
+// ---- Your profile
+
+const jpeg = (color = '#f2b300') =>
+  sharp({ create: { width: 300, height: 120, channels: 3, background: color } })
+    .jpeg()
+    .toBuffer();
+
+const upload = async (bytes: Buffer | string, type = 'image/jpeg') => {
+  const form = new FormData();
+  form.set('photo', new Blob([bytes], { type }), 'me.jpg');
+  return form;
+};
+
+test('a player’s profile photo shows in Quiz’s header and beside their ways; without one, their letter', async () => {
+  const t = await setup();
+  await t.store.setAvatar(ada.id, 'av-ada');
+  const mine = await t.quiz('/solved', { as: 'ada' });
+  assert.ok(mine.html.includes(`<a class="me" href="/profile"`), 'the header leads to the profile');
+  assert.ok(mine.html.includes(`<img src="${SITE}/p/av-ada/thumb.jpg" alt=""/>`), 'her photo, from the site');
+  const ways = await t.quiz('/signs/seven-twelve/ways', { as: 'ben' });
+  assert.ok(ways.html.includes(`${SITE}/p/av-ada/thumb.jpg`), 'Ada’s face beside her way');
+  const header = /<header[\s\S]*?<\/header>/.exec(ways.html)![0];
+  assert.ok(!header.includes('/p/'), 'Ben has no photo');
+  assert.match(plain(header), /Your profile ?B$/, 'so his letter shows');
+  const profile = await t.quiz('/profile', { as: 'ada' });
+  assert.ok(profile.html.includes(`${SITE}/p/av-ada/large.jpg`), 'drawn big, the large size');
+});
+
+test('the profile: name, bio, email only she sees, her page, and edits that keep what was typed', async () => {
+  const t = await setup();
+  assert.equal((await t.quiz('/profile')).location, '/signin', 'signed out, sign in first');
+  const { res, html } = await t.quiz('/profile', { as: 'ada' });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('cache-control'), 'no-store');
+  const text = decoded(plain(html));
+  assert.ok(text.includes('Your profile'));
+  assert.ok(html.includes('value="Ada"') && html.includes('value="Counts everything."'));
+  assert.ok(text.includes('ada@example.com') && text.includes('Only you see your email.'));
+  assert.ok(html.includes(`href="${SITE}/players/ada"`), 'her page on the site');
+  assert.ok(html.includes('action="/profile/photo"') && html.includes('enctype="multipart/form-data"'));
+  assert.ok(html.includes('action="/signout"') && html.includes('href="/profile/delete"'));
+  assert.ok(!html.includes('href="/profile/photo/remove"'), 'no photo, nothing to remove');
+  assert.ok(!html.includes('role="status"'));
+
+  const ben = decoded(plain((await t.quiz('/profile', { as: 'ben' })).html));
+  assert.ok(ben.includes('Your page on roadsignmath.xyz starts with the first way you find.'));
+  assert.ok(!(await t.quiz('/profile', { as: 'ben' })).html.includes('/players/ben'), 'no link to a page not there');
+
+  const saved = await t.quiz('/profile', { as: 'ada', form: { name: 'Ada Lovelace', bio: '' } });
+  assert.equal(saved.res.status, 303);
+  assert.equal(saved.location, '/profile?done=saved');
+  const now = (await t.store.getPlayer(ada.id))!;
+  assert.equal(now.name, 'Ada Lovelace');
+  assert.ok(!now.bio, 'an empty bio takes it away');
+  assert.equal(now.handle, 'ada', 'the page’s address stays');
+  assert.ok((await t.quiz('/profile?done=saved', { as: 'ada' })).html.includes('Saved.'));
+  assert.ok(!(await t.quiz('/profile?done=nope', { as: 'ada' })).html.includes('role="status"'));
+
+  const blank = await t.quiz('/profile', { as: 'ada', form: { name: '  ', bio: 'Still counting.' } });
+  assert.equal(blank.res.status, 400);
+  assert.ok(blank.html.includes('Name is 1 to 40 characters.'));
+  assert.ok(blank.html.includes('value="Still counting."'), 'what she typed stays');
+  assert.equal((await t.store.getPlayer(ada.id))!.name, 'Ada Lovelace', 'nothing changed');
+});
+
+test('a profile photo: set through the moderator, refused in its words, replaced, removed after asking', async () => {
+  const t = await setup();
+  const set = await t.quiz('/profile/photo', { as: 'ben', upload: await upload(await jpeg()) });
+  assert.equal(set.res.status, 303);
+  assert.equal(set.location, '/profile?done=photo');
+  assert.equal(t.moderator.avatars.length, 1, 'Claude looked first');
+  const first = (await t.store.getPlayer(ben.id))!.avatar!;
+  assert.ok(first);
+  const large = (await t.photos.get(first, 'large', 'shown'))!;
+  assert.deepEqual(
+    [(await sharp(large).metadata()).width, (await sharp(large).metadata()).height],
+    [512, 512],
+    'cropped square'
+  );
+  const shown = await t.quiz('/profile?done=photo', { as: 'ben' });
+  assert.ok(shown.html.includes('Your new photo is up.'));
+  assert.ok(shown.html.includes(`${SITE}/p/${first}/thumb.jpg`));
+  assert.ok(shown.html.includes('href="/profile/photo/remove"'));
+
+  t.moderator.avatar = { verdict: 'hold', reason: 'That one can’t be your photo.' };
+  const refused = await t.quiz('/profile/photo', { as: 'ben', upload: await upload(await jpeg('#b01c33')) });
+  assert.equal(refused.res.status, 422);
+  assert.ok(decoded(refused.html).includes('That one can’t be your photo.'));
+  t.moderator.avatar = 'unavailable';
+  const down = await t.quiz('/profile/photo', { as: 'ben', upload: await upload(await jpeg('#b01c33')) });
+  assert.equal(down.res.status, 503);
+  assert.ok(decoded(down.html).includes('Try again in a minute.'));
+  assert.equal((await t.store.getPlayer(ben.id))!.avatar, first, 'neither changed it');
+
+  const notPhoto = await t.quiz('/profile/photo', { as: 'ben', upload: await upload('hello', 'text/plain') });
+  assert.equal(notPhoto.res.status, 400);
+  assert.ok(notPhoto.html.includes('Send a JPEG, PNG or WebP photo.'));
+  const none = await t.quiz('/profile/photo', { as: 'ben', upload: new FormData() });
+  assert.equal(none.res.status, 400);
+  assert.ok(none.html.includes('Choose a photo first.'));
+
+  t.moderator.avatar = { verdict: 'ok', reason: '' };
+  await t.quiz('/profile/photo', { as: 'ben', upload: await upload(await jpeg('#004c80')) });
+  const second = (await t.store.getPlayer(ben.id))!.avatar!;
+  assert.notEqual(second, first);
+  assert.equal(await t.photos.get(first, 'large', 'shown'), undefined, 'the photo it replaced is gone');
+
+  const asking = await t.quiz('/profile/photo/remove', { as: 'ben' });
+  assert.equal(asking.res.status, 200);
+  assert.ok(asking.html.includes('Remove your profile photo?'));
+  assert.equal((await t.store.getPlayer(ben.id))!.avatar, second, 'asking changes nothing');
+  const removed = await t.quiz('/profile/photo/remove', { as: 'ben', form: {} });
+  assert.equal(removed.location, '/profile?done=removed');
+  assert.equal((await t.store.getPlayer(ben.id))!.avatar, undefined);
+  assert.equal(await t.photos.get(second, 'large', 'shown'), undefined);
+  assert.equal((await t.quiz('/profile/photo/remove', { as: 'ben' })).location, '/profile', 'none left to remove');
+});
+
+test('sign out from the profile ends the session', async () => {
+  const t = await setup();
+  const out = await t.quiz('/signout', { as: 'ada', form: {} });
+  assert.equal(out.location, '/');
+  assert.match(out.res.headers.get('set-cookie')!, /rsm_quiz=;.*Max-Age=0/);
+  assert.equal((await t.quiz('/profile', { as: 'ada' })).location, '/signin');
+});
+
+test('Delete my account: asked first, then everything goes, the newsletter too, and the cookie', async () => {
+  const t = await setup();
+  await t.newsletter.add(ada.email!);
+  await t.store.setAvatar(ada.id, 'av-ada');
+  const asking = await t.quiz('/profile/delete', { as: 'ada' });
+  assert.equal(asking.res.status, 200);
+  assert.ok(
+    decoded(plain(asking.html)).includes(
+      'This deletes your account and everything it made: the 2 signs you posted (with every way found on them)'
+    )
+  );
+  assert.ok(await t.store.getPlayer(ada.id), 'asking changes nothing');
+  assert.ok(
+    decoded(plain((await t.quiz('/profile/delete', { as: 'ben' })).html)).includes(
+      'everything it made: the ways you found, your name'
+    )
+  );
+
+  const gone = await t.quiz('/profile/delete', { as: 'ada', form: {} });
+  assert.equal(gone.res.status, 303);
+  assert.equal(gone.location, '/deleted');
+  assert.match(gone.res.headers.get('set-cookie')!, /rsm_quiz=;.*Max-Age=0/);
+  assert.equal(await t.store.getPlayer(ada.id), undefined);
+  assert.deepEqual(await t.store.allSigns(), [], 'her signs went with her');
+  assert.ok(!t.newsletter.list.has(ada.email!), 'she left the newsletter');
+  assert.ok(decoded((await t.quiz('/deleted')).html).includes('Your account is deleted'));
+  assert.equal((await t.quiz('/next', { as: 'ada' })).location, '/signin', 'her session is gone');
+});
+
+test('every profile change must come from Quiz’s own pages', async () => {
+  const t = await setup();
+  await t.store.setAvatar(ada.id, 'av-ada');
+  const evil = { as: 'ada', origin: 'https://evil.example' };
+  for (const [path, init] of [
+    ['/profile', { form: { name: 'Mallory', bio: 'gotcha' } }],
+    ['/profile/photo', { upload: await upload(await jpeg()) }],
+    ['/profile/photo/remove', { form: {} }],
+    ['/profile/delete', { form: {} }]
+  ] as const) {
+    const refused = await t.quiz(path, { ...evil, ...init });
+    assert.equal(refused.res.status, 400, path);
+    assert.ok(decoded(refused.html).includes('That didn’t come from Quiz'), path);
+    const bare = await t.quiz(path, { as: 'ada', origin: null, ...init });
+    assert.equal(bare.res.status, 400, `${path} with no Origin`);
+  }
+  const still = (await t.store.getPlayer(ada.id))!;
+  assert.equal(still.name, 'Ada');
+  assert.equal(still.avatar, 'av-ada');
+  assert.equal(t.moderator.avatars.length, 0);
+});
+
+test('/privacy and /support say Quiz has Delete my account too', async () => {
+  const t = await setup();
+  const privacy = decoded(plain(await (await t.app.request('/privacy')).text()));
+  assert.ok(privacy.includes('Delete my account, in the app or on your profile in Quiz, removes them too.'));
+  assert.ok(
+    privacy.includes('Delete my account, in the app’s settings or on your profile in Quiz, deletes your account')
+  );
+  const support = decoded(plain(await (await t.app.request('/support')).text()));
+  assert.ok(support.includes('In Quiz, choose your picture at the top of any page to open your profile'));
 });
