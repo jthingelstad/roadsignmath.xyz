@@ -17,7 +17,7 @@ import { newsletterAtSignIn, removeAvatar, removePlayer, setAvatar, updateMe } f
 import { finishSignIn, network, signOut, startSignIn, viewerFor, type Viewer } from '../auth/auth.ts';
 import { myActivity } from '../activity.ts';
 import { sendFeedback } from '../feedback.ts';
-import { mailDuplicate, mailReport } from '../reports.ts';
+import { mailDuplicate, mailPlayerReport, mailReport } from '../reports.ts';
 import { HeartCounts, heartView, setHeart } from '../hearts.ts';
 import type { Mailer } from '../mail/mailer.ts';
 import type { Moderator } from '../moderation/moderator.ts';
@@ -37,8 +37,10 @@ import {
   solveSign,
   blockPlayer,
   deleteSign,
+  leaveSign,
   postSign,
   reportDuplicate,
+  reportPlayer,
   reportSign,
   unblockPlayer,
   uploadPhoto
@@ -436,7 +438,7 @@ export function createApi(options: ApiOptions): Hono {
     },
 
     async updateMe(c, { data, viewer }) {
-      const player = await updateMe(store, viewer!.player, await jsonBody(c));
+      const player = await updateMe(deps, viewer!.player, await jsonBody(c));
       return c.json(await me(player, await data()));
     },
 
@@ -513,6 +515,18 @@ export function createApi(options: ApiOptions): Hono {
     async deleteSign(c, { data, viewer }) {
       const sign = findSign((await data()).signs, pathParam(c, 'id'));
       await deleteSign(deps, viewer!.player, sign);
+      return c.body(null, 204);
+    },
+
+    async leaveSign(c, { data, viewer }) {
+      const player = viewer!.player;
+      const key = pathParam(c, 'id');
+      // A sign that credits them, even one they can't see (hidden, or posted by a player they
+      // blocked); any other they see answers as one that doesn't credit them.
+      const credited = (await store.allSigns()).filter((s) => s.finders.some((f) => f.playerId === player.id));
+      const sign =
+        credited.find((s) => s.id === key.toUpperCase() || s.slug === key) ?? findSign((await data()).signs, key);
+      await leaveSign(store, player, sign);
       return c.body(null, 204);
     },
 
@@ -611,6 +625,15 @@ export function createApi(options: ApiOptions): Hono {
     async blockPlayer(c, { viewer }) {
       await blockPlayer(store, viewer!.player, pathParam(c, 'handle'));
       return c.body(null, 204);
+    },
+
+    async reportPlayer(c, { viewer }) {
+      const reporter = viewer!.player;
+      // Jamie gets an email of each new report (src/reports.ts), best-effort; nothing is hidden.
+      await reportPlayer(store, reporter, pathParam(c, 'handle'), await jsonBody(c), (saved, reported) =>
+        mailPlayerReport(reportMail, reporter, reported, saved)
+      );
+      return c.json({ received: true });
     },
 
     async unblockPlayer(c, { viewer }) {

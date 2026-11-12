@@ -6,7 +6,7 @@
  * Bump on every change to the surface. tools/export-api-contract.ts refuses a changed surface
  * under a version already in contracts/api-versions.json.
  */
-export const API_VERSION = '1.14.1';
+export const API_VERSION = '1.15.0';
 
 export const LIMITS = {
   /** Signs per page of the feed. */
@@ -69,7 +69,8 @@ export const ERRORS = {
   not_found: 'No such route, sign or player.',
   conflict: 'It already exists (that way was found), or the same post or account change is still being made.',
   too_large: `The photo is over ${LIMITS.photoBytes / 1024 / 1024} MB.`,
-  refused: 'The moderator wouldn’t show that profile photo; the message says why, for the player.',
+  refused:
+    'The moderator wouldn’t show that profile photo or those profile words; the message says why, for the player.',
   rate_limited: 'Too many tries for now; the message says when to try again.',
   internal: 'Something broke on the server.',
   unavailable: 'The moderator, the hearts counter or the mail couldn’t answer just now; try again in a minute.'
@@ -384,17 +385,20 @@ export const ROUTES: Route[] = [
     operationId: 'updateMe',
     method: 'patch',
     path: '/me',
-    summary: 'Change your name or bio',
+    summary: 'Change your name, bio, website or home',
     description:
       'The first name you give also sets your handle, the address of your page; it stays after that. ' +
-      `A null or empty bio removes it. At most ${LIMITS.profileEditsADay} changes a day; sending what you already ` +
-      'have changes nothing and counts for nothing.',
+      'A null or empty bio, website or home removes it. A website is an http or https address; one without a ' +
+      'scheme gets https. Our moderator looks at the words that change, all in one look, before any is saved: ' +
+      '422 `refused` says why it wouldn’t show them, and 503 means it couldn’t look and nothing changed. ' +
+      `At most ${LIMITS.profileEditsADay} changes a day; sending what you already have changes nothing and ` +
+      'counts for nothing.',
     params: [],
     auth: 'signed_in',
     body: 'MeUpdate',
     status: 200,
     response: 'Me',
-    errors: ['rate_limited']
+    errors: ['rate_limited', 'refused', 'unavailable']
   },
   {
     operationId: 'deleteMe',
@@ -556,6 +560,20 @@ export const ROUTES: Route[] = [
     status: 204
   },
   {
+    operationId: 'leaveSign',
+    method: 'delete',
+    path: '/signs/{id}/finders/me',
+    summary: 'Take yourself off a sign’s finders',
+    description:
+      'For a sign that credits you and someone else posted (delete your own sign instead). Your ways on it stay. ' +
+      'When you were its only finder, its poster is credited instead. A sign that doesn’t credit you is left ' +
+      'as it is. A 409 means another finder is leaving it just now; try again.',
+    params: [signId],
+    auth: 'signed_in',
+    errors: ['conflict'],
+    status: 204
+  },
+  {
     operationId: 'addWay',
     method: 'post',
     path: '/signs/{id}/ways',
@@ -683,6 +701,22 @@ export const ROUTES: Route[] = [
     params: [handle],
     auth: 'signed_in',
     status: 204
+  },
+  {
+    operationId: 'reportPlayer',
+    method: 'post',
+    path: '/players/{handle}/report',
+    summary: 'Report a player',
+    description:
+      'Sends your reason to the owner of Road Sign Math, with your name and handle. Nothing is hidden and our ' +
+      'moderator doesn’t look; what happens next is the owner’s call. One report per player; sending another ' +
+      `changes nothing. You can’t report yourself. It counts against the ${LIMITS.reportsADay} reports a day.`,
+    params: [handle],
+    auth: 'signed_in',
+    body: 'ReportPost',
+    errors: ['rate_limited'],
+    status: 200,
+    response: 'PlayerReportReceived'
   },
   {
     operationId: 'unblockPlayer',

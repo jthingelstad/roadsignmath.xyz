@@ -2,6 +2,7 @@ import type {
   Block,
   CoFind,
   DuplicateReport,
+  PlayerReport,
   Heart,
   Login,
   Player,
@@ -39,6 +40,8 @@ export class MemoryStore implements Store {
   private uploads = new Map<string, Upload>();
   private reports = new Map<string, Report>();
   private duplicates = new Map<string, DuplicateReport>();
+  /** By `<reported>/<reporter>`, so a player's delete takes the reports of them with it. */
+  private playerReports = new Map<string, PlayerReport>();
   private blocks = new Map<string, Block>();
   private hearts = new Map<string, Heart>();
   private claims = new Map<string, { signId: string; expiresAt: number }>();
@@ -167,8 +170,10 @@ export class MemoryStore implements Store {
     if (!player || (onlyIfUnnamed && player.name)) return false;
     if (changes.name !== undefined) player.name = changes.name;
     if (changes.handle !== undefined) player.handle = changes.handle;
-    if (changes.bio === null) delete player.bio;
-    else if (changes.bio !== undefined) player.bio = changes.bio;
+    for (const field of ['bio', 'website', 'home'] as const) {
+      if (changes[field] === null) delete player[field];
+      else if (changes[field] !== undefined) player[field] = changes[field];
+    }
     return true;
   }
 
@@ -211,7 +216,7 @@ export class MemoryStore implements Store {
     if (player) await this.releaseHandle(player.handle, id);
     this.players.delete(id);
     const prefix = `${id}/`;
-    for (const map of [this.sessions, this.uploads, this.blocks, this.hearts, this.claims]) {
+    for (const map of [this.sessions, this.uploads, this.blocks, this.hearts, this.claims, this.playerReports]) {
       for (const key of map.keys()) if (key.startsWith(prefix)) map.delete(key);
     }
   }
@@ -317,6 +322,22 @@ export class MemoryStore implements Store {
 
   async deleteDuplicate(signId: string, playerId: string): Promise<void> {
     this.duplicates.delete(`${signId}/${playerId}`);
+  }
+
+  async putPlayerReport(report: PlayerReport): Promise<boolean> {
+    const key = `${report.playerId}/${report.reporterId}`;
+    if (this.playerReports.has(key)) return false;
+    this.playerReports.set(key, copy(report));
+    return true;
+  }
+
+  async getPlayerReport(playerId: string, reporterId: string): Promise<PlayerReport | undefined> {
+    const report = this.playerReports.get(`${playerId}/${reporterId}`);
+    return report && copy(report);
+  }
+
+  async deletePlayerReport(playerId: string, reporterId: string): Promise<void> {
+    this.playerReports.delete(`${playerId}/${reporterId}`);
   }
 
   async putBlock(block: Block): Promise<void> {

@@ -100,6 +100,10 @@ export type Player = {
   /** The id of the player's profile photo, served square under /p/<id>/. Missing when none. */
   avatar?: string;
   bio?: string;
+  /** Their website, a normalised http or https address; shown by its host. Missing when none. */
+  website?: string;
+  /** Where they're from, in their words ("Minneapolis, MN"). Missing when none. */
+  home?: string;
   /** Private. Never in a public answer. Missing until the player claims the account. */
   email?: string;
   /**
@@ -170,6 +174,18 @@ export type DuplicateReport = {
   /** The other sign's id. */
   sameAs: string;
   note?: string;
+  createdAt: string;
+};
+
+/**
+ * A player's report of another player, emailed to the owner (src/reports.ts). It never goes to the
+ * moderator and hides nothing. One per reporter per player: the first is kept, a repeat changes nothing.
+ */
+export type PlayerReport = {
+  /** The player reported. */
+  playerId: string;
+  reporterId: string;
+  reason: string;
   createdAt: string;
 };
 

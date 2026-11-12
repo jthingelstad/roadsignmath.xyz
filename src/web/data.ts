@@ -176,6 +176,8 @@ export function playerRecord(data: OpenData, player: Player) {
     url: playerUrl(urls, player),
     feed_url: `${playerUrl(urls, player)}/feed.json`,
     bio: player.bio ?? null,
+    website: player.website ?? null,
+    home: player.home ?? null,
     avatar_color: player.avatarColor,
     avatar_url: player.avatar ? photoUrl(urls, player.avatar, 'large') : null,
     avatar_thumb_url: player.avatar ? photoUrl(urls, player.avatar, 'thumb') : null,

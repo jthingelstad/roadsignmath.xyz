@@ -1,6 +1,7 @@
 // What a signed-in player can make: photos, signs, ways, reports and blocks. Every post and
 // report goes past the moderator (src/moderation/); everything else is checked here.
 
+import { randomUUID } from 'node:crypto';
 import { fail } from '../api/errors.ts';
 import { limit, text } from '../api/input.ts';
 import { LIMITS } from '../api/contract.ts';
@@ -14,6 +15,7 @@ import type {
   Photo,
   Place,
   Player,
+  PlayerReport,
   Report,
   Sign,
   SignNumber,
@@ -24,7 +26,7 @@ import { removeSignKudos, sweepSignKudos } from '../hearts.ts';
 import { renditions, type PhotoStore } from '../photos.ts';
 import type { Tinylytics } from '../tinylytics.ts';
 import { nowSeconds, type Store } from '../store/store.ts';
-import { failure, product } from '../product.ts';
+import { failure, product, type ModeratorOp } from '../product.ts';
 
 export type PostingDeps = { store: Store; photos: PhotoStore; moderator: Moderator; tinylytics?: Tinylytics };
 
@@ -61,7 +63,7 @@ export const MODERATOR_CALLS = 'moderator:all';
  */
 export async function moderate<T>(
   store: Store,
-  op: 'post' | 'report' | 'avatar',
+  op: ModeratorOp,
   ask: () => Promise<T>,
   now = nowSeconds()
 ): Promise<T> {
@@ -387,6 +389,9 @@ export async function postSign(
       title: input.title,
       caption: input.caption,
       numbers: input.numbers.map((n) => n.value),
+      // Player-typed words shown publicly, so the moderator sees them too.
+      place: input.place.label,
+      finders: credited.map((f) => f.name),
       photos: uploads.map((u) => u.large)
     };
     const verdict = await moderate(store, 'post', () => moderator.reviewPost(post), now);
@@ -472,6 +477,39 @@ export async function deleteSign(deps: PostingDeps, player: Player, sign: Sign):
   for (const photo of sign.photos) await photos.remove(photo.id);
   await store.deleteSign(sign.id);
   await sweepSignKudos(deps, [sign]);
+}
+
+/**
+ * Takes the player off a sign's finders, when it credits them and someone else posted it (the
+ * poster deletes their sign instead). Their ways on it stay theirs. A sign always has a finder: when
+ * they were the only one, its poster is credited instead, as a post that names no finders credits
+ * its poster. Not credited on it, nothing changes.
+ */
+export async function leaveSign(store: Store, player: Player, sign: Sign): Promise<void> {
+  if (sign.postedBy === player.id) fail('bad_request', 'You posted this sign. Delete it instead');
+  // One departure at a time on a sign, read and written under its lease: two finders leaving at
+  // once each see the other's departure, and neither undoes it.
+  const lease = `finders:${sign.id}`;
+  const holder = randomUUID();
+  let held = false;
+  for (let tries = 0; tries < 20 && !held; tries++) {
+    held = await store.lease(lease, holder, 30);
+    if (!held) await new Promise((r) => setTimeout(r, 50));
+  }
+  if (!held) fail('conflict', 'This sign’s finders are changing. Try again.');
+  try {
+    const fresh = (await store.getSign(sign.id, true)) ?? fail('not_found', 'No sign by that id');
+    if (!fresh.finders.some((f) => f.playerId === player.id)) return;
+    let finders = fresh.finders.filter((f) => f.playerId !== player.id);
+    if (!finders.length) {
+      const poster = await store.getPlayer(fresh.postedBy);
+      if (poster) finders = [{ playerId: poster.id, name: poster.name, role: 'found' }];
+    }
+    if (!(await store.updateSign(sign.id, { finders }))) fail('not_found', 'No sign by that id');
+  } finally {
+    await store.endLease(lease, holder);
+  }
+  product({ action: 'finder-left', front: 'app' });
 }
 
 /** The answer to a way that only reorders one already on the sign. */
@@ -642,6 +680,8 @@ async function judgeReport(
     title: sign.title,
     caption: sign.caption,
     numbers: sign.numbers.map((n) => n.value),
+    place: sign.place.label,
+    finders: sign.finders.map((f) => f.name),
     photos: larges
   };
   const verdict = await moderate(store, 'report', () => moderator.reviewReport(post, reason), now);
@@ -717,6 +757,36 @@ export async function reportDuplicate(
   };
   await store.putDuplicate(report);
   product({ action: 'duplicate', front: 'app' });
+  return report;
+}
+
+/**
+ * Keeps a player's report of another player and tells the owner (src/reports.ts emails it). It
+ * never goes to the moderator and hides nothing: what happens to a reported player is the owner's
+ * call. One per reporter per player: a repeat answers as the first did, changes nothing and sends
+ * nothing. It counts against the day's reports, with reports of signs.
+ */
+export async function reportPlayer(
+  store: Store,
+  reporter: Player,
+  key: string,
+  body: Record<string, unknown>,
+  /** Told of a new report once it is kept; never in the way. */
+  told?: (report: PlayerReport, reported: Player) => Promise<unknown>
+): Promise<PlayerReport> {
+  only(body, 'The report', ['reason']);
+  const reported = await playerByHandle(store, key);
+  if (reported.id === reporter.id) fail('bad_request', 'You can’t report yourself');
+  const reason = text(body.reason, 'reason', LIMITS.reportMax, 1);
+  const earlier = await store.getPlayerReport(reported.id, reporter.id);
+  if (earlier) return earlier;
+  const now = nowSeconds();
+  await limit(store, `reports:${reporter.id}`, LIMITS.reportsADay, DAY, now, `Too many reports today. ${tomorrow}`);
+  const report: PlayerReport = { playerId: reported.id, reporterId: reporter.id, reason, createdAt: isoNow(now) };
+  // Two at once: the first kept is the report, and only it is sent.
+  if (!(await store.putPlayerReport(report))) return (await store.getPlayerReport(reported.id, reporter.id)) ?? report;
+  product({ action: 'player-report', front: 'app' });
+  if (told) await told(report, reported).catch(() => undefined);
   return report;
 }
 

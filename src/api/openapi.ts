@@ -2,7 +2,7 @@
 // /api/v1/openapi.json and kept in contracts/api-surface.json.
 
 import { createHash } from 'node:crypto';
-import { BIO_MAX, NAME_MAX } from '../auth/account.ts';
+import { BIO_MAX, HOME_MAX, NAME_MAX, WEBSITE_MAX } from '../auth/account.ts';
 import { LOGIN_TTL } from '../auth/auth.ts';
 import { API_VERSION, ERRORS, LIMITS, ROUTES, type ErrorCode } from './contract.ts';
 import { STATUS } from './errors.ts';
@@ -186,6 +186,15 @@ const SCHEMAS: Record<string, Schema> = {
       description: `The profile photo at ${AVATAR_SIZES.thumb} pixels square, for small faces.`
     }),
     bio: nullable(str),
+    website: nullable({
+      type: 'string',
+      format: 'uri',
+      description: 'Their website, an http or https address; show it by its host. Null when they gave none.'
+    }),
+    home: nullable({
+      type: 'string',
+      description: 'Where they call home, as they wrote it; null when they gave none.'
+    }),
     url: { type: 'string', format: 'uri' },
     sign_count: int,
     states: array(str),
@@ -266,7 +275,14 @@ const SCHEMAS: Record<string, Schema> = {
     additionalProperties: false,
     properties: {
       name: { type: 'string', minLength: 1, maxLength: NAME_MAX },
-      bio: nullable({ type: 'string', maxLength: BIO_MAX })
+      bio: nullable({ type: 'string', maxLength: BIO_MAX }),
+      website: nullable({
+        type: 'string',
+        maxLength: WEBSITE_MAX,
+        description: 'An http or https address, or a bare host like example.com (https is assumed).',
+        examples: ['example.com']
+      }),
+      home: nullable({ type: 'string', maxLength: HOME_MAX, examples: ['Minneapolis, MN'] })
     }
   },
   Blocks: object({ players: array(object({ handle: str, name: str })) }),
@@ -358,6 +374,9 @@ const SCHEMAS: Record<string, Schema> = {
   DuplicateReceived: object({
     same_as: { type: 'string', description: 'The other sign’s slug.' },
     note: nullable({ type: 'string' })
+  }),
+  PlayerReportReceived: object({
+    received: { type: 'boolean', const: true, description: 'It is kept and sent on; nothing is hidden.' }
   }),
   HeartState: object({
     hearted: { type: 'boolean' },

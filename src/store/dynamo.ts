@@ -18,6 +18,7 @@
 //   PLAYER#<playerId>   BLOCK#<playerId>            a player they blocked
 //   PLAYER#<playerId>   HEART#<signId>              a sign they hearted, and its kudo's uid
 //   PLAYER#<playerId>   POST#<idempotencyKey>       the sign a post's key made (expires)
+//   PLAYER#<playerId>   REPORTED#<playerId>         another player's report of them
 //   LOGIN#<loginId>     LOGIN                       a sign-in in progress (expires)
 //   LIMIT#<key>         <windowStart>               a rate-limit count (expires)
 //   LEASE#<key>         LEASE                       one request's hold on what the key names (expires)
@@ -41,6 +42,7 @@ import type {
   Block,
   CoFind,
   DuplicateReport,
+  PlayerReport,
   Heart,
   Login,
   Player,
@@ -83,6 +85,7 @@ export const KEY_PREFIXES = [
   'BLOCK#',
   'HEART#',
   'POST#',
+  'REPORTED#',
   'LOGIN#',
   'LOGIN',
   'LIMIT#',
@@ -379,7 +382,7 @@ export class DynamoStore implements Store {
     const values: Record<string, unknown> = {};
     const sets: string[] = [];
     const removes: string[] = [];
-    for (const field of ['name', 'handle', 'bio'] as const) {
+    for (const field of ['name', 'handle', 'bio', 'website', 'home'] as const) {
       const value = changes[field];
       if (value === undefined) continue;
       names[`#${field}`] = field;
@@ -640,6 +643,31 @@ export class DynamoStore implements Store {
 
   async deleteDuplicate(signId: string, playerId: string): Promise<void> {
     await this.delete(`SIGN#${signId}`, `DUPLICATE#${playerId}`);
+  }
+
+  async putPlayerReport(report: PlayerReport): Promise<boolean> {
+    return this.when(
+      new PutCommand({
+        TableName: this.table,
+        Item: {
+          ...report,
+          pk: `PLAYER#${report.playerId}`,
+          sk: `REPORTED#${report.reporterId}`,
+          kind: 'player-report'
+        },
+        ConditionExpression: 'attribute_not_exists(pk)'
+      })
+    );
+  }
+
+  async getPlayerReport(playerId: string, reporterId: string): Promise<PlayerReport | undefined> {
+    // Read to decide whether a report is new, often right after the first: it must see it.
+    const item = await this.get(`PLAYER#${playerId}`, `REPORTED#${reporterId}`, true);
+    return item && strip<PlayerReport>(item);
+  }
+
+  async deletePlayerReport(playerId: string, reporterId: string): Promise<void> {
+    await this.delete(`PLAYER#${playerId}`, `REPORTED#${reporterId}`);
   }
 
   async putBlock(block: Block): Promise<void> {

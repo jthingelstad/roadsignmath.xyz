@@ -222,6 +222,14 @@ for (const [name, make] of kinds) {
       await store.deleteBlock(ada.id, ben.id);
       assert.deepEqual(await store.listBlocks(ada.id), []);
 
+      const told = { playerId: ada.id, reporterId: ben.id, reason: 'Rude bio', createdAt: 'x' };
+      assert.equal(await store.putPlayerReport(told), true);
+      assert.equal(await store.putPlayerReport({ ...told, reason: 'Again' }), false, 'one per reporter per player');
+      assert.deepEqual(await store.getPlayerReport(ada.id, ben.id), told);
+      assert.equal(await store.getPlayerReport(ben.id, ada.id), undefined);
+      await store.deletePlayerReport(ada.id, ben.id);
+      assert.equal(await store.getPlayerReport(ada.id, ben.id), undefined);
+
       assert.equal(await store.claimPost(ada.id, 'key', 'S1', 60), undefined);
       assert.equal(await store.claimPost(ada.id, 'key', 'S2', 60), 'S1');
       assert.equal(await store.claimPost(ben.id, 'key', 'S3', 60), undefined, 'keys are per player');
@@ -245,7 +253,9 @@ for (const [name, make] of kinds) {
       });
       await store.putBlock({ playerId: ada.id, blockedId: ben.id, createdAt: 'x' });
       await store.claimPost(ada.id, 'key', 'S1', 60);
+      await store.putPlayerReport({ playerId: ada.id, reporterId: ben.id, reason: 'Rude', createdAt: 'x' });
       await store.deletePlayer(ada.id);
+      assert.equal(await store.getPlayerReport(ada.id, ben.id), undefined, 'reports of them go with them');
       assert.equal(await store.getUpload(ada.id, 'p1'), undefined);
       assert.deepEqual(await store.listBlocks(ada.id), []);
       assert.equal(await store.claimPost(ada.id, 'key', 'S2', 60), undefined);

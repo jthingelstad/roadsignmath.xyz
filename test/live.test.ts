@@ -82,7 +82,8 @@ const verdict: PostVerdict = { verdict: 'ok', reason: '', alt: [] };
 const fixed: Moderator = {
   reviewPost: async () => verdict,
   reviewReport: async () => ({ verdict: 'keep', reason: '' }),
-  reviewAvatar: async () => ({ verdict: 'ok', reason: '' })
+  reviewAvatar: async () => ({ verdict: 'ok', reason: '' }),
+  reviewProfile: async () => ({ verdict: 'ok', reason: '' })
 };
 
 test('without a key the moderator is unavailable, and asks again next time', async () => {

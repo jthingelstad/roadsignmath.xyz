@@ -183,6 +183,12 @@ test('each thing a player does through the app logs one product line, and none n
     const verified = await t.call('POST', '/auth/verify', undefined, { login_id: started.body.login_id, code });
     assert.equal(verified.res.status, 200);
     assert.equal((await t.call('PATCH', '/me', 'cy', { bio: 'Likes exits.' })).res.status, 200);
+    const where = { website: 'cy.example.com', home: 'Testville' };
+    assert.equal((await t.call('PATCH', '/me', 'cy', where)).res.status, 200);
+    // Words the moderator won't show change nothing and say so.
+    t.moderator.profile = { verdict: 'hold', reason: 'That bio is an advertisement.' };
+    assert.equal((await t.call('PATCH', '/me', 'cy', { bio: 'Buy now' })).res.status, 422);
+    t.moderator.profile = { verdict: 'ok', reason: '' };
     // A post, held by the moderator.
     const upload = await t.call('POST', '/photos', 'cy', undefined, photo);
     t.moderator.post = { verdict: 'hold', reason: 'Looks off.', alt: [] };
@@ -204,6 +210,7 @@ test('each thing a player does through the app logs one product line, and none n
     // A report the moderator keeps, a duplicate, feedback, then Cy leaves.
     assert.equal((await t.call('POST', `/signs/${S1}/report`, 'cy', { reason: 'Not a real sign' })).res.status, 200);
     assert.equal((await t.call('POST', `/signs/${S1}/duplicate`, 'cy', { same_as: S2 })).res.status, 200);
+    assert.equal((await t.call('POST', '/players/ben/report', 'cy', { reason: 'Rude bio' })).res.status, 200);
     assert.equal((await t.call('POST', '/feedback', 'cy', { message: 'Love it' })).res.status, 202);
     assert.equal((await t.call('DELETE', '/me', 'cy')).res.status, 204);
   });
@@ -211,6 +218,8 @@ test('each thing a player does through the app logs one product line, and none n
     { event: 'product', action: 'signin-start', front: 'app' },
     { event: 'product', action: 'signin-finish', front: 'app', outcome: 'new' },
     { event: 'product', action: 'profile', part: 'bio', first: false },
+    { event: 'product', action: 'profile', part: 'several', first: false },
+    { event: 'product', action: 'words-refused', first: false },
     { event: 'product', action: 'sign', front: 'app', outcome: 'held', photos: 1, numbers: 3, solved: true },
     { event: 'product', action: 'way', front: 'app', outcome: 'new' },
     { event: 'product', action: 'way', front: 'app', outcome: 'found-too' },
@@ -218,6 +227,7 @@ test('each thing a player does through the app logs one product line, and none n
     { event: 'product', action: 'heart', front: 'app', outcome: 'taken-back' },
     { event: 'product', action: 'report', front: 'app', outcome: 'kept' },
     { event: 'product', action: 'duplicate', front: 'app' },
+    { event: 'product', action: 'player-report', front: 'app' },
     { event: 'product', action: 'feedback', front: 'app' },
     { event: 'product', action: 'account-deleted' }
   ]);
@@ -252,12 +262,15 @@ test('failures are counted lines by kind and outcome, with no address', async ()
     t.moderator.report = 'unavailable';
     const report = await t.call('POST', `/signs/${S1}/report`, 'cy', { reason: 'Not a real sign' });
     assert.equal(report.res.status, 503);
+    t.moderator.profile = 'unavailable';
+    assert.equal((await t.call('PATCH', '/me', 'cy', { home: 'Testville' })).res.status, 503);
   });
   assert.deepEqual(lines, []);
   const events = logged.map((args) => (args as unknown[])[0]).filter((e) => typeof e === 'object' && e && 'event' in e);
   assert.deepEqual(events, [
     { event: 'signin-mail', outcome: 'unsent', op: 'app' },
-    { event: 'moderator', outcome: 'unavailable', op: 'report' }
+    { event: 'moderator', outcome: 'unavailable', op: 'report' },
+    { event: 'moderator', outcome: 'unavailable', op: 'profile' }
   ]);
   assert.ok(!JSON.stringify(events).includes('@'));
 });
