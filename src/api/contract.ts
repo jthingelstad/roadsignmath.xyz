@@ -567,9 +567,10 @@ export const ROUTES: Route[] = [
     description:
       'For a sign that credits you and someone else posted (delete your own sign instead). Your ways on it stay. ' +
       'When you were its only finder, its poster is credited instead. A sign that doesn’t credit you is left ' +
-      'as it is.',
+      'as it is. A 409 means another finder is leaving it just now; try again.',
     params: [signId],
     auth: 'signed_in',
+    errors: ['conflict'],
     status: 204
   },
   {

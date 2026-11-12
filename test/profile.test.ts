@@ -440,3 +440,28 @@ test('a finder can leave a sign whose poster they blocked', async () => {
   assert.equal((await t.call('DELETE', `/signs/${S1}/finders/me`, 'ben')).res.status, 204);
   assert.ok(!(await t.store.getSign(S1))!.finders.some((f) => f.playerId === ben.id));
 });
+
+test('two finders leaving at once both leave, and the poster is credited', async () => {
+  const t = await setup();
+  await t.store.updateSign(S1, {
+    finders: [
+      { playerId: ben.id, name: ben.name, role: 'found' },
+      { playerId: cara.id, name: cara.name, role: 'found' }
+    ]
+  });
+  const [a, b] = await Promise.all([
+    t.call('DELETE', `/signs/${S1}/finders/me`, 'ben'),
+    t.call('DELETE', `/signs/${S1}/finders/me`, 'cara')
+  ]);
+  assert.equal(a.res.status, 204);
+  assert.equal(b.res.status, 204);
+  assert.deepEqual((await t.store.getSign(S1))!.finders, [{ playerId: ada.id, name: 'Ada', role: 'found' }]);
+});
+
+test('a sign whose finders stay busy answers 409 and changes nothing', async () => {
+  const t = await setup();
+  await t.store.lease(`finders:${S1}`, 'someone-else', 60);
+  const busy = await t.call('DELETE', `/signs/${S1}/finders/me`, 'ben');
+  assert.equal(busy.res.status, 409);
+  assert.ok((await t.store.getSign(S1))!.finders.some((f) => f.playerId === ben.id));
+});

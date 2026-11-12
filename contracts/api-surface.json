@@ -1480,7 +1480,7 @@
       "delete": {
         "operationId": "leaveSign",
         "summary": "Take yourself off a sign’s finders",
-        "description": "For a sign that credits you and someone else posted (delete your own sign instead). Your ways on it stay. When you were its only finder, its poster is credited instead. A sign that doesn’t credit you is left as it is.",
+        "description": "For a sign that credits you and someone else posted (delete your own sign instead). Your ways on it stay. When you were its only finder, its poster is credited instead. A sign that doesn’t credit you is left as it is. A 409 means another finder is leaving it just now; try again.",
         "security": [
           {
             "token": []
@@ -1531,6 +1531,16 @@
           },
           "404": {
             "description": "No such route, sign or player.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "It already exists (that way was found), or the same post or account change is still being made.",
             "content": {
               "application/json": {
                 "schema": {

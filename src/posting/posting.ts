@@ -1,6 +1,7 @@
 // What a signed-in player can make: photos, signs, ways, reports and blocks. Every post and
 // report goes past the moderator (src/moderation/); everything else is checked here.
 
+import { randomUUID } from 'node:crypto';
 import { fail } from '../api/errors.ts';
 import { limit, text } from '../api/input.ts';
 import { LIMITS } from '../api/contract.ts';
@@ -486,14 +487,28 @@ export async function deleteSign(deps: PostingDeps, player: Player, sign: Sign):
  */
 export async function leaveSign(store: Store, player: Player, sign: Sign): Promise<void> {
   if (sign.postedBy === player.id) fail('bad_request', 'You posted this sign. Delete it instead');
-  const fresh = (await store.getSign(sign.id)) ?? fail('not_found', 'No sign by that id');
-  if (!fresh.finders.some((f) => f.playerId === player.id)) return;
-  let finders = fresh.finders.filter((f) => f.playerId !== player.id);
-  if (!finders.length) {
-    const poster = await store.getPlayer(fresh.postedBy);
-    if (poster) finders = [{ playerId: poster.id, name: poster.name, role: 'found' }];
+  // One departure at a time on a sign, read and written under its lease: two finders leaving at
+  // once each see the other's departure, and neither undoes it.
+  const lease = `finders:${sign.id}`;
+  const holder = randomUUID();
+  let held = false;
+  for (let tries = 0; tries < 20 && !held; tries++) {
+    held = await store.lease(lease, holder, 30);
+    if (!held) await new Promise((r) => setTimeout(r, 50));
   }
-  if (!(await store.updateSign(sign.id, { finders }))) fail('not_found', 'No sign by that id');
+  if (!held) fail('conflict', 'This sign’s finders are changing. Try again.');
+  try {
+    const fresh = (await store.getSign(sign.id, true)) ?? fail('not_found', 'No sign by that id');
+    if (!fresh.finders.some((f) => f.playerId === player.id)) return;
+    let finders = fresh.finders.filter((f) => f.playerId !== player.id);
+    if (!finders.length) {
+      const poster = await store.getPlayer(fresh.postedBy);
+      if (poster) finders = [{ playerId: poster.id, name: poster.name, role: 'found' }];
+    }
+    if (!(await store.updateSign(sign.id, { finders }))) fail('not_found', 'No sign by that id');
+  } finally {
+    await store.endLease(lease, holder);
+  }
   product({ action: 'finder-left', front: 'app' });
 }
 

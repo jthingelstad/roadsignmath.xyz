@@ -148,7 +148,9 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
 - **Leaving a sign** (`leaveSign` in `src/posting/posting.ts`): `DELETE /signs/{id}/finders/me`
   takes a credited finder off a sign someone else posted; the poster gets a 400 (they delete it
   instead), and one not credited changes nothing. Their ways stay. A sign always has a finder: when
-  they were the only one, its poster is credited instead. It is an `updateSign`, so the edge clears;
+  they were the only one, its poster is credited instead. It reads and writes under the sign's
+  `finders:<signId>` lease, so two departures at once can't undo each other (409 if it stays busy).
+  It is an `updateSign`, so the edge clears;
   badges follow because they are worked out on read.
 - A request with an `Authorization` header is never cached, and a bad token is a 401 even on
   a public read.
