@@ -7,7 +7,9 @@
 import type { FC, PropsWithChildren } from 'hono/jsx';
 import { texOf } from '../domain/equation.ts';
 import type { Player, Sign, Way } from '../domain/types.ts';
-import type { People } from '../api/views.ts';
+import { LIMITS } from '../api/contract.ts';
+import { BIO_MAX, NAME_MAX } from '../auth/account.ts';
+import { photoUrl, playerUrl, signUrl, type People } from '../api/views.ts';
 import { BRAND_VERSION, LOCKUP_SIZE } from '../web/brand.ts';
 import { BADGE_STYLE, BadgeCards, type BadgeView } from '../web/badges.tsx';
 import { longDay } from '../web/layout.tsx';
@@ -51,6 +53,7 @@ a { color: var(--green-ink); }
 .av { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: #fff;
   font-weight: 900; padding-top: 2px; overflow: hidden; }
 .av.ink { color: #18201C; }
+.av.pic { padding: 0; background: var(--photo); }
 .av img { width: 100%; height: 100%; object-fit: cover; display: block; }
 main { padding-top: 16px; padding-bottom: 28px; }
 .stack { display: flex; flex-direction: column; gap: 14px; }
@@ -139,6 +142,18 @@ label { font-weight: 800; }
 .foot { border-top: 1px solid var(--line); }
 .foot .wrap { display: flex; flex-wrap: wrap; gap: 6px 18px; padding-top: 16px; padding-bottom: 16px; font-size: 14px; font-weight: 700; }
 .solve { display: grid; gap: 14px; }
+.btn.danger, a.btn.danger { background: transparent; color: var(--bad); border: 1.5px solid var(--bad); }
+.txt.bad { color: var(--bad); }
+.prof { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 20px 14px; text-align: center; }
+.prof .name { font-size: 22px; font-weight: 900; }
+.prof .bio { margin: 0; color: var(--ink2); max-width: 420px; }
+.part { display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--line); padding-top: 18px; }
+.photo-row { display: flex; align-items: center; gap: 14px; }
+.photo-row p { margin: 0; }
+.field.file { font-size: 15px; padding: 12px; }
+.facts { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; }
+.facts dt { font-weight: 800; }
+.facts dd { margin: 0; color: var(--ink2); overflow-wrap: anywhere; }
 @media (min-width: 900px) {
   .brand img { height: 36px; }
   .me .label { display: inline; }
@@ -156,9 +171,6 @@ label { font-weight: 800; }
 
 /** Carries the sign a player came to try through signing in (`to`, a slug Quiz checked). */
 const BackTo: FC<{ to?: string }> = ({ to }) => (to ? <input type="hidden" name="to" value={to} /> : null);
-
-/** The site's address for a photo of a shown sign. */
-const photoUrl = (here: Here, id: string, size: 'large' | 'thumb') => `${here.site}/p/${id}/${size}.jpg`;
 
 /** Quiz's frame: header with the logo and the Quiz tab, the page, and a footer to the site. */
 export const Frame: FC<
@@ -214,9 +226,9 @@ export const Frame: FC<
             <span class="qtab">QUIZ</span>
           </a>
           {player ? (
-            <a class="me" href="/solved" aria-label={`${player.name || 'You'}: signs you’ve solved`}>
-              <span class="label">Signs you’ve solved</span>
-              <Face player={player} size={40} />
+            <a class="me" href="/profile" aria-label={`${player.name || 'You'}: your profile`}>
+              <span class="label">Your profile</span>
+              <Face player={player} size={40} here={here} />
             </a>
           ) : (
             <a class="signin" href="/signin">
@@ -242,15 +254,18 @@ export const Frame: FC<
   </html>
 );
 
-/** A player's face: their photo, or their first letter in their colour (yellow takes ink). */
-const Face: FC<{ player: Pick<Player, 'name' | 'avatarColor' | 'avatar'>; size: number; here?: Here }> = ({
+/**
+ * A player's face: their profile photo from the site (the small size, or the large one drawn
+ * big), or their first letter in their colour (yellow takes ink).
+ */
+const Face: FC<{ player: Pick<Player, 'name' | 'avatarColor' | 'avatar'>; size: number; here: Here }> = ({
   player,
   size,
   here
 }) =>
-  player.avatar && here ? (
-    <span aria-hidden="true" class="av" style={`width: ${size}px; height: ${size}px`}>
-      <img src={photoUrl(here, player.avatar, 'thumb')} alt="" />
+  player.avatar ? (
+    <span aria-hidden="true" class="av pic" style={`width: ${size}px; height: ${size}px`}>
+      <img src={photoUrl(here, player.avatar, size > 80 ? 'large' : 'thumb')} alt="" />
     </span>
   ) : (
     <span
@@ -282,6 +297,9 @@ const Sep = () => (
     <span class="vh">, </span>
   </span>
 );
+
+/** An address as a reader says it: "roadsignmath.xyz/players/jamie". */
+const address = (url: string) => url.replace(/^https?:\/\//, '');
 
 const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
 
@@ -849,7 +867,7 @@ export const FoundPage: FC<{
   badges: BadgeView[];
 }> = ({ here, player, sign, on, people, blocked, solve, badges }) => {
   const next = `/next?after=${encodeURIComponent(sign.slug)}`;
-  const onSite = `${here.site}/signs/${sign.slug}`;
+  const onSite = signUrl(here, sign);
   const others = on.ways.filter((w) => w.id !== solve.way.id && !blocked.has(w.playerId));
   const me = player.name || 'you';
   if (solve.kind === 'too') {
@@ -970,7 +988,7 @@ export const FoundPage: FC<{
           Next sign
         </a>
         {solve.kind === 'first' ? (
-          <a class="btn ghost" href={`${here.site}/players/${player.handle}`}>
+          <a class="btn ghost" href={playerUrl(here, player)}>
             See your badges
           </a>
         ) : (
@@ -1058,7 +1076,7 @@ export const SolvedPage: FC<{ here: Here; player: Player; solved: { sign: Sign; 
         <ul class="solved">
           {solved.map(({ sign, solve }) => (
             <li>
-              <a href={`${here.site}/signs/${sign.slug}`}>
+              <a href={signUrl(here, sign)}>
                 {sign.photos[0] && <img src={photoUrl(here, sign.photos[0].id, 'thumb')} alt="" loading="lazy" />}
                 <span class="what">
                   <span>
@@ -1080,7 +1098,7 @@ export const SolvedPage: FC<{ here: Here; player: Player; solved: { sign: Sign; 
           <>
             {' '}
             Your public page shows your ways and badges:{' '}
-            <a href={`${here.site}/players/${player.handle}`}>roadsignmath.xyz/players/{player.handle}</a>
+            <a href={playerUrl(here, player)}>{address(playerUrl(here, player))}</a>
           </>
         )}
       </p>
@@ -1089,6 +1107,237 @@ export const SolvedPage: FC<{ here: Here; player: Player; solved: { sign: Sign; 
           Sign out
         </button>
       </form>
+    </div>
+  </Frame>
+);
+
+// ---------------------------------------------------------------------------------------------
+// Your profile: what the app's You and Settings let a player change, on the web
+
+/** What the last change on the profile page did, said once at its top. */
+export type ProfileDone = 'photo' | 'removed' | 'saved';
+
+const DONE: Record<ProfileDone, string> = {
+  photo: 'Your new photo is up.',
+  removed: 'Your photo is gone. Your first letter shows in its place.',
+  saved: 'Saved.'
+};
+
+/** A trouble on the profile page, shown in the part it came from. */
+export type ProfileTrouble = { part: 'photo' | 'about'; message: string };
+
+const Oops: FC<{ message?: string }> = ({ message }) =>
+  message ? (
+    <p class="oops" role="alert">
+      {message}
+    </p>
+  ) : null;
+
+/**
+ * Your profile, modelled on the app's You and its Settings: your photo (choose one, or remove
+ * it), name and bio, your email (only you see it), your page on the site, the signs you've
+ * solved, sign out and Delete my account. Every change is a form, so it works without scripts.
+ */
+export const ProfilePage: FC<{
+  here: Here;
+  player: Player;
+  /** Whether the site has a page for them yet: it starts with a sign or a way. */
+  hasPage: boolean;
+  done?: ProfileDone;
+  trouble?: ProfileTrouble;
+  /** What they typed, kept when a save failed. */
+  typed?: { name: string; bio: string };
+}> = ({ here, player, hasPage, done, trouble, typed }) => {
+  const page = playerUrl(here, player);
+  return (
+    <Frame here={here} title="Your profile" player={player}>
+      <div class="stack narrow">
+        <a class="txt" href="/next" style="align-self: flex-start">
+          Back to the signs
+        </a>
+        <h1>Your profile</h1>
+        {done && (
+          <p class="note" role="status">
+            {DONE[done]}
+          </p>
+        )}
+        <section class="card prof" aria-label="How others see you">
+          <Face player={player} size={84} here={here} />
+          <span class="name">{player.name}</span>
+          {hasPage ? (
+            <a href={page}>{address(page)}</a>
+          ) : (
+            <p class="meta">Your page on roadsignmath.xyz starts with the first way you find.</p>
+          )}
+          {player.bio && <p class="bio">{player.bio}</p>}
+        </section>
+
+        <section class="part" aria-labelledby="ph-h">
+          <h2 id="ph-h" class="h2">
+            Profile photo
+          </h2>
+          <div class="photo-row">
+            <Face player={player} size={56} here={here} />
+            <p class="meta">
+              {player.avatar
+                ? 'Everyone sees it beside your signs and ways, and on your page.'
+                : 'Your first letter shows until you add one.'}
+            </p>
+          </div>
+          <Oops message={trouble?.part === 'photo' ? trouble.message : undefined} />
+          <form method="post" action="/profile/photo" enctype="multipart/form-data" class="stack">
+            <label for="photo">{player.avatar ? 'Choose a new photo' : 'Choose a photo'}</label>
+            <input
+              id="photo"
+              class="field file"
+              type="file"
+              name="photo"
+              accept="image/jpeg,image/png,image/webp"
+              required
+            />
+            <p class="meta">
+              A JPEG, PNG or WebP photo, up to {LIMITS.photoBytes / 1024 / 1024} MB. It’s cropped square from the
+              middle, and Claude looks at it before it goes up.
+            </p>
+            <button class="btn" type="submit">
+              {player.avatar ? 'Use this photo' : 'Add this photo'}
+            </button>
+          </form>
+          {player.avatar && (
+            <a class="txt bad" href="/profile/photo/remove" style="align-self: flex-start">
+              Remove photo
+            </a>
+          )}
+        </section>
+
+        <section class="part" aria-labelledby="ab-h">
+          <h2 id="ab-h" class="h2">
+            Name and bio
+          </h2>
+          <Oops message={trouble?.part === 'about' ? trouble.message : undefined} />
+          <form method="post" action="/profile" class="stack">
+            <label for="nm">Name</label>
+            <input
+              id="nm"
+              class="field"
+              type="text"
+              name="name"
+              autocomplete="given-name"
+              maxlength={NAME_MAX}
+              required
+              value={typed?.name ?? player.name}
+            />
+            <p class="meta">Your page’s address stays the same, so links to it keep working.</p>
+            <label for="bio">Bio</label>
+            <input
+              id="bio"
+              class="field"
+              type="text"
+              name="bio"
+              maxlength={BIO_MAX}
+              placeholder="Add a line about you"
+              value={typed?.bio ?? player.bio ?? ''}
+            />
+            <p class="meta">
+              It shows on your page, under your name, for everyone. Up to {BIO_MAX} characters; leave it empty to take
+              it away.
+            </p>
+            <button class="btn" type="submit">
+              Save
+            </button>
+          </form>
+          {player.email && (
+            <>
+              <dl class="facts">
+                <dt>Email</dt>
+                <dd>{player.email}</dd>
+              </dl>
+              <p class="meta">Only you see your email. It’s for signing in and the occasional newsletter.</p>
+            </>
+          )}
+        </section>
+
+        <section class="part" aria-label="Your signs">
+          <a class="txt" href="/solved" style="align-self: flex-start">
+            Signs you’ve solved
+          </a>
+        </section>
+
+        <section class="part" aria-label="Sign out">
+          <form method="post" action="/signout">
+            <button type="submit" class="btn ghost">
+              Sign out
+            </button>
+          </form>
+          <p class="meta">Your ways stay put. Sign in again with your email whenever you like.</p>
+        </section>
+
+        <section class="part" aria-label="Delete my account">
+          <a class="btn danger" href="/profile/delete">
+            Delete my account
+          </a>
+          <p class="meta">Deletes your account and everything you posted. It can’t be undone.</p>
+        </section>
+      </div>
+    </Frame>
+  );
+};
+
+/** Asks before the profile photo goes (the app asks the same). */
+export const RemovePhotoPage: FC<{ here: Here; player: Player; error?: string }> = ({ here, player, error }) => (
+  <Frame here={here} title="Remove your profile photo?" player={player}>
+    <div class="stack narrow">
+      <h1>Remove your profile photo?</h1>
+      <Face player={player} size={84} here={here} />
+      <p class="lede">Your first letter shows again in its place.</p>
+      <Oops message={error} />
+      <form method="post" action="/profile/photo/remove">
+        <button class="btn danger" type="submit">
+          Remove photo
+        </button>
+      </form>
+      <a class="btn ghost" href="/profile">
+        Keep it
+      </a>
+    </div>
+  </Frame>
+);
+
+/** What deleting takes with it, in this player's numbers: the app's words (`MeView.deleteWords`). */
+export function deleteWords(posted: number): string {
+  const signs =
+    posted === 0
+      ? 'the ways you found'
+      : posted === 1
+        ? 'the sign you posted (with every way found on it), the ways you found on other signs'
+        : `the ${posted} signs you posted (with every way found on them), the ways you found on other signs`;
+  return `This deletes your account and everything it made: ${signs}, your name on signs other people posted, and your email. It can’t be undone.`;
+}
+
+/** Asks before the account goes, saying what goes with it. */
+export const DeletePage: FC<{ here: Here; player: Player; posted: number; error?: string }> = ({
+  here,
+  player,
+  posted,
+  error
+}) => (
+  <Frame here={here} title="Delete your account?" player={player}>
+    <div class="stack narrow">
+      <h1>Delete your account?</h1>
+      <p class="lede">{deleteWords(posted)}</p>
+      <p class="meta">
+        It’s the same account as the app, so it’s gone there too. Your email leaves the newsletter, and anything deleted
+        is gone from the backups within a year.
+      </p>
+      <Oops message={error} />
+      <form method="post" action="/profile/delete">
+        <button class="btn danger" type="submit">
+          Delete my account
+        </button>
+      </form>
+      <a class="btn ghost" href="/profile">
+        Keep it
+      </a>
     </div>
   </Frame>
 );

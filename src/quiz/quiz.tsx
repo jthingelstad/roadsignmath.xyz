@@ -13,9 +13,10 @@
 
 import { Hono, type Context } from 'hono';
 import type { ApiOptions } from '../api/app.ts';
-import { ApiError } from '../api/errors.ts';
-import { earnedBadgeView } from '../api/views.ts';
-import { newsletterAtSignIn, updateMe } from '../auth/account.ts';
+import { LIMITS } from '../api/contract.ts';
+import { ApiError, STATUS, fail } from '../api/errors.ts';
+import { earnedBadgeView, isPublic } from '../api/views.ts';
+import { newsletterAtSignIn, removeAvatar, removePlayer, setAvatar, updateMe } from '../auth/account.ts';
 import { finishSignIn, signOut, startSignIn, type Viewer } from '../auth/auth.ts';
 import { sameWayKey } from '../domain/equation.ts';
 import type { Player, Sign } from '../domain/types.ts';
@@ -24,16 +25,21 @@ import { badgesFrom, credits, draw, loadQuiz, onSigns, solvedBy, stillToTry, typ
 import {
   AllDonePage,
   CodePage,
+  DeletePage,
   FoundPage,
   HomePage,
   LinkPage,
   MessagePage,
   NamePage,
+  ProfilePage,
+  RemovePhotoPage,
   SignInPage,
   SolvePage,
   SolvedPage,
   WaysPage,
   type Here,
+  type ProfileDone,
+  type ProfileTrouble,
   type Said
 } from './pages.tsx';
 import { forget, fromQuiz, quizViewer, remember } from './session.ts';
@@ -76,8 +82,11 @@ export function createQuiz(options: QuizOptions): Hono {
 
   const { store, urls, mailer, clientIp } = options;
   const here: Here = { site: urls.site, quiz: urls.quiz ?? quizOrigin(urls.site) };
-  const page = (c: Context, body: { toString(): string }, status: 200 | 400 | 404 | 409 | 429 = 200) =>
-    c.html('<!doctype html>' + body.toString(), status, PRIVATE);
+  const page = (
+    c: Context,
+    body: { toString(): string },
+    status: 200 | 400 | 404 | 409 | 413 | 422 | 429 | 503 = 200
+  ) => c.html('<!doctype html>' + body.toString(), status, PRIVATE);
   const go = (c: Context, path: string) => c.redirect(path, 303);
   const form = async (c: Context) => {
     const body = await c.req.parseBody();
@@ -363,6 +372,132 @@ export function createQuiz(options: QuizOptions): Hono {
     return page(c, <SolvedPage here={here} player={viewer.player} solved={solved} now={new Date()} />);
   });
 
+  // ---- Your profile: photo, name and bio, sign out, and Delete my account, as the app's settings
+
+  /** Whether the site has a page for the player yet (a sign or a way of theirs), and the signs they posted. */
+  async function profileOf(player: Player) {
+    const signs = await store.allSigns();
+    const shown = signs.filter(isPublic);
+    const on = await onSigns(store, shown);
+    const hasPage = shown.some(
+      (s) =>
+        credits(s, player.id) ||
+        on.get(s.id)?.ways.some((w) => w.playerId === player.id) ||
+        on.get(s.id)?.coFinds.some((f) => f.playerId === player.id)
+    );
+    return { hasPage, posted: signs.filter((s) => s.postedBy === player.id).length };
+  }
+
+  async function profilePage(
+    c: Context,
+    player: Player,
+    more: { done?: ProfileDone; trouble?: ProfileTrouble; typed?: { name: string; bio: string } } = {},
+    status: Parameters<typeof page>[2] = 200
+  ) {
+    const { hasPage } = await profileOf(player);
+    return page(c, <ProfilePage here={here} player={player} hasPage={hasPage} {...more} />, status);
+  }
+
+  quiz.get('/profile', async (c) => {
+    const viewer = await playing(c);
+    if (viewer instanceof Response) return viewer;
+    const done = c.req.query('done');
+    return profilePage(c, viewer.player, { done: done && done in DONE_WORDS ? (done as ProfileDone) : undefined });
+  });
+
+  quiz.post('/profile', async (c) => {
+    const viewer = await playing(c);
+    if (viewer instanceof Response) return viewer;
+    const field = await form(c);
+    const typed = { name: field('name'), bio: field('bio') };
+    try {
+      await updateMe(store, viewer.player, typed);
+    } catch (err) {
+      const status = trouble(err, ['bad_request', 'rate_limited']);
+      const message = sentence((err as ApiError).message);
+      return profilePage(c, viewer.player, { trouble: { part: 'about', message }, typed }, status);
+    }
+    return go(c, '/profile?done=saved');
+  });
+
+  quiz.post('/profile/photo', async (c) => {
+    const viewer = await playing(c);
+    if (viewer instanceof Response) return viewer;
+    try {
+      // The form's own bytes are a little over the photo's; anything far bigger isn't read.
+      const length = Number(c.req.header('content-length'));
+      if (length > LIMITS.photoBytes + 64 * 1024)
+        fail('too_large', `A photo can be at most ${LIMITS.photoBytes / 1024 / 1024} MB`);
+      const photo = (await c.req.parseBody()).photo;
+      if (!(photo instanceof File) || !photo.size) return fail('bad_request', 'Choose a photo first');
+      // The same as the app's PUT /me/avatar: checked, squared, without its metadata, and looked at by the moderator.
+      await setAvatar(options, viewer.player, photo.type, () => photo.arrayBuffer(), photo.size);
+    } catch (err) {
+      const status = trouble(err, ['bad_request', 'too_large', 'refused', 'rate_limited', 'conflict', 'unavailable']);
+      const message = sentence((err as ApiError).message);
+      return profilePage(c, viewer.player, { trouble: { part: 'photo', message } }, status);
+    }
+    return go(c, '/profile?done=photo');
+  });
+
+  quiz.get('/profile/photo/remove', async (c) => {
+    const viewer = await playing(c);
+    if (viewer instanceof Response) return viewer;
+    if (!viewer.player.avatar) return go(c, '/profile');
+    return page(c, <RemovePhotoPage here={here} player={viewer.player} />);
+  });
+
+  quiz.post('/profile/photo/remove', async (c) => {
+    const viewer = await playing(c);
+    if (viewer instanceof Response) return viewer;
+    try {
+      await removeAvatar(options, viewer.player);
+    } catch (err) {
+      const status = trouble(err, ['conflict']);
+      return page(
+        c,
+        <RemovePhotoPage here={here} player={viewer.player} error={sentence((err as ApiError).message)} />,
+        status
+      );
+    }
+    return go(c, '/profile?done=removed');
+  });
+
+  quiz.get('/profile/delete', async (c) => {
+    const viewer = await playing(c);
+    if (viewer instanceof Response) return viewer;
+    const { posted } = await profileOf(viewer.player);
+    return page(c, <DeletePage here={here} player={viewer.player} posted={posted} />);
+  });
+
+  quiz.post('/profile/delete', async (c) => {
+    const viewer = await playing(c);
+    if (viewer instanceof Response) return viewer;
+    try {
+      // The same code as DELETE /me: everything the account made goes, then the newsletter.
+      await removePlayer(options, viewer.player);
+    } catch (err) {
+      const status = trouble(err, ['conflict', 'unavailable']);
+      const { posted } = await profileOf(viewer.player);
+      const error = sentence((err as ApiError).message);
+      return page(c, <DeletePage here={here} player={viewer.player} posted={posted} error={error} />, status);
+    }
+    forget(c);
+    return go(c, '/deleted');
+  });
+
+  quiz.get('/deleted', async (c) => {
+    if (await quizViewer(store, c)) return go(c, '/profile');
+    return page(
+      c,
+      <MessagePage
+        here={here}
+        title="Your account is deleted"
+        message="It’s gone, with everything it made, here and in the app. Thanks for playing Road Sign Math."
+      />
+    );
+  });
+
   quiz.notFound((c) =>
     page(c, <MessagePage here={here} title="Nothing here" message="That page isn’t part of Quiz." />, 404)
   );
@@ -389,6 +524,20 @@ export function createQuiz(options: QuizOptions): Hono {
 
   return quiz;
 }
+
+const DONE_WORDS: Record<ProfileDone, true> = { photo: true, removed: true, saved: true };
+
+/**
+ * The status for an error a profile form shows on its page, when it is one of `shown`; anything
+ * else (a gone account, a broken server) is thrown on to Quiz's error handler.
+ */
+function trouble(err: unknown, shown: ApiError['code'][]): 200 | 400 | 409 | 413 | 422 | 429 | 503 {
+  if (!(err instanceof ApiError) || !shown.includes(err.code)) throw err;
+  return STATUS[err.code] as 400 | 409 | 413 | 422 | 429 | 503;
+}
+
+/** A server message as a sentence: a capital first, a full stop last. */
+const sentence = (message: string) => message.charAt(0).toUpperCase() + message.slice(1).replace(/([^.!?])$/, '$1.');
 
 /** What went wrong with a code, in words for the code page. */
 function codeTrouble(err: ApiError): string {

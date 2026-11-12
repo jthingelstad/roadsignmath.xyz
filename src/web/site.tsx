@@ -839,8 +839,8 @@ export function createSite({
             <a href="https://quiz.roadsignmath.xyz">Quiz</a> is the game in your web browser: you find the math in signs
             other players posted. It uses the same account as the app, signed in with the same email. To keep you signed
             in it sets one cookie, which holds your sign-in and nothing else, and goes when you sign out. The ways you
-            find there are public like any others, and Delete my account, in the app, removes them too. Tinylytics
-            counts Quiz’s pages apart from this website’s.
+            find there are public like any others, and Delete my account, in the app or on your profile in Quiz, removes
+            them too. Tinylytics counts Quiz’s pages apart from this website’s.
           </p>
           <h2>Reports</h2>
           <p>
@@ -849,9 +849,9 @@ export function createSite({
           </p>
           <h2>Leaving</h2>
           <p>
-            Delete my account, in the app’s settings, deletes your account and everything you made: your signs and their
-            photos, the ways you added, your hearts, your profile photo and your email address, which leaves the
-            newsletter too.
+            Delete my account, in the app’s settings or on your profile in Quiz, deletes your account and everything you
+            made: your signs and their photos, the ways you added, your hearts, your profile photo and your email
+            address, which leaves the newsletter too.
           </p>
           <p>
             Road Sign Math keeps backup copies so a mistake can be undone. Anything deleted is gone from them within a
@@ -899,7 +899,8 @@ export function createSite({
   );
 
   // Help: who makes the game and how to reach him, for the App Store's support link. The paths
-  // are the app's own (You, then the gear for Settings); Delete my account says what /privacy says.
+  // are the app's own (You, then the gear for Settings) and Quiz's (your profile, from the picture in
+  // its header); Delete my account says what /privacy says.
   site.get('/support', (c) =>
     c.html(
       <Page
@@ -917,9 +918,10 @@ export function createSite({
           </p>
           <h2>Delete your account</h2>
           <p>
-            In the app, open You, then the gear for Settings, and choose Delete my account at the bottom. It deletes
-            your account and everything you made: your signs and their photos, the ways you added, your hearts, your
-            profile photo and your email address, which leaves the newsletter too. It can’t be undone, and anything
+            In the app, open You, then the gear for Settings, and choose Delete my account at the bottom. In Quiz,
+            choose your picture at the top of any page to open your profile, then Delete my account at the bottom. It
+            deletes your account and everything you made: your signs and their photos, the ways you added, your hearts,
+            your profile photo and your email address, which leaves the newsletter too. It can’t be undone, and anything
             deleted is gone from the backups within a year.
           </p>
           <h2>More</h2>
