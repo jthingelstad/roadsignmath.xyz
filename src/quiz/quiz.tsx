@@ -202,9 +202,11 @@ export function createQuiz(options: QuizOptions): Hono {
     } catch (err) {
       if (!(err instanceof ApiError) || (err.code !== 'bad_request' && err.code !== 'rate_limited')) throw err;
       const message = err.code === 'bad_request' ? 'That doesn’t look like an email address.' : err.message;
+      // A resend that hit a limit keeps the math its sign-in row carries, for the next try.
+      const kept = math ?? (to && again?.carry?.to === to ? again.carry.text : undefined);
       return page(
         c,
-        <SignInPage here={here} email={email} error={message} to={to} math={math} />,
+        <SignInPage here={here} email={email} error={message} to={to} math={kept} />,
         err.code === 'bad_request' ? 400 : 429
       );
     }

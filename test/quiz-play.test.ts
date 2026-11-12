@@ -363,6 +363,24 @@ test('a player with a name signing in by the link lands on the sign with the mat
   assert.equal(elsewhere.location, '/name?to=unsolved-junction');
 });
 
+test('a resend that hits a limit keeps the math for the next try', async () => {
+  const t = await setup();
+  const first = await t.quiz('/signin', {
+    form: { email: 'lee@example.com', to: 'seven-twelve', math: '19 − 7 = 12' }
+  });
+  let login = /l=([0-9A-Z]{26})/.exec(first.location!)![1];
+  let last = first;
+  for (let i = 0; i < 10 && last.res.status === 303; i++) {
+    last = await t.quiz('/signin', { form: { login, again: '1', to: 'seven-twelve' } });
+    if (last.res.status === 303) login = /l=([0-9A-Z]{26})/.exec(last.location!)![1];
+  }
+  assert.equal(last.res.status, 429, 'the address limit');
+  assert.ok(decoded(last.html).includes('name="math" value="19 − 7 = 12"'), 'the math is still in the form');
+  const other = await t.quiz('/signin', { form: { login, again: '1', to: 'unsolved-junction' } });
+  assert.equal(other.res.status, 429);
+  assert.ok(!other.html.includes('name="math"'), 'never carried to another sign');
+});
+
 test('carried math is checked: too long, untrue or tampered math is never carried', async () => {
   const t = await setup();
   const long = '1+'.repeat(LIMITS.wayMax) + '1 = 7';
