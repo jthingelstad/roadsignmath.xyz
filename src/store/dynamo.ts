@@ -219,11 +219,13 @@ export class DynamoStore implements Store {
 
   async moveSlug(slug: string, fromId: string, toId: string): Promise<boolean> {
     const moved = await this.when(
-      new PutCommand({
+      // A slug moved once already (a sign merged into one later merged again) keeps its first sign.
+      new UpdateCommand({
         TableName: this.table,
-        Item: { pk: `SLUG#${slug}`, sk: 'SLUG', kind: 'slug', signId: toId, movedFrom: fromId },
+        Key: { pk: `SLUG#${slug}`, sk: 'SLUG' },
+        UpdateExpression: 'SET signId = :to, movedFrom = if_not_exists(movedFrom,:from)',
         ConditionExpression: 'signId = :from',
-        ExpressionAttributeValues: { ':from': fromId }
+        ExpressionAttributeValues: { ':from': fromId, ':to': toId }
       })
     );
     return moved || (await this.slugHolder(slug))?.signId === toId;

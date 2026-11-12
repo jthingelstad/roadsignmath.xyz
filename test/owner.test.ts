@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createApp } from '../src/api/app.ts';
 import type { Player } from '../src/domain/types.ts';
-import { MemoryEdgeCache } from '../src/edge-cache.ts';
+import { MemoryEdgeCache, PAGE_CACHE } from '../src/edge-cache.ts';
 import { heartUid } from '../src/hearts.ts';
 import { MemoryMailer } from '../src/mail/mailer.ts';
 import { MemoryNewsletter } from '../src/newsletter.ts';
@@ -781,4 +781,41 @@ test('set-alt refuses the whole file, naming each bad entry, and writes nothing'
   });
   await assert.rejects(runOwner(deps, 'set-alt', '', 'check', { alts: { not: 'a list' } }), OwnerRefused);
   assert.equal(await snapshot(store), before);
+});
+
+test('a sign merged into one that is merged again keeps leading to the last', async () => {
+  const { store, deps, app } = await mergeSetup();
+  // Exit Seven Again into Exit Seven, then Exit Seven into Mile Twelve.
+  await runOwner(deps, 'merge-signs', 'exit-seven', 'live', { merge: MERGE });
+  const out = await runOwner(deps, 'merge-signs', 'mile-twelve', 'check', { merge: { drop: 'exit-seven' } });
+  assert.ok(out.some((l) => l.includes('exit-seven has signs merged into it before (exit-seven-again)')));
+  await runOwner(deps, 'merge-signs', 'mile-twelve', 'live', { merge: { drop: 'exit-seven' } });
+  const last = (await store.getSign(S2))!;
+  assert.deepEqual(
+    last.merged?.map((m) => [m.signId, m.slug]),
+    [
+      [S4, 'exit-seven-again'],
+      [S1, 'exit-seven']
+    ]
+  );
+  assert.deepEqual(await store.slugHolder('exit-seven-again'), { signId: S2, movedFrom: S4 });
+  for (const old of ['exit-seven', 'exit-seven-again']) {
+    const res = await app.request(`/signs/${old}`);
+    assert.equal(res.status, 301, old);
+    assert.equal(res.headers.get('location'), '/signs/mile-twelve');
+  }
+});
+
+test('the API answers a merged slug after its sign-in: a bad token is a 401, a reader’s 301 is not shared', async () => {
+  const { deps, app } = await mergeSetup();
+  await runOwner(deps, 'merge-signs', 'exit-seven', 'live', { merge: MERGE });
+  const bad = await app.request('/api/v1/signs/exit-seven-again', {
+    headers: { Authorization: 'Bearer rsm_nope_nope' }
+  });
+  assert.equal(bad.status, 401);
+  const anon = await app.request('/api/v1/signs/exit-seven-again');
+  assert.equal(anon.status, 301);
+  assert.equal(anon.headers.get('cache-control'), PAGE_CACHE);
+  const real = await app.request('/api/v1/signs/exit-seven');
+  assert.equal(real.status, 200, 'the kept sign itself answers as ever');
 });

@@ -246,7 +246,10 @@ npm run owner -- set-alt --file <alts.json> [--force] --to check|live
   are taken back, as a delete takes them. Reports and duplicate reports go with the dropped sign.
   Its slug's row then points at the kept sign, so `/signs/<drop>` on the site and in Quiz, and
   `/api/v1/signs/<drop>`, answer a 301 to the kept sign (`mergedSlugs` in `src/web/permalinks.ts`),
-  and a seed never makes it again. `--to check` shows the heart rows and kudos on the dropped sign
+  and a seed never makes it again. The API answers its own request first (a bad token is still a
+  401) and turns only its 404 into the 301. A micro.blog post or photo address of the dropped sign
+  follows the merge record too (`old-links.ts`), and a sign merged into the dropped one before comes
+  along, its slug leading to the kept sign. `--to check` shows the heart rows and kudos on the dropped sign
   (the public count without the key). `--to live` needs the Tinylytics key through the environment
   only when hearts or kudos move, and refuses before any write without it. It holds both signs'
   report leases. A run that fails partway is finished by running it again; once it is done,

@@ -581,7 +581,8 @@ async function mergeSigns(
       postedAt,
       place,
       finders,
-      merged: [...(keep.merged ?? []), merged]
+      // A sign merged into the dropped one before stays merged: its record comes along too.
+      merged: [...(keep.merged ?? []), ...(drop.merged ?? []), merged]
     };
     const change = (label: string, from: string, to: string) =>
       out.push(`${label}: ${from === to ? `${to} (no change)` : `${from} → ${to}`}`);
@@ -667,6 +668,10 @@ async function mergeSigns(
   out.push(
     `Address: /signs/${dropSlug} (the site, Quiz and /api/v1/signs/${dropSlug}) ${live ? 'leads' : 'would lead'} to /signs/${keepSlug} with a 301: its SLUG# row points at ${keepSlug}’s id. Sitemap, feeds, signs.json and share cards list the sign once, as ${keepSlug}.`
   );
+  if (drop.merged?.length)
+    out.push(
+      `${dropSlug} has signs merged into it before (${drop.merged.map((m) => m.slug).join(', ')}): they come along, and their addresses ${live ? 'lead' : 'would lead'} to /signs/${keepSlug} too.`
+    );
   if (!live) return out;
   if (kudoWork && !deps.tinylytics)
     refuse(
@@ -714,9 +719,11 @@ async function mergeSigns(
         await store.deleteWay(w.way);
       }
       await settleWays(store, keep.id);
-      // 5. The dropped slug leads to the kept sign from now on.
+      // 5. The dropped slug leads to the kept sign from now on, and so does each slug that led to
+      // the dropped sign from an earlier merge (a slug some other sign holds now is left alone).
       if (!(await store.moveSlug(drop.slug, drop.id, keep.id)))
         refuse(`The slug ${drop.slug} isn’t ${dropSlug}’s any more`);
+      for (const earlier of drop.merged ?? []) await store.moveSlug(earlier.slug, drop.id, keep.id);
       // 6. The photos left out. Never one the kept sign shows.
       const shown = new Set(((await store.getSign(keep.id, true)) ?? keep).photos.map((p) => p.id));
       for (const id of removed) if (!shown.has(id)) await photos.remove(id);

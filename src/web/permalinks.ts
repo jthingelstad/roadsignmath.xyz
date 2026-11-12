@@ -62,22 +62,43 @@ const SIGN_ADDRESS = /^(\/api\/v1)?\/signs\/([^/]+)(\/.*)?$/;
  * `/signs/<old slug>` (the site, Quiz) or `/api/v1/signs/<old slug>` is a 301 to the kept sign's
  * address, with the rest of the path and the query kept. Data, not a list of slugs: a slug whose
  * row was never moved, or whose kept sign is gone or not shown, goes on to the usual answer.
- * It costs one read of the slug's row per sign address the origin answers (the edge keeps the
- * site's a day); an id address, which has no row, goes on after that read.
+ *
+ * On the site and in Quiz (no sign-in that a redirect could skip) the row is read first: one read
+ * per sign address the origin answers, and the edge keeps the site's a day. In the API the request
+ * goes through first, so a bad token is still a 401 and a sign is read as the reader may see it;
+ * only its 404 becomes the 301, kept from shared caches when it carried a token.
  */
 export function mergedSlugs(store: Store): MiddlewareHandler {
+  /** The kept sign's address for this request, when its key is a merged sign's old slug. */
+  const movedAddress = async (match: RegExpExecArray): Promise<string | undefined> => {
+    const key = match[2];
+    if (!key || !/^[a-z0-9-]+$/.test(key)) return undefined;
+    const held = await store.slugHolder(key).catch(() => undefined);
+    if (!held?.movedFrom) return undefined;
+    const sign = await store.getSign(held.signId);
+    if (!sign || !isPublic(sign) || sign.slug === key) return undefined;
+    return `${match[1] ?? ''}${signPath(sign)}${match[3] ?? ''}`;
+  };
   return async (c, next) => {
     const method = c.req.method;
     const match = method === 'GET' || method === 'HEAD' ? SIGN_ADDRESS.exec(c.req.path) : null;
-    const key = match?.[2];
-    if (!match || !key || !/^[a-z0-9-]+$/.test(key)) return next();
-    const held = await store.slugHolder(key).catch(() => undefined);
-    if (!held?.movedFrom) return next();
-    const sign = await store.getSign(held.signId);
-    if (!sign || !isPublic(sign) || sign.slug === key) return next();
-    const api = match[1] ?? '';
-    c.header('Cache-Control', api || frontOf(c) === 'site' ? PAGE_CACHE : 'no-store');
-    if (api) c.header('API-Version', API_VERSION);
-    return c.redirect(`${api}${signPath(sign)}${match[3] ?? ''}${queryOf(c)}`, 301);
+    if (!match) return next();
+    if (match[1]) {
+      await next();
+      if (c.res.status !== 404) return;
+      const to = await movedAddress(match);
+      if (!to) return;
+      // Hono carries the 404's headers onto a response set after it, so these are set after.
+      c.res = new Response(null, { status: 301 });
+      c.res.headers.delete('Content-Length');
+      c.res.headers.set('Location', `${to}${queryOf(c)}`);
+      c.res.headers.set('Cache-Control', c.req.header('Authorization') ? 'no-store' : PAGE_CACHE);
+      c.res.headers.set('API-Version', API_VERSION);
+      return;
+    }
+    const to = await movedAddress(match);
+    if (!to) return next();
+    c.header('Cache-Control', frontOf(c) === 'site' ? PAGE_CACHE : 'no-store');
+    return c.redirect(`${to}${queryOf(c)}`, 301);
   };
 }

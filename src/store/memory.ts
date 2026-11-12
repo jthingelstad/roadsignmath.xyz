@@ -95,7 +95,7 @@ export class MemoryStore implements Store {
     if (holder === toId) return true;
     if (holder !== fromId) return false;
     this.slugs.set(slug, toId);
-    this.movedSlugs.set(slug, fromId);
+    if (!this.movedSlugs.has(slug)) this.movedSlugs.set(slug, fromId);
     return true;
   }
 
