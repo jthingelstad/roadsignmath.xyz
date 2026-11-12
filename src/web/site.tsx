@@ -75,6 +75,7 @@ import { mountIcons } from './icons.ts';
 import { mountPlayers, playingDays, sinceWords } from './players.tsx';
 import { credits, solveOf, type Solve } from '../quiz/data.ts';
 import { QUIZ_OPEN } from '../quiz/quiz.tsx';
+import { SITE_SIGNIN_OPEN } from './account.tsx';
 import { mountSigns } from './signs.tsx';
 import { sortOf } from './sorts.ts';
 import { PAGE_CACHE, POPULAR_CACHE } from '../edge-cache.ts';
@@ -703,11 +704,17 @@ export function createSite({
   store,
   urls,
   heartCounts,
-  quizOpen = QUIZ_OPEN
-}: Pick<ApiOptions, 'store' | 'urls' | 'heartCounts' | 'quizOpen'>): Hono {
+  quizOpen = QUIZ_OPEN,
+  siteSignInOpen = SITE_SIGNIN_OPEN
+}: Pick<ApiOptions, 'store' | 'urls' | 'heartCounts' | 'quizOpen' | 'siteSignInOpen'>): Hono {
   const site = new Hono();
   /** Quiz's address while it is open, for the header, Home, /app and /about (as "Try this one in Quiz"). */
   const quiz = quizOpen && urls.quiz ? urls.quiz : undefined;
+  /**
+   * Whether a player can sign in and post here (src/web/account.tsx, src/web/post.tsx): /about,
+   * /privacy, /support and /app say so only while it is open.
+   */
+  const webPosting = siteSignInOpen;
   const people = async (): Promise<People> => new Map((await store.allPlayers()).map((p) => [p.id, p]));
   /** Hearts by path for Popular; undefined without Tinylytics or when they can't be read. */
   const counts = async () => heartCounts?.counts();
@@ -888,6 +895,12 @@ export function createSite({
                   goes on the sign.
                 </p>
               )}
+              {webPosting && (
+                <p>
+                  You can post a sign from this website too: sign in and <a href="/post">post one</a> with its photo,
+                  its numbers and its math.
+                </p>
+              )}
             </li>
           </ol>
 
@@ -995,6 +1008,22 @@ export function createSite({
             find there are public like any others, and Delete my account, in the app or on your profile in Quiz, removes
             them too. Tinylytics counts Quiz’s pages apart from this website’s.
           </p>
+          {webPosting && (
+            <>
+              <h2>Signing in on this website</h2>
+              <p>
+                You can sign in here too, with the same account and email as the app and Quiz. Signing in here or in
+                Quiz signs you in on both. One cookie holds your sign-in and nothing else; a second holds only what the
+                top of the page shows for you (your picture or first letter, and its colour). Both go when you sign out.
+                Delete my account is on your page here as well.
+              </p>
+              <p>
+                When you post a sign here, your browser reads the photo’s location and the day it was taken, to fill in
+                where and when, and makes the photo smaller before it is sent. It is then saved again without its hidden
+                details, like every photo. Road Sign Math never asks your browser where you are.
+              </p>
+            </>
+          )}
           <h2>Reports</h2>
           <p>
             When you report a sign, Claude looks at it again, and Jamie gets an email about it: the sign, your reason,
@@ -1085,6 +1114,20 @@ export function createSite({
             your profile photo and your email address, which leaves the newsletter too. It can’t be undone, and anything
             deleted is gone from the backups within a year.
           </p>
+          {webPosting && (
+            <>
+              <p>
+                On this website, choose You at the top of any page to open your page, then Delete my account at the
+                bottom.
+              </p>
+              <h2>Post from the web</h2>
+              <p>
+                No iPhone? Sign in on this website and choose Post a sign on your page, or go to{' '}
+                <a href="/post">roadsignmath.xyz/post</a>. Add the photo, the numbers and where it was, then the math,
+                or post it unsolved. On an iPhone, the app is the easier way.
+              </p>
+            </>
+          )}
           <h2>More</h2>
           <ul>
             <li>
@@ -1363,7 +1406,7 @@ export function createSite({
 
   mountSigns(site, { store, urls, people, counts, siteCard, quiz });
   mountPlayers(site, { store, urls, people, siteCard, quiz });
-  mountAppPage(site, { urls, siteCard, quiz });
+  mountAppPage(site, { urls, siteCard, quiz, webPosting });
 
   // A sign's page is at its id; its old address by slug, or its id in another case, comes here.
   site.get('/signs/:key', async (c) => {

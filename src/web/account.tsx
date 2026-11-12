@@ -1,5 +1,5 @@
-// The website's signed-in side (wave 2, package 2A): sign in on roadsignmath.xyz by email, the name
-// step, and `/you`, the player's own page: the profile (photo, name, bio, website, home, through
+// The website's signed-in side (wave 2, packages 2A and 2B): sign in on roadsignmath.xyz by email,
+// the name step, posting a sign (`/post`, src/web/post.tsx), and `/you`, the player's own page: the profile (photo, name, bio, website, home, through
 // the same moderated `updateMe` as the app and Quiz), the signs they posted, held and hidden ones
 // included with why, Delete a sign, Sign out and Delete my account. The sign-in and profile pages
 // are Quiz's (src/quiz/account.tsx and pages.tsx), drawn in the site's frame.
@@ -27,8 +27,9 @@ import { deleteSign } from '../posting/posting.ts';
 import { mountAccount, sentence, trouble, type Status } from '../quiz/account.tsx';
 import { onSigns, credits } from '../quiz/data.ts';
 import { Face, Frame, MessagePage, SITE_PATHS, type Here } from '../quiz/pages.tsx';
-import { quizOrigin } from '../quiz/quiz.tsx';
+import { QUIZ_OPEN, quizOrigin } from '../quiz/quiz.tsx';
 import { MARKER_COOKIE, forget, fromOrigin, jarFor, sessionViewer } from '../quiz/session.ts';
+import { POST_PATH, mountPost } from './post.tsx';
 
 /**
  * Whether the website's sign-in is open. Opening it is Jamie's call; until then it stays false and
@@ -40,7 +41,7 @@ export const SITE_SIGNIN_OPEN = false;
 /**
  * The path groups the signed-in side answers under. Each has a behaviour of its own on the site's
  * distribution that is never cached and forwards the sign-in cookie (`test/cache-key.test.ts`
- * checks the two lists agree). `/post` is kept for posting from the website (package 2B).
+ * checks the two lists agree). `/post` is posting from the website (src/web/post.tsx).
  */
 export const ACCOUNT_PATHS = ['/signin', '/signin/*', '/you', '/you/*', '/post', '/post/*'] as const;
 
@@ -186,13 +187,15 @@ export function createAccount(options: AccountOptions): Hono {
     here,
     jar,
     page,
-    // The site's sign-in always lands on `/you`.
-    backTo: () => undefined,
-    onward: () => SITE_PATHS.profile,
+    // The site's sign-in lands on `/you`, or back on the posting form a signed-out player opened.
+    backTo: (raw) => (raw === POST_PATH ? POST_PATH : undefined),
+    onward: (to) => to ?? SITE_PATHS.profile,
     profileOf,
     yours: async (player) => <YourSigns signs={await posted(player)} site={urls.site} />,
     deletedWords: 'It’s gone, with everything it made, here, in Quiz and in the app. Thanks for playing Road Sign Math.'
   });
+
+  mountPost(app, { options, jar, page, quiz: (options.quizOpen ?? QUIZ_OPEN) ? here.quiz : undefined });
 
   /** A sign of theirs, by id, in any state, or undefined. */
   const yourSign = async (player: Player, id: string) => (await posted(player)).find((s) => s.id === id.toUpperCase());
@@ -266,8 +269,11 @@ const YourSigns = ({ signs, site }: { signs: Sign[]; site: string }) => (
     <h2 id="ys-h" class="h2">
       Signs you posted
     </h2>
+    <a class="btn" href={POST_PATH}>
+      Post a sign
+    </a>
     {signs.length === 0 ? (
-      <p class="meta">Signs you post in the app show here, with any only you can see.</p>
+      <p class="meta">Signs you post show here, with any only you can see.</p>
     ) : (
       <ul class="mine">
         {signs.map((sign) => {
