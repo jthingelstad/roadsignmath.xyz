@@ -7,11 +7,12 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { createApp } from '../src/api/app.ts';
-import { check } from '../src/domain/equation.ts';
+import { check, numbersNotOnSign } from '../src/domain/equation.ts';
 import type { Player } from '../src/domain/types.ts';
 import { MemoryMailer } from '../src/mail/mailer.ts';
 import { MemoryPhotoStore } from '../src/photos.ts';
 import { CHECKER_JS, CHECKER_SOURCE_SHA } from '../src/quiz/checker.ts';
+import { KEYPAD_JS } from '../src/quiz/keypad.ts';
 import { draw } from '../src/quiz/data.ts';
 import { quizOrigin } from '../src/quiz/quiz.tsx';
 import { MemoryStore } from '../src/store/memory.ts';
@@ -305,4 +306,134 @@ test('the browser’s checker is today’s equation.ts and answers as the server
   ];
   // Compared as JSON: the bundle's objects come from another realm.
   for (const text of texts) assert.equal(JSON.stringify(browser.check(text)), JSON.stringify(check(text)), text);
+});
+
+test('a way found too stays off the solved list once its author is blocked', async () => {
+  const t = await setup();
+  const cy: Player = { ...ben, id: '01JCCCCCCCCCCCCCCCCCCCCCCC', handle: 'cy', name: 'Cy' };
+  await addPlayer(t.store, cy);
+  // Ada's sign, with a second way by Cy that Ben then finds too.
+  await t.store.putWay(
+    way('S1', { id: 'way-cy', playerId: cy.id, text: '19 − 12 = 7', createdAt: '2026-01-12T00:00:00.000Z' })
+  );
+  const too = await t.quiz('/signs/seven-twelve/solve', { form: { text: '19 − 12 = 7' }, as: 'ben' });
+  assert.equal(too.location, '/signs/seven-twelve/found?way=way-cy');
+  const before = decoded((await t.quiz('/solved', { as: 'ben' })).html);
+  assert.ok(before.includes('Seven Twelve') && before.includes('19 − 12 = 7'));
+  await t.store.putBlock({ playerId: ben.id, blockedId: cy.id, createdAt: '2026-01-13T00:00:00.000Z' });
+  const after = decoded((await t.quiz('/solved', { as: 'ben' })).html);
+  assert.ok(!after.includes('19 − 12 = 7'), 'Cy’s way is hidden from Ben');
+  assert.ok(!after.includes('Seven Twelve'), 'and Ben solved it only by finding that way too');
+  const next = await t.quiz('/next', { as: 'ben' });
+  assert.equal(next.location, '/signs/unsolved-junction', 'it isn’t drawn for him again either');
+});
+
+/** Just enough DOM for the keypad: elements that keep their text, classes and listeners. */
+class FakeElement {
+  dataset: Record<string, string>;
+  hidden = false;
+  disabled = false;
+  required = true;
+  value = '';
+  textContent = '';
+  className = '';
+  tagName = 'DIV';
+  readonly classes = new Set<string>();
+  readonly classList = {
+    toggle: (name: string, on: boolean) => (on ? this.classes.add(name) : this.classes.delete(name))
+  };
+  private readonly listeners: Record<string, ((e: unknown) => void)[]> = {};
+  constructor(dataset: Record<string, string> = {}) {
+    this.dataset = dataset;
+  }
+  addEventListener(type: string, f: (e: unknown) => void) {
+    (this.listeners[type] ??= []).push(f);
+  }
+  append(...children: FakeElement[]) {
+    this.textContent += children.map((c) => c.textContent).join(' ');
+  }
+  setAttribute() {}
+  click() {
+    for (const f of this.listeners.click ?? []) f({});
+  }
+}
+
+function keypad(values: string[]) {
+  const tiles = values.map((v) => new FakeElement({ v }));
+  const keys = ['+', '−', '×', '÷', '=', '(', ')', 'del'].map((k) => new FakeElement({ k }));
+  const field = new FakeElement();
+  const pad = Object.assign(new FakeElement(), {
+    querySelectorAll: (sel: string) => (sel === '[data-v]' ? tiles : keys)
+  });
+  const form = Object.assign(new FakeElement(), { querySelector: () => field });
+  const els: Record<string, FakeElement> = {
+    solve: form,
+    pad,
+    math: new FakeElement(),
+    status: new FakeElement(),
+    send: new FakeElement(),
+    typed: new FakeElement()
+  };
+  const context: Record<string, unknown> = {
+    document: {
+      getElementById: (id: string) => els[id],
+      createElement: () => new FakeElement(),
+      addEventListener: () => {}
+    }
+  };
+  runInNewContext(`${CHECKER_JS};this.window={RSMCheck:RSMCheck};`, context);
+  runInNewContext(KEYPAD_JS, context);
+  const key = (k: string) => keys.find((e) => e.dataset.k === k)!.click();
+  return { tiles, key, field, status: els.status, send: els.send };
+}
+
+test('the keypad never runs two tiles together, and holds Send for math the sign can’t make', () => {
+  const pad = keypad(['1', '2', '12']);
+  pad.tiles[0].click();
+  pad.tiles[1].click();
+  assert.equal(pad.field.value, '1', 'a tile straight after a tile is refused: 1 and 2 aren’t 12');
+  pad.key('+');
+  pad.tiles[1].click();
+  pad.key('=');
+  pad.tiles[2].click();
+  assert.equal(pad.field.value, '1 + 2 = 12');
+  assert.equal(pad.send.disabled, true);
+  pad.key('del');
+  pad.key('del');
+  pad.key('×');
+  pad.key('(');
+  pad.tiles[2].click();
+  pad.key('÷');
+  pad.key('(');
+  assert.equal(pad.field.value, '1 + 2 × (12 ÷ (');
+  assert.equal(pad.send.disabled, true);
+
+  const works = keypad(['7', '12', '19']);
+  works.tiles[0].click();
+  works.key('+');
+  works.tiles[1].click();
+  works.key('=');
+  works.tiles[2].click();
+  assert.equal(works.field.value, '7 + 12 = 19');
+  assert.equal(works.send.disabled, false);
+  assert.ok(works.status.textContent.includes('It works: both sides are 19.'));
+
+  // The keypad's guard is the server's own count of the sign's numbers.
+  const context: { RSMCheck?: { numbersNotOnSign: typeof numbersNotOnSign } } = {};
+  runInNewContext(`${CHECKER_JS};this.RSMCheck=RSMCheck;`, context);
+  for (const [used, on] of [
+    [
+      ['12', '12'],
+      ['1', '2', '12']
+    ],
+    [
+      ['7', '12', '19'],
+      ['7', '12', '19']
+    ],
+    [['1.50'], ['1.5']]
+  ])
+    assert.equal(
+      JSON.stringify(context.RSMCheck!.numbersNotOnSign(used, on)),
+      JSON.stringify(numbersNotOnSign(used, on))
+    );
 });

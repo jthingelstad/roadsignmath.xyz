@@ -2,7 +2,8 @@
 // field for the math, which the server checks. With it the field goes, and the math is built
 // from the sign's number tiles and the operator keys (no digits: numbers come only from the
 // sign), checked on every tap by the bundled checker (window.RSMCheck, src/quiz/checker.ts) with
-// the server's own rules. Send stays off until the math works. On a keyboard the operators,
+// the server's own rules, and against the sign's numbers as the server checks a way. Send stays
+// off until the math works. On a keyboard the operators,
 // Backspace and Enter work too; digits don't.
 
 export const KEYPAD_JS = `(() => {
@@ -52,7 +53,9 @@ export const KEYPAD_JS = `(() => {
     if (!text) say('wait', 'Tap the numbers and signs to build the math.');
     else {
       const r = check(text);
-      if (r.ok) {
+      const extra = r.ok ? window.RSMCheck.numbersNotOnSign(r.numbers, tiles.map((t) => t.dataset.v)) : [];
+      if (r.ok && extra.length) say('wait', extra.join(', ') + (extra.length === 1 ? ' isn’t' : ' aren’t') + ' on the sign that often.');
+      else if (r.ok) {
         works = true;
         const all = used === tiles.length ? (tiles.length > 2 ? 'All ' + tiles.length + ' numbers used' : 'All numbers used') : '';
         say('ok', 'It works: both sides are ' + r.value + '.', all);
@@ -63,6 +66,10 @@ export const KEYPAD_JS = `(() => {
   };
   const tap = (token) => {
     if (token.n !== undefined && tokens.some((t) => t.n === token.n)) return;
+    // Two tiles side by side would run together as one number (1 and 2 as 12), which the sign
+    // doesn't have: a number goes after an operator or a bracket, never straight after another.
+    const last = tokens[tokens.length - 1];
+    if (token.n !== undefined && last && last.n !== undefined) return;
     tokens.push(token);
     update();
   };

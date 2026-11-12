@@ -69,7 +69,11 @@ export function solveOf(sign: Sign, on: OnSign, playerId: string): Solve | undef
 export function solvedBy(data: QuizData, on: Map<string, OnSign>, playerId: string): { sign: Sign; solve: Solve }[] {
   return data.signs
     .flatMap((sign) => {
-      const solve = solveOf(sign, on.get(sign.id) ?? { ways: [], coFinds: [] }, playerId);
+      // Shown as they see the sign: a way by a player they blocked since is left out, and a sign
+      // they solved only by finding that way too with it. (It still isn't drawn for them again.)
+      const all = on.get(sign.id) ?? { ways: [], coFinds: [] };
+      const seen = { ways: all.ways.filter((w) => !data.blocked.has(w.playerId)), coFinds: all.coFinds };
+      const solve = solveOf(sign, seen, playerId);
       return solve ? [{ sign, solve }] : [];
     })
     .sort((a, b) => b.solve.at.localeCompare(a.solve.at));
