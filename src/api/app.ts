@@ -82,6 +82,8 @@ export type ApiOptions = {
   feedbackTo?: string;
   /** Cleared after a request that changed a page (src/edge-cache.ts); without it nothing is. */
   edgeCache?: EdgeCache;
+  /** Opens Quiz whatever `QUIZ_OPEN` says: tests and `npm run dev`'s Quiz port. */
+  quizOpen?: boolean;
 };
 
 /** The viewer's two-letter country from CloudFront, when it sent one. */
@@ -666,7 +668,7 @@ export function createApp(given: ApiOptions): Hono {
   // A page write through either front clears the site's cache, so the middleware is outside both.
   if (changes) app.use('*', changes.middleware());
   const site = siteApp(options);
-  const quiz = createQuiz(options);
+  const quiz = createQuiz({ ...options, clientIp: options.clientIp ?? cloudFrontIp });
   app.all('*', (c) => (frontOf(c) === 'quiz' ? quiz : site).fetch(c.req.raw, c.env));
   return app;
 }

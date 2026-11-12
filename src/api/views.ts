@@ -8,6 +8,8 @@ import type { CoFind, Player, Sign, Way } from '../domain/types.ts';
 export type Urls = {
   /** The site's origin, "https://roadsignmath.xyz". */
   site: string;
+  /** Quiz's origin, "https://quiz.roadsignmath.xyz"; without it, the site's with `quiz.` in front. */
+  quiz?: string;
 };
 
 /** A sign's page on the site, and where its hearts are counted. */

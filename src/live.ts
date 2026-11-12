@@ -16,6 +16,7 @@ import { secretField } from './secrets.ts';
 import { Buttondown } from './newsletter.ts';
 import { KeyedTinylytics } from './tinylytics.ts';
 import { DynamoStore } from './store/dynamo.ts';
+import { quizOrigin } from './quiz/quiz.tsx';
 
 export type LiveConfig = {
   table: string;
@@ -70,7 +71,7 @@ export const buttondownKey = (config: LiveConfig) => () => secretField(config.ru
 export function liveOptions(config: LiveConfig): ApiOptions {
   return {
     store: new DynamoStore(config.table),
-    urls: { site: config.site },
+    urls: { site: config.site, quiz: quizOrigin(config.site) },
     mailer: new SesMailer(config.fromAddress),
     feedbackTo: config.feedbackTo,
     photos: new S3PhotoStore(config.photoBucket, config.photoDistributionId),

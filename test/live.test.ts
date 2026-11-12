@@ -44,7 +44,7 @@ test('the live server is wired from the stack environment', () => {
   assert.ok(options.mailer instanceof SesMailer);
   assert.ok(options.moderator instanceof KeyedModerator);
   assert.ok(options.tinylytics instanceof KeyedTinylytics);
-  assert.deepEqual(options.urls, { site: 'https://example.test' });
+  assert.deepEqual(options.urls, { site: 'https://example.test', quiz: 'https://quiz.example.test' });
   assert.equal(options.feedbackTo, 'feedback@example.test');
   assert.ok(createApp(options));
 });

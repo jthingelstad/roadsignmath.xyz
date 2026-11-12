@@ -16,6 +16,7 @@
     "us-map": "node --import tsx tools/us-map.ts && prettier --write src/web/us-map.ts",
     "app-assets": "node --import tsx tools/app-assets.ts",
     "brand": "node --import tsx tools/brand.ts",
+    "quiz-checker": "node --import tsx tools/quiz-checker.ts && prettier --write src/quiz/checker.ts",
     "build:server": "node --import tsx tools/build-server.ts",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test",
     "seed": "node --import tsx tools/seed-microblog.ts",

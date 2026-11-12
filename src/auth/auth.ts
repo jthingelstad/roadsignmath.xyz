@@ -8,7 +8,7 @@ import { limit } from '../api/input.ts';
 import { ulid } from '../domain/ids.ts';
 import { AVATAR_COLORS, type Login, type Player, type Session } from '../domain/types.ts';
 import type { Mailer } from '../mail/mailer.ts';
-import { signInMail } from '../mail/signin.ts';
+import { signInMail, type SignInFront } from '../mail/signin.ts';
 import { emailHash, normalizeEmail, nowSeconds, type Store } from '../store/store.ts';
 
 export const LOGIN_TTL = 15 * 60;
@@ -50,7 +50,7 @@ export type SignInLink = (loginId: string, token: string) => string;
 
 /** Sends the link and code. The answer is the same whether or not the address has an account. */
 export async function startSignIn(
-  deps: { store: Store; mailer: Mailer; link: SignInLink },
+  deps: { store: Store; mailer: Mailer; link: SignInLink; front?: SignInFront },
   rawEmail: unknown,
   ip: string
 ): Promise<{ loginId: string; expiresIn: number }> {
@@ -73,7 +73,7 @@ export async function startSignIn(
     expiresAt: now + LOGIN_TTL
   };
   await deps.store.putLogin(login);
-  await deps.mailer.send(signInMail(email, deps.link(login.id, token), code));
+  await deps.mailer.send(signInMail(email, deps.link(login.id, token), code, deps.front));
   return { loginId: login.id, expiresIn: LOGIN_TTL };
 }
 
