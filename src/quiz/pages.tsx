@@ -298,9 +298,6 @@ const Sep = () => (
   </span>
 );
 
-/** An address as a reader says it: "roadsignmath.xyz/players/jamie". */
-const address = (url: string) => url.replace(/^https?:\/\//, '');
-
 const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
 
 /** "Jamie", "Jamie and Tyler", "Jamie, Tyler and Tammy". */
@@ -460,7 +457,7 @@ export const HomePage: FC<{ here: Here; sample?: Sign; more: Sign[] }> = ({ here
           </div>
           <div class="step">
             <span>2</span>
-            <p>Build math from those numbers until both sides match. It checks as you go.</p>
+            <p>Use every number in math that makes both sides match. It checks as you go.</p>
           </div>
           <div class="step">
             <span>3</span>
@@ -1057,12 +1054,13 @@ const PILLS: Record<Solve['kind'], [string, string]> = {
   too: ['pill g', 'You found it too']
 };
 
-export const SolvedPage: FC<{ here: Here; player: Player; solved: { sign: Sign; solve: Solve }[]; now: Date }> = ({
-  here,
-  player,
-  solved,
-  now
-}) => (
+export const SolvedPage: FC<{
+  here: Here;
+  player: Player;
+  solved: { sign: Sign; solve: Solve }[];
+  now: Date;
+  hasPage: boolean;
+}> = ({ here, player, solved, now, hasPage }) => (
   <Frame here={here} title="Signs you’ve solved" player={player}>
     <div class="stack narrow">
       <a class="txt" href="/next" style="align-self: flex-start">
@@ -1094,11 +1092,10 @@ export const SolvedPage: FC<{ here: Here; player: Player; solved: { sign: Sign; 
       )}
       <p class="meta">
         A tap opens the sign on roadsignmath.xyz.
-        {player.name && (
+        {hasPage && (
           <>
             {' '}
-            Your public page shows your ways and badges:{' '}
-            <a href={playerUrl(here, player)}>{address(playerUrl(here, player))}</a>
+            Your <a href={playerUrl(here, player)}>public page on roadsignmath.xyz</a> shows your ways and badges.
           </>
         )}
       </p>
@@ -1165,7 +1162,7 @@ export const ProfilePage: FC<{
           <Face player={player} size={84} here={here} />
           <span class="name">{player.name}</span>
           {hasPage ? (
-            <a href={page}>{address(page)}</a>
+            <a href={page}>Your page on roadsignmath.xyz</a>
           ) : (
             <p class="meta">Your page on roadsignmath.xyz starts with the first way you find.</p>
           )}

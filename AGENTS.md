@@ -179,7 +179,7 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
   newest first and unsolved signs last, at 0. Each sign in the answer carries its `complexity`
   for the app, but no page shows it: it orders signs by their math and is never a player's score.
   `complex` is a reserved slug.
-- **Badges** (`src/domain/badges.ts`): 29 little road signs on five shelves (firsts, places,
+- **Badges** (`src/domain/badges.ts`): 30 little road signs on five shelves (firsts, places,
   math, seasons, secret). Nothing about them is stored: they are worked out on every read from
   the shown signs and the ways on them that the reader sees (a block leaves out the blocked
   player's ways), so a badge follows its sign. A sign's badges go to its poster and every

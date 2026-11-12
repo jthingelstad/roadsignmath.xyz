@@ -342,7 +342,7 @@ export function createQuiz(options: QuizOptions): Hono {
   quiz.get('/signs/:key/found', async (c) => {
     const old = await moved(c, '/found');
     if (old) return old;
-    const viewer = await playing(c);
+    const viewer = await playing(c, backTo(c.req.param('key') ?? ''));
     if (viewer instanceof Response) return viewer;
     const got = await signFor(c, viewer.player);
     if (got.missing) return got.missing;
@@ -370,7 +370,7 @@ export function createQuiz(options: QuizOptions): Hono {
   quiz.get('/signs/:key/ways', async (c) => {
     const old = await moved(c, '/ways');
     if (old) return old;
-    const viewer = await playing(c);
+    const viewer = await playing(c, backTo(c.req.param('key') ?? ''));
     if (viewer instanceof Response) return viewer;
     const got = await signFor(c, viewer.player);
     if (got.missing) return got.missing;
@@ -392,7 +392,11 @@ export function createQuiz(options: QuizOptions): Hono {
     if (viewer instanceof Response) return viewer;
     const data = await loadQuiz(store, viewer.player);
     const solved = solvedBy(data, await onSigns(store, data.signs), viewer.player.id);
-    return page(c, <SolvedPage here={here} player={viewer.player} solved={solved} now={new Date()} />);
+    const { hasPage } = await profileOf(viewer.player);
+    return page(
+      c,
+      <SolvedPage here={here} player={viewer.player} solved={solved} now={new Date()} hasPage={hasPage} />
+    );
   });
 
   // ---- Your profile: photo, name and bio, sign out, and Delete my account, as the app's settings
