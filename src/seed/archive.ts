@@ -11,7 +11,7 @@ import { STATES } from '../domain/geo.ts';
 import { slugify, ulidFrom, uniqueSlug } from '../domain/ids.ts';
 import { AVATAR_COLORS, type Place, type Player, type Sign, type Way } from '../domain/types.ts';
 import { renditions, type PhotoStore } from '../photos.ts';
-import { addSign, normalizeEmail, type Store } from '../store/store.ts';
+import { addSign, mergedAway, normalizeEmail, type Store } from '../store/store.ts';
 
 /** One `signs/*.md` file of the archive: its name without `.md`, front matter and text. */
 export type ArchivePost = { stem: string; meta: ArchiveMeta; body: string };
@@ -403,7 +403,9 @@ export async function loadArchive(
   emails: Map<string, string> = new Map()
 ): Promise<LoadReport> {
   const { store, photos } = deps;
-  const present = new Set<string>();
+  // A sign the owner merged into another (`merge-signs`) counts as there: a run never brings it back.
+  const merged = mergedAway(await store.allSigns());
+  const present = new Set(plan.signs.filter((s) => merged.has(s.id)).map((s) => s.id));
   for (const sign of plan.signs) if (await store.getSign(sign.id)) present.add(sign.id);
 
   const everyone = await store.allPlayers();

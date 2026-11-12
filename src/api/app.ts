@@ -32,6 +32,7 @@ import { frontOf } from '../front.ts';
 import { createQuiz } from '../quiz/quiz.tsx';
 import { Census } from '../census.ts';
 import { createSite } from '../web/site.tsx';
+import { mergedSlugs } from '../web/permalinks.ts';
 import {
   addWay,
   solveSign,
@@ -698,6 +699,8 @@ export function createApp(given: ApiOptions): Hono {
   if (given.census) app.use('*', new Census(given.store).middleware());
   // A page write through either front clears the site's cache, so the middleware is outside both.
   if (changes) app.use('*', changes.middleware());
+  // A merged sign's old slug leads to the sign it went into, on both fronts and in the API.
+  app.use('*', mergedSlugs(options.store));
   const site = siteApp(options);
   const quiz = createQuiz({ ...options, clientIp: options.clientIp ?? cloudFrontIp });
   app.all('*', (c) => (frontOf(c) === 'quiz' ? quiz : site).fetch(c.req.raw, c.env));

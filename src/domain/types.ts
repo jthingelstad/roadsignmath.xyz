@@ -64,7 +64,15 @@ export type Sign = {
   wayCount: number;
   /** Why it is held or hidden, in the moderator's words, for its poster. */
   moderation?: { note: string; at: string };
+  /** Private: the signs the owner merged into this one (`merge-signs`), never in an answer. */
+  merged?: MergeRecord[];
 };
+
+/**
+ * One sign merged into another by the owner (`merge-signs` in src/owner.ts): the sign that went,
+ * its slug (which now leads here), when, and the photos the merge left out, whose files go.
+ */
+export type MergeRecord = { signId: string; slug: string; at: string; photosRemoved: string[] };
 
 export type Way = {
   id: string;

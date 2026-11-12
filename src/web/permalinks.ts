@@ -9,9 +9,13 @@
 //
 // The site's sign and player pages and a player's feeds use these, and so do Quiz's sign pages.
 
-import type { Context } from 'hono';
+import type { Context, MiddlewareHandler } from 'hono';
+import { API_VERSION } from '../api/contract.ts';
+import { isPublic, signPath } from '../api/views.ts';
 import type { Player, Sign } from '../domain/types.ts';
 import { PAGE_CACHE } from '../edge-cache.ts';
+import { frontOf } from '../front.ts';
+import type { Store } from '../store/store.ts';
 
 /** What a key in an address found, and whether the key was already the name. */
 export type Found<T> = { found: T; canonical: boolean };
@@ -47,4 +51,33 @@ export const queryOf = (c: Context): string => new URL(c.req.url).search;
 export function movedTo(c: Context, path: string): Response {
   c.header('Cache-Control', PAGE_CACHE);
   return c.redirect(`${path}${queryOf(c)}`, 301);
+}
+
+/** A sign's address on either front or in the API: the prefix, the key, and what follows it. */
+const SIGN_ADDRESS = /^(\/api\/v1)?\/signs\/([^/]+)(\/.*)?$/;
+
+/**
+ * The slug of a sign the owner merged into another (`merge-signs` in src/owner.ts) keeps leading
+ * there: its `SLUG#` row points at the kept sign and says which sign it was claimed for, so a GET of
+ * `/signs/<old slug>` (the site, Quiz) or `/api/v1/signs/<old slug>` is a 301 to the kept sign's
+ * address, with the rest of the path and the query kept. Data, not a list of slugs: a slug whose
+ * row was never moved, or whose kept sign is gone or not shown, goes on to the usual answer.
+ * It costs one read of the slug's row per sign address the origin answers (the edge keeps the
+ * site's a day); an id address, which has no row, goes on after that read.
+ */
+export function mergedSlugs(store: Store): MiddlewareHandler {
+  return async (c, next) => {
+    const method = c.req.method;
+    const match = method === 'GET' || method === 'HEAD' ? SIGN_ADDRESS.exec(c.req.path) : null;
+    const key = match?.[2];
+    if (!match || !key || !/^[a-z0-9-]+$/.test(key)) return next();
+    const held = await store.slugHolder(key).catch(() => undefined);
+    if (!held?.movedFrom) return next();
+    const sign = await store.getSign(held.signId);
+    if (!sign || !isPublic(sign) || sign.slug === key) return next();
+    const api = match[1] ?? '';
+    c.header('Cache-Control', api || frontOf(c) === 'site' ? PAGE_CACHE : 'no-store');
+    if (api) c.header('API-Version', API_VERSION);
+    return c.redirect(`${api}${signPath(sign)}${match[3] ?? ''}${queryOf(c)}`, 301);
+  };
 }

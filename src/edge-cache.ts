@@ -58,6 +58,7 @@ const PAGE_WRITES = [
   'putSign',
   'updateSign',
   'deleteSign',
+  'moveSlug',
   'putWay',
   'deleteWay',
   'addWay',

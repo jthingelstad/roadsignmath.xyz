@@ -207,6 +207,11 @@ npm run owner -- remove-way <slug> --to check            # read only: the sign's
 npm run owner -- remove-way <slug> --way <id> --to check|live
 npm run owner -- remove-player <handle> --to check
 TINYLYTICS_API_KEY=… BUTTONDOWN_API_KEY=… npm run owner -- remove-player <handle> --to live
+npm run owner -- merge-signs <keep> <drop> [--photos drop:1,keep:1] [--found-on drop|keep] \
+  [--posted-at drop|keep] [--place drop|keep] [--caption keep|drop|both] \
+  [--caption-trim "<exact last sentence>"] --to check   # read only: what merging would change
+TINYLYTICS_API_KEY=… npm run owner -- merge-signs <keep> <drop> … --to live
+npm run owner -- set-alt --file <alts.json> [--force] --to check|live
 ```
 
 - `hide-sign` leaves the sign as an upheld report does (`hideSign`): its photos leave `p/` and
@@ -224,6 +229,34 @@ TINYLYTICS_API_KEY=… BUTTONDOWN_API_KEY=… npm run owner -- remove-player <ha
   and everything it made, their hearts' kudos first, then their address leaves the newsletter.
   `--to live` needs the Tinylytics and Buttondown keys through the environment (`op run`), never
   on the command line, and refuses without them.
+- `merge-signs` makes one sign of a road sign posted twice (Jamie, 2026-11-12: "Merge the two
+  genesis signs into a single sign with two photos."). The kept sign keeps its id, slug, title,
+  numbers, hearts and address, so its feed item, share card and old links stay. Each of
+  `--found-on`, `--posted-at` and `--place` takes the dropped sign's value with `drop` and keeps
+  the kept sign's by default; `--caption` is the kept caption (default), the dropped one, or
+  `both` (kept, a blank line, dropped), and `--caption-trim` takes one exact sentence off its end
+  (refused when it isn't there). `--photos drop:1,keep:1,keep:2` lists the photos the sign ends
+  with, at most four (1 is each sign's first); left out, it is the kept sign's then the dropped
+  sign's. A photo left out is deleted; a dropped sign's photo that stays keeps its id, files and
+  alt text, since only the kept sign's row points at it. The dropped sign's ways move over with
+  their co-finds unless the kept sign has the same way (`sameWayKey`), whose author and co-finders
+  are credited there instead; the count and first way follow the ways, oldest first. Finders are
+  both signs' with no one twice. A player who hearted only the dropped sign has the heart moved;
+  one who hearted both keeps the kept sign's; the website's anonymous kudos on the dropped sign
+  are taken back, as a delete takes them. Reports and duplicate reports go with the dropped sign.
+  Its slug's row then points at the kept sign, so `/signs/<drop>` on the site and in Quiz, and
+  `/api/v1/signs/<drop>`, answer a 301 to the kept sign (`mergedSlugs` in `src/web/permalinks.ts`),
+  and a seed never makes it again. `--to check` shows the heart rows and kudos on the dropped sign
+  (the public count without the key). `--to live` needs the Tinylytics key through the environment
+  only when hearts or kudos move, and refuses before any write without it. It holds both signs'
+  report leases. A run that fails partway is finished by running it again; once it is done,
+  `check` says there is nothing to do.
+- `set-alt` sets photo alt text from a JSON list of `{ "sign_id", "photo_id", "alt" }` (other
+  fields are ignored; Jamie, 2026-11-12, for alt text written after looking at each photo).
+  `check` prints each photo's slug, old alt and new alt. The whole file is refused, naming each
+  entry, if a sign or photo isn't there or an alt is empty, over 300 characters or has a line
+  break. Only a generic "Photo of the … sign" or empty alt is replaced unless `--force`; others
+  are skipped with a note. `live` writes each changed sign's photos alone (`updateSign`).
 - `--to check` only reads the live table. `--to live` is a write to live data, the owner's alone,
   and clears the edge once at the end, even when it fails partway. It reads the table, photo bucket and distribution from the
   `roadsignmath-xyz` stack as `cloud-engineer`. It never prints an email address.

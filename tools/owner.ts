@@ -10,6 +10,13 @@
 //   npm run owner -- remove-way <slug> --way <id> --to check|live   take one way off the sign
 //   npm run owner -- remove-player <handle> --to check   read only: what removing them would delete
 //   TINYLYTICS_API_KEY=… BUTTONDOWN_API_KEY=… npm run owner -- remove-player <handle> --to live
+//   npm run owner -- merge-signs <keep> <drop> [--photos drop:1,keep:1] [--found-on drop|keep]
+//       [--posted-at drop|keep] [--place drop|keep] [--caption keep|drop|both]
+//       [--caption-trim "<exact last sentence>"] --to check   read only: what merging would change
+//   TINYLYTICS_API_KEY=… npm run owner -- merge-signs <keep> <drop> … --to live
+//                                                       (the key only when hearts or kudos move)
+//   npm run owner -- set-alt --file <alts.json> [--force] --to check|live
+//                                                       photo alt text from [{sign_id, photo_id, alt}]
 //
 // It reads the table, photo bucket and distribution from the roadsignmath-xyz stack as the
 // cloud-engineer profile. `remove-player --to live` is DELETE /me for that player: it needs the
@@ -18,6 +25,7 @@
 // the edge once at the end. An email address is never printed.
 
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { ApiError } from '../src/api/errors.ts';
 import { CloudFrontEdgeCache } from '../src/edge-cache.ts';
@@ -32,7 +40,10 @@ const USAGE = [
   '       npm run owner -- unhide-sign <slug> --to check|live',
   '       npm run owner -- set-place <slug> --lat=<n> --lng=<n> [--label "…"] [--state XX] [--approximate] --to check|live',
   '       npm run owner -- remove-way <slug> [--way <id>] --to check|live',
-  '       npm run owner -- remove-player <handle> --to check|live'
+  '       npm run owner -- remove-player <handle> --to check|live',
+  '       npm run owner -- merge-signs <keep> <drop> [--photos drop:1,keep:1] [--found-on drop|keep] [--posted-at drop|keep]',
+  '                [--place drop|keep] [--caption keep|drop|both] [--caption-trim "…"] --to check|live',
+  '       npm run owner -- set-alt --file <alts.json> [--force] --to check|live'
 ].join('\n');
 
 const { values, positionals } = parseArgs({
@@ -45,14 +56,33 @@ const { values, positionals } = parseArgs({
     lng: { type: 'string' },
     label: { type: 'string' },
     state: { type: 'string' },
-    approximate: { type: 'boolean' }
+    approximate: { type: 'boolean' },
+    photos: { type: 'string' },
+    caption: { type: 'string' },
+    'caption-trim': { type: 'string' },
+    'found-on': { type: 'string' },
+    'posted-at': { type: 'string' },
+    place: { type: 'string' },
+    file: { type: 'string' },
+    force: { type: 'boolean' }
   }
 });
-const [command, target] = positionals;
+const [command, target = '', drop] = positionals;
+const oneOf = <T extends string>(value: string | undefined, allowed: readonly T[]): value is T | undefined =>
+  value === undefined || (allowed as readonly string[]).includes(value);
+const positionalsFit =
+  command === 'merge-signs'
+    ? positionals.length === 3
+    : command === 'set-alt'
+      ? positionals.length === 1 && !!values.file
+      : positionals.length === 2;
 if (
   !OWNER_COMMANDS.includes(command as OwnerCommand) ||
-  !target ||
-  positionals.length !== 2 ||
+  !positionalsFit ||
+  !oneOf(values['found-on'], ['drop', 'keep'] as const) ||
+  !oneOf(values['posted-at'], ['drop', 'keep'] as const) ||
+  !oneOf(values.place, ['drop', 'keep'] as const) ||
+  !oneOf(values.caption, ['keep', 'drop', 'both'] as const) ||
   (values.to !== 'check' && values.to !== 'live')
 ) {
   console.error(USAGE);
@@ -75,6 +105,25 @@ const distribution = output('DistributionId');
 const tinylyticsKey = process.env.TINYLYTICS_API_KEY?.trim();
 const buttondownKey = process.env.BUTTONDOWN_API_KEY?.trim();
 
+/** The public count of a sign's hearts (its kudos), from the live API: no key needed. */
+async function kudoCount(path: string): Promise<number | undefined> {
+  const res = await fetch(`https://roadsignmath.xyz/api/v1${path}`, { signal: AbortSignal.timeout(5000) });
+  if (!res.ok) return undefined;
+  const hearts = ((await res.json()) as { hearts?: unknown }).hearts;
+  return typeof hearts === 'number' ? hearts : undefined;
+}
+
+/** The alt-text file, read whole; `set-alt` checks every entry before it writes any. */
+function altsFile(path: string | undefined): unknown {
+  if (!path) return undefined;
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch (err) {
+    console.error(`Can't read ${path} as JSON: ${(err as Error).message}`);
+    process.exit(1);
+  }
+}
+
 try {
   const lines = await runOwner(
     {
@@ -82,7 +131,8 @@ try {
       photos: new S3PhotoStore(output('PhotoBucketName'), distribution),
       edgeCache: live ? new CloudFrontEdgeCache(distribution) : undefined,
       ...(tinylyticsKey ? { tinylytics: new KeyedTinylytics(async () => tinylyticsKey) } : {}),
-      ...(buttondownKey ? { newsletter: new Buttondown(async () => buttondownKey) } : {})
+      ...(buttondownKey ? { newsletter: new Buttondown(async () => buttondownKey) } : {}),
+      kudoCount
     },
     command as OwnerCommand,
     target,
@@ -96,7 +146,18 @@ try {
         label: values.label,
         state: values.state,
         approximate: values.approximate
-      }
+      },
+      merge: {
+        drop,
+        photos: values.photos,
+        caption: values.caption,
+        captionTrim: values['caption-trim'],
+        foundOn: values['found-on'],
+        postedAt: values['posted-at'],
+        place: values.place
+      },
+      alts: command === 'set-alt' ? altsFile(values.file) : undefined,
+      force: values.force
     }
   );
   for (const line of lines) console.log(line);
