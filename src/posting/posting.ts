@@ -4,7 +4,7 @@
 import { fail } from '../api/errors.ts';
 import { limit, text } from '../api/input.ts';
 import { LIMITS } from '../api/contract.ts';
-import { check, normalizeNumber, numbersNotOnSign } from '../domain/equation.ts';
+import { check, normalizeNumber, numbersNotOnSign, sameWayKey } from '../domain/equation.ts';
 import { slugify, ulid } from '../domain/ids.ts';
 import type {
   DuplicateReport,
@@ -404,6 +404,10 @@ export async function deleteSign(deps: PostingDeps, player: Player, sign: Sign):
   await sweepSignKudos(deps, [sign]);
 }
 
+/** The answer to a way that only reorders one already on the sign. */
+export const REORDERED =
+  'That’s a way already on the sign in another order. Moving what’s added or multiplied around doesn’t make a new one';
+
 /** Adds a way to a sign, keeping the sign's count and first way in step with its ways. */
 export async function addWay(
   { store }: PostingDeps,
@@ -418,7 +422,12 @@ export async function addWay(
   }
   const way = checkWay(body.text as string, sign.numbers);
   const taken = 'Someone already found that way';
-  if ((await store.listWays(sign.id)).some((w) => w.text === way.text)) fail('conflict', taken);
+  const onSign = await store.listWays(sign.id);
+  if (onSign.some((w) => w.text === way.text)) fail('conflict', taken);
+  // The same way in another order (the same-way rule in equation.ts) isn't a new way either. The
+  // app shows a conflict's message with a full stop after it, so neither message ends in one.
+  const key = sameWayKey(way.text);
+  if (onSign.some((w) => sameWayKey(w.text) === key)) fail('conflict', REORDERED);
   const now = nowSeconds();
   await limit(store, `ways:${player.id}`, LIMITS.waysADay, DAY, now, `Too many ways today. ${tomorrow}`);
   // The check above answers most repeats; this one write settles two of the same way sent at once.
@@ -432,6 +441,7 @@ export async function addWay(
     createdAt: new Date(ms).toISOString()
   });
   if (added === 'taken') fail('conflict', taken);
+  if (added === 'reordered') fail('conflict', REORDERED);
   if (added === 'gone') fail('not_found', 'No sign by that id');
   return store.listWays(sign.id);
 }

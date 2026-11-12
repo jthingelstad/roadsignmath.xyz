@@ -64,8 +64,17 @@ const Art: FC<{ badge: BadgeView }> = ({ badge }) => {
         <>
           <rect x="10" y="4" width="44" height="56" rx="5" fill="#fff" stroke={INK} stroke-width="2.5" />
           <rect x="14" y="8" width="36" height="48" rx="3" fill="none" stroke={INK} stroke-width="1" />
-          {/* An upright plate is narrow, so a long word gets smaller. */}
-          <Mark mark={badge.mark} color={INK} size={[...badge.mark].length >= 4 ? 10 : undefined} />
+          {badge.id === 'tag-team' ? (
+            // The merge sign: two lanes becoming one.
+            <>
+              <path d="M36 54V18" fill="none" stroke={INK} stroke-width="4" />
+              <path d="M22 54C22 42 36 40 36 30" fill="none" stroke={INK} stroke-width="4" />
+              <polygon points="36,10 29.5,20 42.5,20" fill={INK} />
+            </>
+          ) : (
+            // An upright plate is narrow, so a long word gets smaller.
+            <Mark mark={badge.mark} color={INK} size={[...badge.mark].length >= 4 ? 10 : undefined} />
+          )}
         </>
       );
     case 'places':

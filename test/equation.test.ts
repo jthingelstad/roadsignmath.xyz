@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { check, numbersNotOnSign, texOf } from '../src/domain/equation.ts';
+import { check, numbersNotOnSign, sameWayKey, texOf } from '../src/domain/equation.ts';
 
 type Vector = {
   text: string;
@@ -48,4 +48,25 @@ test('a false way reports both sides', () => {
   const r = check('2 + 2 = 5');
   assert.equal(r.ok, false);
   if (!r.ok) assert.deepEqual(r.values, ['4', '5']);
+});
+
+const sameWay = (
+  JSON.parse(readFileSync(new URL('../contracts/equation-vectors.json', import.meta.url), 'utf8')) as {
+    same_way: { a: string; b: string; same: boolean; note: string }[];
+  }
+).same_way;
+
+for (const v of sameWay) {
+  test(`same way: ${v.note}: ${v.a} and ${v.b}`, () => {
+    assert.ok(check(v.a).ok, v.a);
+    assert.ok(check(v.b).ok, v.b);
+    const a = sameWayKey(v.a);
+    assert.ok(a !== undefined);
+    assert.equal(a === sameWayKey(v.b), v.same);
+  });
+}
+
+test('every way is the same as itself, and math that doesn’t parse has no key', () => {
+  for (const v of vectors.checks.filter((c) => c.ok)) assert.equal(sameWayKey(v.text), sameWayKey(v.canonical!));
+  assert.equal(sameWayKey('3 +'), undefined);
 });

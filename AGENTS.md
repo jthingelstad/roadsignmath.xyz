@@ -17,7 +17,12 @@ ids or ARNs, local paths, or photos of plates or faces that weren't meant to be 
   `contracts/equation-vectors.json` holds the cases the server and the iPhone app both pass,
   including each way's LaTeX (`tex`): ÷ is a stacked fraction. The site draws it as SVG with
   MathJax on the server (`src/web/math.ts`); the app draws the same LaTeX with SwiftMath
-  and checks its own LaTeX writer against these vectors.
+  and checks its own LaTeX writer against these vectors. **The same way** (`sameWayKey`, Jamie,
+  2026-11-11: a reordered way "earns nothing"): two ways are one when they differ only by the order
+  of what is added or multiplied (each term keeping its sign, each factor whether it divides, inside
+  roots, powers and brackets too), brackets that do nothing, or which side of the `=` is which. A
+  new way that is the same as one on the sign is a 409 `conflict` (`REORDERED`, which ends without
+  a full stop: the app's Find another way adds one). The vectors' `same_way` pairs hold the rule.
 - **Public reads, signed-in writes.** Only `shown` signs are public; a player also sees their
   own held and hidden signs. A player's email never leaves the server, except to the players'
   newsletter on Buttondown (`src/newsletter.ts`).
@@ -76,6 +81,7 @@ and filtered in memory; at this size that is cheaper and simpler than indexes.
 | `HANDLE#<handle>` | `HANDLE` | the player id holding a handle |
 | `SLUG#<slug>` | `SLUG` | the sign id holding a slug |
 | `SIGN#<signId>` | `MATH#<sha256>` | the way id holding that math on the sign |
+| `SIGN#<signId>` | `SAME#<sha256>` | the way id holding that way in any order |
 | `SIGN#<signId>` | `REPORT#<playerId>` | a player's report of that sign |
 | `SIGN#<signId>` | `DUPLICATE#<playerId>` | a player's word that it is the same as another sign |
 | `PLAYER#<playerId>` | `SESSION#<sha256>` | a signed-in app (expires) |
@@ -161,11 +167,15 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
   newest first and unsolved signs last, at 0. Each sign in the answer carries its `complexity`
   for the app, but no page shows it: it orders signs by their math and is never a player's score.
   `complex` is a reserved slug.
-- **Badges** (`src/domain/badges.ts`): 28 little road signs on five shelves (firsts, places,
+- **Badges** (`src/domain/badges.ts`): 29 little road signs on five shelves (firsts, places,
   math, seasons, secret). Nothing about them is stored: they are worked out on every read from
   the shown signs and the ways on them that the reader sees (a block leaves out the blocked
   player's ways), so a badge follows its sign. A sign's badges go to its poster and every
-  finder who plays; a way's go to its author. Each earned badge carries the sign and day that
+  finder who plays; a way's go to its author. Tag Team (Jamie, 2026-11-11) is the first way on a
+  sign posted unsolved, by a player the sign doesn't credit, and its poster earns it too; Cracked
+  It is a sign's second way, by a player it doesn't credit who didn't write the first (the poster's
+  own second way is Another Way). The app draws Tag Team's merge sign by its id; builds before it
+  draw the firsts plate with its text mark, `1+1`. Each earned badge carries the sign and day that
   first earned it, and stepped ones (States, Mile Markers) the step reached. `GET /badges` is
   the catalog, with the five secret ones as `secret: true` and no name or how; `badges` is on
   `GET /players/{handle}` and `GET /me`; posting a sign or a way answers with `unlocked`, what

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { sameWayKey } from '../domain/equation.ts';
 import type {
   Block,
   DuplicateReport,
@@ -59,9 +60,10 @@ export interface Store {
   /**
    * Adds a way to a sign that has one already or none, in one all-or-nothing write: reserves its
    * math, stores it, counts it, and makes it the sign's first way when it has none. `taken` when
-   * another way has its math, `gone` when the sign was deleted; either way nothing is written.
+   * another way has its math, `reordered` when another way added through here is the same way in
+   * another order (`sameWayKey`), `gone` when the sign was deleted; in each, nothing is written.
    */
-  addWay(way: Way): Promise<'added' | 'taken' | 'gone'>;
+  addWay(way: Way): Promise<'added' | 'taken' | 'reordered' | 'gone'>;
   allPlayers(): Promise<Player[]>;
   /** `consistent` reads it strongly consistent, to see a delete or write just made. */
   getPlayer(id: string, consistent?: boolean): Promise<Player | undefined>;
@@ -165,6 +167,8 @@ export const nowSeconds = (): number => Math.floor(Date.now() / 1000);
 export const normalizeEmail = (email: string): string => email.trim().toLowerCase();
 /** The key a way's math is reserved under on its sign. */
 export const wayHash = (text: string): string => createHash('sha256').update(text).digest('hex');
+/** The hash of a way's math in any order, so the same way reordered claims the same row. */
+export const sameWayHash = (text: string): string => wayHash(sameWayKey(text) ?? text);
 
 export const emailHash = (email: string): string => createHash('sha256').update(normalizeEmail(email)).digest('hex');
 

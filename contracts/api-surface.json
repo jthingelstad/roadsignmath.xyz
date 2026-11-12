@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Road Sign Math API",
-    "version": "1.12.1",
+    "version": "1.12.2",
     "summary": "The signs, the map and the players of Road Sign Math.",
     "description": "Every public sign, the ways people found to make it true, the map and who’s playing, read by anyone; sign-in by email, your own account, and posting signs and ways from the app. Answers are JSON in UTF-8 with snake_case keys and carry an `API-Version` header. A request with a token is never cached. An error is `{\"error\": {\"code\", \"message\"}}`.",
     "license": {
@@ -1460,7 +1460,7 @@
       "post": {
         "operationId": "addWay",
         "summary": "Add another way to make a sign true",
-        "description": "The math must be true, and every number in it must be one of the sign’s numbers, each used no more often than the sign shows it. A way someone already found is a conflict. Answers with the sign, all its ways, and in `unlocked` the badges the way earned you. You need a name first. At most 100 a day.",
+        "description": "The math must be true, and every number in it must be one of the sign’s numbers, each used no more often than the sign shows it. A way someone already found is a conflict, and so is the same way in another order (`same_way` in contracts/equation-vectors.json). Answers with the sign, all its ways, and in `unlocked` the badges the way earned you. You need a name first. At most 100 a day.",
         "security": [
           {
             "token": []
@@ -2288,7 +2288,7 @@
           "api_version": {
             "type": "string",
             "examples": [
-              "1.12.1"
+              "1.12.2"
             ]
           },
           "signs": {
