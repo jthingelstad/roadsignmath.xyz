@@ -185,6 +185,18 @@ test('“Try this one in Quiz”: signing in on the way there lands on that sign
   assert.equal(named.location, '/signs/seven-twelve');
   assert.equal((await t.quiz('/signin?to=seven-twelve', { cookie: jar })).location, '/signs/seven-twelve');
 
+  // By the email's link instead of the code: the link carries the sign too.
+  const linked = await t.quiz('/signin', { form: { email: ada.email!, to: 'unsolved-junction' } });
+  assert.equal(linked.res.status, 200);
+  const link = /(https:\/\/quiz\.example\.test\/signin\?[^\s]+)/.exec(t.mailer.sent.at(-1)!.text)![1];
+  assert.match(link, /&to=unsolved-junction$/);
+  const opened = await t.quiz(new URL(link).pathname + new URL(link).search);
+  assert.ok(opened.html.includes('name="to" value="unsolved-junction"'));
+  const loginId2 = /name="login" value="([^"]+)"/.exec(opened.html)![1];
+  const token = /name="token" value="([^"]+)"/.exec(opened.html)![1];
+  const viaLink = await t.quiz('/signin/link', { form: { login: loginId2, token, to: 'unsolved-junction' } });
+  assert.equal(viaLink.location, '/signs/unsolved-junction', 'Ada has a name: straight to the sign');
+
   for (const to of ['//evil.example', 'https://evil.example', '../next', 'Seven', 'a b', '-x', 'x'.repeat(81)]) {
     assert.equal((await t.quiz(`/signin?to=${encodeURIComponent(to)}`, { cookie: jar })).location, '/next', to);
     const blank = await t.quiz(`/signin?to=${encodeURIComponent(to)}`);

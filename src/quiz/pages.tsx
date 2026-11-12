@@ -570,7 +570,12 @@ export const CodePage: FC<{
  * Where the email's link lands. Mail scanners follow links, so opening it changes nothing: the
  * button (pressed for you when scripts run) sends the link's token, and that signs you in.
  */
-export const LinkPage: FC<{ here: Here; loginId: string; token: string }> = ({ here, loginId, token }) => (
+export const LinkPage: FC<{ here: Here; loginId: string; token: string; to?: string }> = ({
+  here,
+  loginId,
+  token,
+  to
+}) => (
   <Frame
     here={here}
     title="Signing you in"
@@ -582,6 +587,7 @@ export const LinkPage: FC<{ here: Here; loginId: string; token: string }> = ({ h
       <form id="go" method="post" action="/signin/link" class="stack">
         <input type="hidden" name="login" value={loginId} />
         <input type="hidden" name="token" value={token} />
+        <BackTo to={to} />
         <button class="btn" type="submit">
           Sign in to Quiz
         </button>

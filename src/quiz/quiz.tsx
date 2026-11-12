@@ -117,8 +117,8 @@ export function createQuiz(options: QuizOptions): Hono {
   quiz.get('/signin', async (c) => {
     const loginId = c.req.query('l');
     const token = c.req.query('t');
-    if (loginId && token) return page(c, <LinkPage here={here} loginId={loginId} token={token} />);
     const to = backTo(c.req.query('to'));
+    if (loginId && token) return page(c, <LinkPage here={here} loginId={loginId} token={token} to={to} />);
     if (await quizViewer(store, c)) return go(c, onward(to));
     return page(c, <SignInPage here={here} to={to} />);
   });
@@ -128,7 +128,7 @@ export function createQuiz(options: QuizOptions): Hono {
     const email = field('email').trim();
     const to = backTo(field('to'));
     const link = (loginId: string, token: string) =>
-      `${here.quiz}/signin?l=${encodeURIComponent(loginId)}&t=${encodeURIComponent(token)}`;
+      `${here.quiz}/signin?l=${encodeURIComponent(loginId)}&t=${encodeURIComponent(token)}${to ? `&to=${to}` : ''}`;
     try {
       const started = await startSignIn({ store, mailer, link, front: 'quiz' }, email, clientIp(c));
       return page(
@@ -174,7 +174,7 @@ export function createQuiz(options: QuizOptions): Hono {
   quiz.post('/signin/link', async (c) => {
     const field = await form(c);
     try {
-      return await finish(c, { loginId: field('login'), token: field('token') });
+      return await finish(c, { loginId: field('login'), token: field('token') }, backTo(field('to')));
     } catch (err) {
       if (!(err instanceof ApiError) || err.code === 'internal' || err.code === 'unavailable') throw err;
       return page(
