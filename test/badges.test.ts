@@ -44,10 +44,10 @@ const pinned = (lat: number, lng: number, approximate = false): Partial<Sign> =>
   place: { label: 'Somewhere', state: 'MN', lat, lng, approximate }
 });
 
-test('the catalog has 28 badges, five of them secret, each with a road sign to draw', () => {
-  assert.equal(BADGES.length, 28);
+test('the catalog has 29 badges, five of them secret, each with a road sign to draw', () => {
+  assert.equal(BADGES.length, 29);
   assert.equal(BADGES.filter((b) => b.secret).length, 5);
-  assert.equal(new Set(BADGES.map((b) => b.id)).size, 28);
+  assert.equal(new Set(BADGES.map((b) => b.id)).size, 29);
   for (const b of BADGES) assert.ok(b.mark || b.steps, b.id);
 });
 
@@ -76,25 +76,76 @@ test('Second Opinion: a way on someone else’s sign; a way on your own doesn’
   assert.ok(!has(ada.id, 'second-opinion', [adas], [w(adas, '19 − 12 = 7')]));
 });
 
-test('Cracked It: the first way on a sign posted unsolved; a way written with the post isn’t one', () => {
+test('Tag Team: the first way on someone else’s unsolved sign, earned by its finder and its poster', () => {
   const unsolved = s();
   const solved = w(unsolved, '7 + 12 = 19', { playerId: ben.id, createdAt: '2026-01-11T09:00:00.000Z' });
-  assert.ok(has(ben.id, 'cracked-it', [unsolved], [solved]));
+  const ways = [solved];
+  assert.equal(earned(ben.id, [unsolved], ways).get('tag-team')?.on, '2026-01-11');
+  assert.equal(earned(ada.id, [unsolved], ways).get('tag-team')?.on, '2026-01-11', 'the poster too');
+  assert.ok(!has(ben.id, 'cracked-it', [unsolved], ways), 'the first way isn’t Cracked It');
 
   const withPost = s();
   const posted = w(withPost, '7 + 12 = 19', { createdAt: withPost.postedAt });
   const later = w(withPost, '19 − 12 = 7', { playerId: ben.id });
-  assert.ok(!has(ada.id, 'cracked-it', [withPost], [posted, later]));
-  assert.ok(!has(ben.id, 'cracked-it', [withPost], [posted, later]), 'not the first way');
+  assert.ok(!has(ada.id, 'tag-team', [withPost], [posted, later]), 'a way written with the post');
+  assert.ok(!has(ben.id, 'tag-team', [withPost], [posted, later]), 'not the first way');
+
+  const own = s();
+  const mine = w(own, '7 + 12 = 19', { createdAt: '2026-01-11T09:00:00.000Z' });
+  assert.ok(!has(ada.id, 'tag-team', [own], [mine]), 'your own sign solved later is yours');
+
+  const spotted = s({
+    finders: [
+      { playerId: ada.id, name: ada.name, role: 'found' },
+      { playerId: ben.id, name: ben.name, role: 'spotted' }
+    ]
+  });
+  const byFinder = w(spotted, '7 + 12 = 19', { playerId: ben.id, createdAt: '2026-01-11T09:00:00.000Z' });
+  assert.ok(!has(ben.id, 'tag-team', [spotted], [byFinder]), 'a finder’s sign is theirs too');
+  assert.ok(!has(ada.id, 'tag-team', [spotted], [byFinder]));
 });
 
-test('Cracked It: a blocked player’s first way still means the sign was solved', () => {
+test('Cracked It: the second way on a sign, by someone who didn’t post it or write its first', () => {
+  const sign1 = s();
+  const posted = w(sign1, '7 + 12 = 19', { createdAt: sign1.postedAt });
+  const second = w(sign1, '19 − 12 = 7', { playerId: ben.id });
+  const third = w(sign1, '19 − 7 = 12', { playerId: ben.id, createdAt: '2026-02-02T12:00:00.000Z' });
+  assert.ok(has(ben.id, 'cracked-it', [sign1], [posted, second, third]));
+  assert.ok(!has(ada.id, 'cracked-it', [sign1], [posted, second, third]));
+
+  const sign2 = s();
+  const first = w(sign2, '7 + 12 = 19', { createdAt: sign2.postedAt });
+  const adaAgain = w(sign2, '19 − 12 = 7');
+  const ben3 = w(sign2, '19 − 7 = 12', { playerId: ben.id, createdAt: '2026-02-02T12:00:00.000Z' });
+  assert.ok(!has(ada.id, 'cracked-it', [sign2], [first, adaAgain, ben3]), 'the poster’s own second way');
+  assert.ok(has(ada.id, 'another-way', [sign2], [first, adaAgain, ben3]), 'is Another Way');
+  assert.ok(!has(ben.id, 'cracked-it', [sign2], [first, adaAgain, ben3]), 'the third way isn’t one');
+
+  const unsolved = s();
+  const benFirst = w(unsolved, '7 + 12 = 19', { playerId: ben.id, createdAt: '2026-01-11T09:00:00.000Z' });
+  const benSecond = w(unsolved, '19 − 12 = 7', { playerId: ben.id });
+  assert.ok(!has(ben.id, 'cracked-it', [unsolved], [benFirst, benSecond]), 'not after your own first way');
+  assert.ok(has(ben.id, 'another-way', [unsolved], [benFirst, benSecond]));
+});
+
+test('a blocked player’s first way still counts as the first, and earns no one Tag Team', () => {
   const posted = s({ postedBy: ben.id, finders: [{ playerId: ben.id, name: ben.name, role: 'found' }] });
   const cy = '01JCCCCCCCCCCCCCCCCCCCCCCC';
   const first = w(posted, '7 + 12 = 19', { playerId: cy, createdAt: posted.postedAt });
   const later = w(posted, '19 − 12 = 7');
   const ways = new Map([[posted.id, [first, later]]]);
-  assert.ok(!earnedBadges(ada.id, [posted], ways, new Set([cy])).some((e) => e.id === 'cracked-it'));
+  const adas = earnedBadges(ada.id, [posted], ways, new Set([cy]));
+  assert.ok(
+    adas.some((e) => e.id === 'cracked-it'),
+    'Ada’s way is still the second'
+  );
+  assert.ok(!adas.some((e) => e.id === 'tag-team'));
+
+  const unsolved = s({ postedBy: ben.id, finders: [{ playerId: ben.id, name: ben.name, role: 'found' }] });
+  const solved = w(unsolved, '7 + 12 = 19', { playerId: cy, createdAt: '2026-01-11T09:00:00.000Z' });
+  const solvedWays = new Map([[unsolved.id, [solved]]]);
+  assert.ok(earnedBadges(ben.id, [unsolved], solvedWays).some((e) => e.id === 'tag-team'));
+  assert.ok(!earnedBadges(ben.id, [unsolved], solvedWays, new Set([cy])).some((e) => e.id === 'tag-team'));
   assert.ok(
     !earnedBadges(ben.id, [posted], ways, new Set([cy])).some((e) => e.id === 'company' && e.on === '2026-01-10'),
     'and the blocked way brings no company'

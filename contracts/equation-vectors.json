@@ -1,5 +1,5 @@
 {
-  "description": "Shared test vectors for the Road Sign Math equation checker. The server (src/domain/equation.ts) and the app (RoadSignMathKit) both run every case. tex is the LaTeX both draw the math from (÷ as a stacked fraction). Values: an exact integer, decimal or fraction, or ≈ and six significant digits when a root is irrational.",
+  "description": "Shared test vectors for the Road Sign Math equation checker. The server (src/domain/equation.ts) and the app (RoadSignMathKit) both run every case. tex is the LaTeX both draw the math from (÷ as a stacked fraction). Values: an exact integer, decimal or fraction, or ≈ and six significant digits when a root is irrational. same_way pairs are the same-way rule: two ways are the same when one becomes the other only by reordering what is added or multiplied, dropping brackets that do nothing, or swapping the sides of the =.",
   "checks": [
     {
       "text": "(90 − 82) ÷ 8 × 1 × 2 = 6 ÷ (10 − 7)",
@@ -434,6 +434,152 @@
       "sign": ["50"],
       "missing": ["5"],
       "note": "digits of a number are not numbers"
+    }
+  ],
+  "same_way": [
+    {
+      "a": "3 + 4 = 7",
+      "b": "4 + 3 = 7",
+      "same": true,
+      "note": "reordering what is added"
+    },
+    {
+      "a": "3 × 33 = 99",
+      "b": "33 × 3 = 99",
+      "same": true,
+      "note": "reordering what is multiplied (Genesis)"
+    },
+    {
+      "a": "3 + 4 = 7",
+      "b": "7 = 3 + 4",
+      "same": true,
+      "note": "swapping the sides"
+    },
+    {
+      "a": "10 − 3 + 2 = 9",
+      "b": "10 + 2 − 3 = 9",
+      "same": true,
+      "note": "each term keeps its own sign"
+    },
+    {
+      "a": "6 ÷ 3 × 2 = 4",
+      "b": "6 × 2 ÷ 3 = 4",
+      "same": true,
+      "note": "each factor keeps whether it divides"
+    },
+    {
+      "a": "(1 + 2) + 3 = 6",
+      "b": "1 + 2 + 3 = 6",
+      "same": true,
+      "note": "brackets that do nothing"
+    },
+    {
+      "a": "1 + (2 + 3) = 6",
+      "b": "3 + 2 + 1 = 6",
+      "same": true,
+      "note": "a bracket in a + place opens up"
+    },
+    {
+      "a": "√(5 − 1) = 2",
+      "b": "2 = √(5 − 1)",
+      "same": true,
+      "note": "Twin Lakes, sides swapped"
+    },
+    {
+      "a": "√(4 + 5) = 3",
+      "b": "√(5 + 4) = 3",
+      "same": true,
+      "note": "reordering inside a root"
+    },
+    {
+      "a": "2^(1 + 2) = 8",
+      "b": "2^(2 + 1) = 8",
+      "same": true,
+      "note": "reordering inside a power"
+    },
+    {
+      "a": "(2 + 3)! = 120",
+      "b": "(3 + 2)! = 120",
+      "same": true,
+      "note": "reordering inside a factorial"
+    },
+    {
+      "a": "2 × (3 + 4) = 14",
+      "b": "(4 + 3) × 2 = 14",
+      "same": true,
+      "note": "reordering at two levels"
+    },
+    {
+      "a": "13 − 11 = √4",
+      "b": "√4 = 13 − 11",
+      "same": true,
+      "note": "Fair Grove, sides swapped"
+    },
+    {
+      "a": "1 + 2 = 3 = 3",
+      "b": "3 = 3 = 2 + 1",
+      "same": true,
+      "note": "three sides, in any order"
+    },
+    {
+      "a": "07 + 1 = 8",
+      "b": "1 + 7 = 8",
+      "same": true,
+      "note": "numbers compare by value"
+    },
+    {
+      "a": "7 − 4 = 3",
+      "b": "7 − 3 = 4",
+      "same": false,
+      "note": "taking away works differently"
+    },
+    {
+      "a": "7 − (4 − 1) = 4",
+      "b": "7 − 4 + 1 = 4",
+      "same": false,
+      "note": "distributing a minus is a new way"
+    },
+    {
+      "a": "12 ÷ (2 × 3) = 2",
+      "b": "12 ÷ 2 ÷ 3 = 2",
+      "same": false,
+      "note": "distributing a division is a new way"
+    },
+    {
+      "a": "14 − 13 = 64 − 63",
+      "b": "64 − 14 = 63 − 13",
+      "same": false,
+      "note": "moving a term across the = is a new way"
+    },
+    {
+      "a": "2^3 = 8",
+      "b": "3^2 = 9",
+      "same": false,
+      "note": "a power's base and exponent don't swap"
+    },
+    {
+      "a": "5 + 1 = 6",
+      "b": "6 − 1 = 5",
+      "same": false,
+      "note": "different operators"
+    },
+    {
+      "a": "−3 + 5 = 2",
+      "b": "5 − 3 = 2",
+      "same": false,
+      "note": "a negative number isn't taking away"
+    },
+    {
+      "a": "2 × 3 = 6",
+      "b": "2 + 3 = 5",
+      "same": false,
+      "note": "different math"
+    },
+    {
+      "a": "(90 − 82) ÷ 8 × 1 × 2 = 6 ÷ (10 − 7)",
+      "b": "6 ÷ (10 − 7) = 2 × 1 × (90 − 82) ÷ 8",
+      "same": true,
+      "note": "I-35W at 82nd Street, turned around"
     }
   ]
 }

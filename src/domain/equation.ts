@@ -481,3 +481,72 @@ export function numbersNotOnSign(used: string[], onSign: string[]): string[] {
   }
   return missing;
 }
+
+// ---------------------------------------------------------------------------------------------
+// The same way
+
+/**
+ * What a way says, with its order taken out: two ways with the same key are the same way. Terms
+ * added or taken away are sorted, each keeping its own sign, and so are factors multiplied or
+ * divided, each keeping whether it divides; the same inside every root, power and bracket.
+ * Brackets that do nothing go: those in a + or × place. Those after a − or ÷ stay whole, since
+ * taking them away would change a sign (7 − (4 − 1) isn't 7 − 4 + 1). The sides are sorted too,
+ * so 7 = 3 + 4 is 3 + 4 = 7. Different numbers, operators or moves across the = are new ways.
+ */
+export function sameWayKey(text: string): string | undefined {
+  const sides = parse(text);
+  return sides?.map(wayKey).sort().join(' = ');
+}
+
+function wayKey(node: Node): string {
+  switch (node.op) {
+    case 'num':
+      return node.text;
+    case 'group':
+      return wayKey(node.arg);
+    case 'neg':
+      return `−(${wayKey(node.arg)})`;
+    case 'sqrt':
+      return `√(${wayKey(node.arg)})`;
+    case 'fact':
+      return `!(${wayKey(node.arg)})`;
+    case 'pow':
+      return `^(${wayKey(node.left)},${wayKey(node.right)})`;
+    case 'add':
+    case 'sub':
+      return chainKey('+', sumTerms(node, []));
+    case 'mul':
+    case 'div':
+      return chainKey('×', productFactors(node, []));
+  }
+}
+
+const unwrap = (node: Node): Node => (node.op === 'group' ? unwrap(node.arg) : node);
+
+/** The terms of a chain of + and −, each with its sign. A bracket in a + place opens up. */
+function sumTerms(node: Node, out: string[]): string[] {
+  const n = unwrap(node);
+  if (n.op === 'add') {
+    sumTerms(n.left, out);
+    sumTerms(n.right, out);
+  } else if (n.op === 'sub') {
+    sumTerms(n.left, out);
+    out.push(`−${wayKey(n.right)}`);
+  } else out.push(`+${wayKey(n)}`);
+  return out;
+}
+
+/** The factors of a chain of × and ÷, each saying whether it divides. A bracket in a × place opens up. */
+function productFactors(node: Node, out: string[]): string[] {
+  const n = unwrap(node);
+  if (n.op === 'mul') {
+    productFactors(n.left, out);
+    productFactors(n.right, out);
+  } else if (n.op === 'div') {
+    productFactors(n.left, out);
+    out.push(`÷${wayKey(n.right)}`);
+  } else out.push(`×${wayKey(n)}`);
+  return out;
+}
+
+const chainKey = (kind: string, items: string[]): string => `${kind}(${items.sort().join(',')})`;

@@ -8,6 +8,7 @@ import type { Player } from '../src/domain/types.ts';
 import { MemoryMailer } from '../src/mail/mailer.ts';
 import { MemoryPhotoStore } from '../src/photos.ts';
 import { MemoryStore } from '../src/store/memory.ts';
+import { REORDERED } from '../src/posting/posting.ts';
 import { addPlayer, nowSeconds } from '../src/store/store.ts';
 import { ada, ben, sign } from './support/fixtures.ts';
 import { ScriptedModerator } from './support/moderator.ts';
@@ -402,6 +403,15 @@ test('another way must be true, from the sign, and new', async () => {
   const again = await add('19-12=7', 'cy');
   assert.equal(again.res.status, 409);
   assert.equal(again.body.error.code, 'conflict');
+  // The same way in another order: still a conflict, in words the app can end with a full stop.
+  for (const text of ['12 + 7 = 19', '19 = 12 + 7', '7 = 19 − 12']) {
+    const turned = await add(text, 'cy');
+    assert.equal(turned.res.status, 409, text);
+    assert.equal(turned.body.error.code, 'conflict');
+    assert.equal(turned.body.error.message, REORDERED);
+    assert.ok(!REORDERED.endsWith('.'));
+  }
+  assert.equal((await add('19 − 7 = 12', 'cy')).res.status, 201, 'taking away differently is new');
   assert.equal((await add('7 + 7 = 14')).res.status, 400, 'the sign shows one 7');
   assert.equal((await add('7 + 12')).res.status, 400);
   assert.equal((await t.call('POST', `/signs/${posted.id}/ways`, { body: { text: '7 = 7' } })).res.status, 401);
@@ -423,7 +433,7 @@ test('the same way sent twice at once is added once, and every new way counts', 
 test('ways sent one after another keep their order, even within a second', async () => {
   const t = await setup();
   const { body: posted } = await t.post({ way: undefined });
-  const texts = ['19 − 12 = 7', '19 − 7 = 12', '7 + 12 = 19', '12 + 7 = 19'];
+  const texts = ['19 − 12 = 7', '19 − 7 = 12', '7 + 12 = 19', '7 − 19 = −12'];
   for (const text of texts) {
     assert.equal((await t.call('POST', `/signs/${posted.id}/ways`, { as: 'ben', body: { text } })).res.status, 201);
   }
@@ -685,7 +695,8 @@ test('a post and a way answer with the badges they unlocked, and /me has them al
   assert.equal(way.res.status, 201);
   assert.deepEqual(
     way.body.unlocked.map((b: Json) => b.id),
-    ['second-opinion', 'every-number']
+    // Ben's is the sign's second way, on Ada's sign: Cracked It.
+    ['second-opinion', 'cracked-it', 'every-number']
   );
   const again = await t.call('POST', `/signs/${first.body.id}/ways`, { as: 'ben', body: { text: '19 − 7 = 12' } });
   assert.deepEqual(

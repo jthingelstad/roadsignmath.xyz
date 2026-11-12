@@ -44,7 +44,23 @@ export const BADGES: Badge[] = [
     how: 'Find a way on someone else’s sign.',
     mark: '2ND'
   },
-  { id: 'cracked-it', shelf: 'firsts', name: 'Cracked It', how: 'Solve a sign that was posted unsolved.', mark: '?!' },
+  // Jamie, 2026-11-11: Cracked It is a sign's second way, found by another player; the first way on
+  // someone else's unsolved sign is Tag Team, which its poster earns too.
+  {
+    id: 'cracked-it',
+    shelf: 'firsts',
+    name: 'Cracked It',
+    how: 'Find the second way on a sign, when the first isn’t yours.',
+    mark: '?!'
+  },
+  {
+    id: 'tag-team',
+    shelf: 'firsts',
+    name: 'Tag Team',
+    how: 'Find the first way on someone else’s unsolved sign. Its poster earns it too.',
+    // The app draws the merge sign for this id; builds before it draw the firsts plate with this mark.
+    mark: '1+1'
+  },
   {
     id: 'another-way',
     shelf: 'firsts',
@@ -252,6 +268,18 @@ function exactValue(way: Way): number | undefined {
 /** The sign's first way was written with the post, so a sign without one was posted unsolved. */
 const postedUnsolved = (sign: Sign, ways: Way[]): boolean => ways[0]?.createdAt !== sign.postedAt;
 
+/** Credited on the sign: its poster or a finder. */
+const credited = (sign: Sign, playerId: string): boolean =>
+  sign.postedBy === playerId || sign.finders.some((f) => f.playerId === playerId);
+
+/** The sign was posted unsolved and its first way is by someone it doesn't credit: Tag Team. */
+const solvedForThem = (sign: Sign, ways: Way[]): boolean =>
+  ways[0] !== undefined && postedUnsolved(sign, ways) && !credited(sign, ways[0].playerId);
+
+/** The sign's second way is by someone it doesn't credit, who didn't write its first: Cracked It. */
+const crackedIt = (sign: Sign, ways: Way[]): boolean =>
+  ways[1] !== undefined && !credited(sign, ways[1].playerId) && ways[1].playerId !== ways[0].playerId;
+
 const byFound = (a: Sign, b: Sign): number =>
   a.foundOn.localeCompare(b.foundOn) || a.postedAt.localeCompare(b.postedAt) || a.id.localeCompare(b.id);
 
@@ -301,8 +329,17 @@ export function earnedBadges(
   for (const { way, sign, on } of mine) {
     if (sign.postedBy !== playerId) earn('second-opinion', sign, on);
     const onSign = waysOn(sign);
-    if (onSign[0]?.id === way.id && postedUnsolved(sign, onSign)) earn('cracked-it', sign, on);
+    if (onSign[0]?.id === way.id && solvedForThem(sign, onSign)) earn('tag-team', sign, on);
+    if (onSign[1]?.id === way.id && crackedIt(sign, onSign)) earn('cracked-it', sign, on);
     if (onSign.filter((w) => w.playerId === playerId)[1]?.id === way.id) earn('another-way', sign, on);
+  }
+  // Tag Team comes to the poster too, from the first way someone else wrote on their unsolved sign.
+  for (const sign of theirs) {
+    const onSign = waysOn(sign);
+    const first = onSign[0];
+    if (sign.postedBy === playerId && first && !leftOut.has(first.playerId) && solvedForThem(sign, onSign)) {
+      earn('tag-team', sign, wayDay(first, sign));
+    }
   }
   // Company comes to everyone credited on a sign: whoever posted it and whoever is named as finding
   // or spotting it (Jamie, 2026-10-31). The way posted with the sign is its own math, so it never
