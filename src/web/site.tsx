@@ -1322,7 +1322,7 @@ export function createSite({
                 <SortChips on="latest" href={(key) => (key === 'latest' ? '/signs' : `/signs?sort=${key}`)} />
               </div>
               <div class="sortline">
-                <p class="sortnote">{SORT_NOTES.latest} Every sign posted from the app shows up here.</p>
+                <p class="sortnote">{SORT_NOTES.latest} Every sign that gets posted shows up here.</p>
               </div>
               <ul class="tiles">
                 {shown.slice(0, HOME_SIGNS).map((s) => (
@@ -1961,7 +1961,7 @@ const PlayerPage: FC<{
             <section class="later" aria-labelledby="years-h">
               <div class="lede">
                 <h2 id="years-h">Years</h2>
-                <p>A badge for every year {player.name} found a sign.</p>
+                <p>A badge for every year {player.name} found a sign. They are not easy to find.</p>
               </div>
               <YearPlates badges={years} />
             </section>

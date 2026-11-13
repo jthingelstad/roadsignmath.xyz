@@ -195,7 +195,7 @@ export function mountPlayers(
             <div class="join-in">
               <div>
                 <h2>Want to be on this page?</h2>
-                <p>Post one sign from the app and you’re a player. There’s no score to keep.</p>
+                <p>Post one sign and you’re a player. There’s no score to keep.</p>
               </div>
               <a href="/app" data-tinylytics-event="app.get" data-tinylytics-event-value="players">
                 Get the app →
