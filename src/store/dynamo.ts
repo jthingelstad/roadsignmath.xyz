@@ -658,7 +658,7 @@ export class DynamoStore implements Store {
   }
 
   async getDuplicate(signId: string, playerId: string): Promise<DuplicateReport | undefined> {
-    const item = await this.get(`SIGN#${signId}`, `DUPLICATE#${playerId}`);
+    const item = await this.get(`SIGN#${signId}`, `DUPLICATE#${playerId}`, true);
     return item && strip<DuplicateReport>(item);
   }
 

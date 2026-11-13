@@ -741,7 +741,8 @@ export async function unhideSign({ store, photos }: Pick<PostingDeps, 'store' | 
  * Keeps a player's word that `sign` is the same road sign as `other`, posted separately. It is
  * only kept: what to do with it is for later, so it never goes to the moderator or hides
  * anything. Any sign can be reported, the player's own too. Sending another replaces it, and it
- * counts against the day's reports.
+ * counts against the day's reports. The same report sent again (same sign, same note) answers as
+ * the first did, changes nothing and tells nobody.
  */
 export async function reportDuplicate(
   store: Store,
@@ -750,22 +751,40 @@ export async function reportDuplicate(
   other: Sign,
   body: Record<string, unknown>,
   /** Where it was reported from, for the product line: the app or the website (src/web/report.tsx). */
-  front: 'app' | 'site' = 'app'
+  front: 'app' | 'site' = 'app',
+  /** Told of a report once it is kept, new or changed; never for the same one sent again. */
+  told?: (report: DuplicateReport) => Promise<unknown>
 ): Promise<DuplicateReport> {
   only(body, 'The duplicate report', ['same_as', 'note']);
   if (other.id === sign.id) fail('bad_request', 'A sign can’t be a duplicate of itself');
   const note = body.note === undefined || body.note === null ? '' : text(body.note, 'note', LIMITS.reportMax, 0);
-  const now = nowSeconds();
-  await limit(store, `reports:${player.id}`, LIMITS.reportsADay, DAY, now, `Too many reports today. ${tomorrow}`);
-  const report: DuplicateReport = {
-    signId: sign.id,
-    playerId: player.id,
-    sameAs: other.id,
-    ...(note ? { note } : {}),
-    createdAt: isoNow(now)
-  };
-  await store.putDuplicate(report);
+  // One at a time per player and sign, so the same report sent twice at once is still one: the
+  // second waits for the first, then reads what it kept. A lease that stays busy is not in the way.
+  const lease = `duplicate:${sign.id}:${player.id}`;
+  const holder = randomUUID();
+  let held = false;
+  for (let tries = 0; tries < 10 && !(held = await store.lease(lease, holder, 30)); tries++) {
+    await new Promise((done) => setTimeout(done, 200));
+  }
+  let report: DuplicateReport;
+  try {
+    const before = await store.getDuplicate(sign.id, player.id);
+    if (before && before.sameAs === other.id && (before.note ?? '') === note) return before;
+    const now = nowSeconds();
+    await limit(store, `reports:${player.id}`, LIMITS.reportsADay, DAY, now, `Too many reports today. ${tomorrow}`);
+    report = {
+      signId: sign.id,
+      playerId: player.id,
+      sameAs: other.id,
+      ...(note ? { note } : {}),
+      createdAt: isoNow(now)
+    };
+    await store.putDuplicate(report);
+  } finally {
+    if (held) await store.endLease(lease, holder).catch(() => undefined);
+  }
   product({ action: 'duplicate', front });
+  await told?.(report);
   return report;
 }
 

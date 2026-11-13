@@ -164,7 +164,8 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
   signed in, says a sign is the same road sign as another one posted separately (`same_as`, an
   optional note). Jamie, 2026-11-07: "A duplicate sign should be submitted as a 'report a
   duplicate', similar to the other report function… we can figure out later what we do with
-  that." So it is only kept, one per player per sign, and never goes to the moderator.
+  that." So it is only kept, one per player per sign, and never goes to the moderator. The same
+  report sent again (same sign, same note) changes nothing, counts nothing and emails nobody.
 - **Player reports** (`reportPlayer` in `src/posting/posting.ts`): `POST /players/{handle}/report`,
   signed in, with a reason (at most `LIMITS.reportMax`). One per reporter per player (the
   `REPORTED#` row under the reported player); a repeat changes nothing and sends nothing. No
@@ -178,7 +179,7 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
   title and link, the reason or note, Claude's verdict (hidden or kept) and the reporter's name and
   handle, never an email address. Best-effort: the report is decided and saved first, a mail that
   fails changes nothing, and it is logged as `report-mail` by outcome only. A repeat of a player's
-  report sends nothing. `/privacy` says a report emails Jamie.
+  report, or of the same duplicate report, sends nothing. `/privacy` says a report emails Jamie.
 - **The owner's commands** (`src/owner.ts`, `npm run owner`, `tools/owner.ts`; Jamie, 2026-11-10:
   "a Mac-side script to hide a sign or remove a player. No admin website."): `hide-sign <slug>`
   (the state an upheld report leaves, `hideSign` in `posting.ts`), `unhide-sign <slug>`,

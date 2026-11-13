@@ -291,8 +291,9 @@ export function mountReports(app: Hono, { options, jar, page, quiz }: ReportFron
         );
       }
       // The app's duplicate report: only kept, and the owner gets an email of it.
-      const report = await reportDuplicate(store, who, sign, other, { same_as: other.slug, note }, 'site');
-      await mailDuplicate(mail, who, sign, other, report);
+      await reportDuplicate(store, who, sign, other, { same_as: other.slug, note }, 'site', (kept) =>
+        mailDuplicate(mail, who, sign, other, kept)
+      );
     } catch (err) {
       const status = trouble(err, ['bad_request', 'rate_limited']);
       const error = sentence((err as ApiError).message.replace(/^note is/, 'Your note is'));
