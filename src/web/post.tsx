@@ -881,7 +881,7 @@ export const MathPage: FC<{
           </h2>
           <p class="meta">
             {similar.length === 1 ? 'This sign is' : 'These signs are'} close by, with some of the same numbers. If it’s
-            the same sign, put your math on it as another way instead of posting it again.
+            the same sign, put your math on it as another way. If it’s a different sign, go ahead and post yours.
           </p>
           <ul class="alike">
             {similar.map(({ sign, miles }) => {

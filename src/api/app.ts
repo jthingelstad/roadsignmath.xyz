@@ -606,8 +606,9 @@ export function createApi(options: ApiOptions): Hono {
       const sameAs = body.same_as;
       if (typeof sameAs !== 'string' || !sameAs) return fail('bad_request', 'same_as must be a sign’s id or slug');
       const other = findSign(signs, sameAs);
-      const report = await reportDuplicate(store, viewer!.player, sign, other, body);
-      await mailDuplicate(reportMail, viewer!.player, sign, other, report);
+      const report = await reportDuplicate(store, viewer!.player, sign, other, body, 'app', (kept) =>
+        mailDuplicate(reportMail, viewer!.player, sign, other, kept)
+      );
       return c.json({ same_as: other.slug, note: report.note ?? null });
     },
 

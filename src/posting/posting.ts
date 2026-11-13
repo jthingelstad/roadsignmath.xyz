@@ -741,7 +741,8 @@ export async function unhideSign({ store, photos }: Pick<PostingDeps, 'store' | 
  * Keeps a player's word that `sign` is the same road sign as `other`, posted separately. It is
  * only kept: what to do with it is for later, so it never goes to the moderator or hides
  * anything. Any sign can be reported, the player's own too. Sending another replaces it, and it
- * counts against the day's reports.
+ * counts against the day's reports. The same report sent again (same sign, same note) answers as
+ * the first did, changes nothing and tells nobody.
  */
 export async function reportDuplicate(
   store: Store,
@@ -750,11 +751,15 @@ export async function reportDuplicate(
   other: Sign,
   body: Record<string, unknown>,
   /** Where it was reported from, for the product line: the app or the website (src/web/report.tsx). */
-  front: 'app' | 'site' = 'app'
+  front: 'app' | 'site' = 'app',
+  /** Told of a report once it is kept, new or changed; never for the same one sent again. */
+  told?: (report: DuplicateReport) => Promise<unknown>
 ): Promise<DuplicateReport> {
   only(body, 'The duplicate report', ['same_as', 'note']);
   if (other.id === sign.id) fail('bad_request', 'A sign can’t be a duplicate of itself');
   const note = body.note === undefined || body.note === null ? '' : text(body.note, 'note', LIMITS.reportMax, 0);
+  const before = await store.getDuplicate(sign.id, player.id);
+  if (before && before.sameAs === other.id && (before.note ?? '') === note) return before;
   const now = nowSeconds();
   await limit(store, `reports:${player.id}`, LIMITS.reportsADay, DAY, now, `Too many reports today. ${tomorrow}`);
   const report: DuplicateReport = {
@@ -766,6 +771,7 @@ export async function reportDuplicate(
   };
   await store.putDuplicate(report);
   product({ action: 'duplicate', front });
+  await told?.(report);
   return report;
 }
 
