@@ -141,7 +141,7 @@ export function mountPlayers(
     return c.html(
       <Page
         title="Players · Road Sign Math"
-        description={`Everyone playing Road Sign Math: ${rows.length} ${rows.length === 1 ? 'player' : 'players'} and the road signs they've found.`}
+        description={`Everyone playing Road Sign Math, ${rows.length} ${rows.length === 1 ? 'player' : 'players'}, and the road signs they’ve found.`}
         url={`${urls.site}/players`}
         card={await siteCard({ signs, everyone })}
         here="players"
@@ -152,7 +152,7 @@ export function mountPlayers(
           <div class="wrap">
             <div>
               <h1>Players</h1>
-              <p class="lead">Everyone with a sign or a badge on the map, the most signs first.</p>
+              <p class="lead">Everyone with a sign or a badge, most signs first.</p>
             </div>
             {rows.length > 0 ? (
               <ul class="people">
@@ -195,7 +195,7 @@ export function mountPlayers(
             <div class="join-in">
               <div>
                 <h2>Want to be on this page?</h2>
-                <p>Post one sign from the app and you’re a player. There’s no score to keep.</p>
+                <p>Post one sign and you’re a player. There’s no score to keep.</p>
               </div>
               <a href="/app" data-tinylytics-event="app.get" data-tinylytics-event-value="players">
                 Get the app →

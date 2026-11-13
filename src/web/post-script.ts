@@ -244,7 +244,7 @@ export const POST_JS = `(() => {
     if (picture) blob = await shrink(picture);
     else if (TAKEN.includes(picked.type) && picked.size <= MAX) blob = picked;
     if (!blob) {
-      say(label + (picture ? 'That photo is too big even made smaller.' : 'This browser can’t open that photo. Choose a JPEG or PNG, or save it as one first.'));
+      say(label + (picture ? 'That photo is still too big, even made smaller.' : 'This browser can’t open that photo. Choose a JPEG or PNG, or save it as one first.'));
       return;
     }
     say(label + 'Sending it…');
@@ -271,11 +271,17 @@ export const POST_JS = `(() => {
   form.addEventListener('submit', (e) => {
     if (!sending) return;
     e.preventDefault();
-    say('Wait a moment: a photo is still being sent.');
+    say('Hang on, a photo is still being sent.');
   });
   // What the script does with a photo, said only now that it runs.
   const reads = document.getElementById('photo-reads');
   if (reads) reads.hidden = false;
+  const placePlain = document.getElementById('place-plain');
+  const placeScript = document.getElementById('place-script');
+  if (placePlain && placeScript) {
+    placePlain.hidden = true;
+    placeScript.hidden = false;
+  }
   if (file) {
     file.multiple = true;
     if (add) add.hidden = true;

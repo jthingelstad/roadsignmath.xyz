@@ -608,7 +608,7 @@ test('a sign’s numbers say where each one was read, and the page steps to the 
   );
   const html = await (await app.request('/signs/read-sign')).text();
   assert.ok(
-    html.includes('<h2 id="nums-h">The numbers on this sign</h2><p>Three numbers, and where each one was read.</p>')
+    html.includes('<h2 id="nums-h">The numbers on this sign</h2><p>Three numbers, and where each one came from.</p>')
   );
   assert.ok(
     html.includes(
@@ -744,5 +744,5 @@ test('while Quiz is open, a sign with numbers says “Try this one in Quiz”, l
   assert.ok(!none.includes('Try this one in Quiz'), 'nothing to solve with: not in Quiz');
   const closed = await (await make(false).request(`/signs/${await slug('Exit Seven')}`)).text();
   assert.ok(!closed.includes('Try this one in Quiz'), 'never while Quiz is switched off');
-  assert.ok(closed.includes('Ways are added from the app'));
+  assert.ok(closed.includes('Add yours in the app. The keypad checks your math as you go.'));
 });

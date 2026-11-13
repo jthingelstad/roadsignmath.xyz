@@ -181,7 +181,7 @@ const ABOUT_STYLE = `
 `;
 
 const HOME_DESCRIPTION =
-  'A road trip game: find a road sign whose numbers make a true equation. Every sign players have found, on a map.';
+  'A road trip game: find a road sign whose numbers make a true equation. Here’s every sign players have found, on one map.';
 
 /** Home's Players: players with a name and a shown sign, the most signs first. */
 const playing = (shown: Sign[], everyone: People) =>
@@ -907,8 +907,7 @@ export function createSite({
               )}
               {webPosting && (
                 <p>
-                  You can post a sign from this website too: sign in and <a href="/post">post one</a> with its photo,
-                  its numbers and its math.
+                  You can post signs from this website too. Sign in and <a href="/post">post one</a>.
                 </p>
               )}
             </li>
@@ -984,12 +983,12 @@ export function createSite({
           </p>
           <p>
             Every photo is saved again without its hidden details (camera, time and location) before anyone sees it. A
-            sign’s place is shown on its map on purpose; a profile photo’s never is.
+            sign’s place is shown on its map on purpose. A profile photo’s place never is.
           </p>
           <h2>What stays private</h2>
           <p>
-            Your email address. It is used to send you sign-in codes and the occasional Road Sign Math newsletter, which
-            every player gets; each one has a link to unsubscribe. It is never shown or shared with other players.
+            Your email address. It’s used to send you sign-in codes and the occasional Road Sign Math newsletter, which
+            every player gets. Each newsletter has a link to unsubscribe. It’s never shown or shared with other players.
           </p>
           <h2>Who helps run it</h2>
           <ul>
@@ -1023,7 +1022,7 @@ export function createSite({
               <h2>Signing in on this website</h2>
               <p>
                 You can sign in here too, with the same account and email as the app and Quiz. Signing in here or in
-                Quiz signs you in on both. One cookie holds your sign-in and nothing else; a second holds only what the
+                Quiz signs you in on both. One cookie holds your sign-in and nothing else. A second holds only what the
                 top of the page shows for you (your picture or first letter, and its colour). Both go when you sign out.
                 Delete my account is on your page here as well.
               </p>
@@ -1104,13 +1103,13 @@ export function createSite({
       <Page
         quiz={quiz}
         title="Help · Road Sign Math"
-        description="Road Sign Math is made by one person, Jamie Thingelstad, in spare time. How to reach him and how to delete your account."
+        description="Road Sign Math is made by one person, Jamie Thingelstad, in his spare time. How to reach him and how to delete your account."
         url={`${urls.site}/support`}
         card={await siteCard()}
       >
         <main id="main" class="wrap" style="padding-top: 32px; padding-bottom: 48px; max-width: 720px">
           <h1>Help</h1>
-          <p>Road Sign Math is made by one person, Jamie Thingelstad, in spare time.</p>
+          <p>Road Sign Math is made by one person, Jamie Thingelstad, in his spare time.</p>
           <h2>Reach Jamie</h2>
           <p>
             In the app, tap your picture at the top of Home to open You, then the gear for Settings, and choose Send
@@ -1246,8 +1245,8 @@ export function createSite({
                   Find a sign. Make the math true.
                 </h1>
                 <p>
-                  Spot a road sign with numbers on it, then use every one of those numbers to write something true.
-                  These are the signs players have found since 2005, around the world. Tap a pin to see them.
+                  Spot a road sign with numbers on it and use every one of them to make the math true. Here are the
+                  signs players have found since 2005, all over the world. Tap a pin to see them.
                 </p>
                 <dl class="stats">
                   <div>
@@ -1323,7 +1322,7 @@ export function createSite({
                 <SortChips on="latest" href={(key) => (key === 'latest' ? '/signs' : `/signs?sort=${key}`)} />
               </div>
               <div class="sortline">
-                <p class="sortnote">{SORT_NOTES.latest} Every sign posted from the app shows up here.</p>
+                <p class="sortnote">{SORT_NOTES.latest} Every sign that gets posted shows up here.</p>
               </div>
               <ul class="tiles">
                 {shown.slice(0, HOME_SIGNS).map((s) => (
@@ -1387,7 +1386,7 @@ export function createSite({
                 </p>
                 <ul>
                   <li>Passenger mode: the camera boxes every number it can read.</li>
-                  <li>A math keypad with square roots and stacked fractions, and a live “It works”.</li>
+                  <li>A math keypad with square roots and stacked fractions that tells you when “It works”.</li>
                   <li>Badges for the road: your first sign, new states, mile markers, and a few secrets.</li>
                 </ul>
               </div>
@@ -1618,7 +1617,7 @@ export function createSite({
                     <p>
                       {tryInQuiz
                         ? 'Add a way in the app, or in your browser with Quiz. The keypad checks your math as you go.'
-                        : 'Ways are added from the app, where the keypad checks your math as you go.'}
+                        : 'Add yours in the app. The keypad checks your math as you go.'}
                     </p>
                   </div>
                   <div class="go">
@@ -1675,7 +1674,7 @@ export function createSite({
                   <h2 id="nums-h">The numbers on this sign</h2>
                   <p>
                     {countWord(sign.numbers.length)} {sign.numbers.length === 1 ? 'number' : 'numbers'}
-                    {read && `, and where ${sign.numbers.length === 1 ? 'it was' : 'each one was'} read`}.
+                    {read && `, and where ${sign.numbers.length === 1 ? 'it came' : 'each one came'} from`}.
                   </p>
                 </div>
                 <ul class="nums" aria-label="Numbers on the sign">
@@ -1764,10 +1763,11 @@ export function signDescription(
 ): string {
   const who = sign.finders.map((f) => f.name);
   const by = who.length ? ` by ${who.length > 1 ? `${who.slice(0, -1).join(', ')} and ${who.at(-1)}` : who[0]}` : '';
-  const found = `A road sign found${by} on ${shortDay(sign.found_on)}. Where: ${sign.place.label}.`;
+  const found = `A road sign found${by} on ${shortDay(sign.found_on)}. ${sign.place.label}.`;
   if (sign.first_way) return `${sign.first_way.text}. ${found}`;
   const numbers = sign.numbers.map((n) => n.value);
-  return `${found} Not solved yet${numbers.length ? `: the numbers are ${numbers.join(', ')}` : ''}.`;
+  const list = numbers.length > 1 ? `${numbers.slice(0, -1).join(', ')} and ${numbers.at(-1)}` : numbers[0];
+  return `${found} Nobody has solved it yet.${numbers.length ? ` The numbers are ${list}.` : ''}`;
 }
 
 type Found = { sign: Sign; solve: Solve };

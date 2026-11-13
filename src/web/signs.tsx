@@ -374,7 +374,7 @@ export function mountSigns(site: Hono, { store, urls, people, counts, siteCard, 
     return c.html(
       <Page
         title={`${title}${page > 1 ? ` (page ${page})` : ''} · Road Sign Math`}
-        description={`Every Road Sign Math sign players have found: ${countSigns(shown.length)} so far, sorted the ways the app sorts them.`}
+        description={`Every sign Road Sign Math players have found, ${shown.length} so far. Sort them the same ways the app does.`}
         url={`${urls.site}${href({ page })}`}
         canonical={filtered ? `${urls.site}/signs` : undefined}
         card={await siteCard({ signs, everyone })}
@@ -395,7 +395,7 @@ export function mountSigns(site: Hono, { store, urls, people, counts, siteCard, 
                     year || state
                       ? `${countSigns(picked.length)} of ${shown.length}`
                       : `${countSigns(shown.length)} from ${players.size} ${players.size === 1 ? 'player' : 'players'} in ${states.length} ${states.length === 1 ? 'state' : 'states'}`,
-                    'Sorted the ways the app sorts them'
+                    'Same sorts as the app'
                   ]}
                 />
               </p>

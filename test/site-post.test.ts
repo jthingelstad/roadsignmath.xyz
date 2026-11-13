@@ -162,7 +162,7 @@ test('shut, as deployed, /post is not there and no page says you can post here',
 test('open, the pages say you can post here too, and the app stays the first answer on an iPhone', async () => {
   const t = await setup(true);
   const about = plain((await t.request('/about')).html);
-  assert.ok(about.includes('You can post a sign from this website too: sign in and post one'));
+  assert.ok(about.includes('You can post signs from this website too. Sign in and post one.'));
   const privacy = plain((await t.request('/privacy')).html);
   assert.ok(privacy.includes('Signing in on this website'));
   assert.ok(privacy.includes('Road Sign Math never asks your browser where you are.'));
@@ -297,7 +297,7 @@ test('open, the math step: posted already? from the similar-signs lookup, then t
   assert.ok(page.html.includes('id="solve"') && page.html.includes('id="pad"'), 'Quiz’s keypad');
   assert.ok(page.html.includes('data-v="12"'));
   assert.ok(page.html.includes('value="unsolved"'));
-  assert.ok(text.includes('Posting agrees to the house rules.'));
+  assert.ok(text.includes('By posting you agree to the house rules.'));
   assert.ok(page.html.includes('href="/rules"'));
   // Far away, or with other numbers, nothing is offered.
   const far = await t.request('/post', {
@@ -373,7 +373,11 @@ test('open, unsolved: posted without a way', async () => {
   assert.equal(made.firstWay, undefined);
   assert.equal(made.wayCount, 0);
   assert.equal(made.finders.length, 1, 'found by the poster alone');
-  assert.ok(plain((await t.request(posted.location!, { as: 'ada' })).html).includes('Unsolved, for now'));
+  assert.ok(
+    plain((await t.request(posted.location!, { as: 'ada' })).html).includes(
+      'Unsolved for now, so anyone can find the first way.'
+    )
+  );
 });
 
 test('open, held: the moderator’s note, and only the poster sees it', async () => {
@@ -509,10 +513,18 @@ test('the photo picker offers HEIC only where the script finds this browser can 
   // The sentence about what the script does is there only for it to show.
   assert.match(
     page.html,
-    /<span id="photo-reads" hidden="">A photo’s place and day are read from it here, in your browser/
+    /<span id="photo-reads" hidden="">Your browser reads where and when a photo was taken, then shrinks it/
   );
   assert.ok(POST_JS.includes("getElementById('photo-reads')"));
   assert.ok(plain(page.html).includes('Up to 4 photos, the first one of the sign itself.'));
+  // Without scripts nothing reads the photo and there is no map to pick on, so the page says only
+  // what works then; the script swaps in the sentence about the photo and the map.
+  assert.match(
+    page.html,
+    /<span id="place-plain">Know its latitude and longitude\? Type them and it gets a pin on the map\.<\/span>/
+  );
+  assert.match(page.html, /<span id="place-script" hidden="">It goes on the map where the photo says/);
+  assert.ok(POST_JS.includes("getElementById('place-plain')") && POST_JS.includes("getElementById('place-script')"));
 });
 
 test('the details drawn with an error focus the field it is about, tied to the error', async () => {

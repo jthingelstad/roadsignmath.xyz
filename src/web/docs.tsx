@@ -283,8 +283,8 @@ for (const sign of signs) {
             JSON Feed 1.1: <a href="/feed.json">{site}/feed.json</a>
           </li>
           <li>
-            One player’s signs: <code>/players/&lt;id&gt;/feed.xml</code> and <code>feed.json</code>, linked from each
-            player’s page.
+            One player’s signs: <code>/players/&lt;handle&gt;/feed.xml</code> and <code>feed.json</code>, linked from
+            each player’s page.
           </li>
         </ul>
         <p>
@@ -295,7 +295,7 @@ for (const sign of signs) {
         <h2 id="signs">Every sign</h2>
         <p>
           <a href="/signs.json">{site}/signs.json</a> has every sign on the map, newest posted first, with everything
-          its page shows. It opens from any web page: it is served with <code>Access-Control-Allow-Origin: *</code>.
+          its page shows. Any web page can fetch it, since it’s served with <code>Access-Control-Allow-Origin: *</code>.
         </p>
         <pre>
           <code>{mashup}</code>
@@ -329,7 +329,7 @@ for (const sign of signs) {
         <p>
           <a href="/signs.geojson">{site}/signs.geojson</a> is a GeoJSON FeatureCollection with a point for every sign
           that has a place, ready for Leaflet, MapLibre, QGIS or geojson.io. Most points are the town, not the exact
-          spot. A sign nobody can place is left out; it is still in <code>signs.json</code>, with null coordinates.
+          spot. A sign with no place is left out, but it’s still in <code>signs.json</code> with null coordinates.
         </p>
         <Fields fields={GEO_FIELDS} label="Fields of a feature in signs.geojson" />
 
@@ -337,8 +337,8 @@ for (const sign of signs) {
         <p>
           The iPhone app reads and posts through the API at <code>{site}/api/v1</code>, version {API_VERSION}. These
           reads are public, JSON with snake_case keys. Its full description is{' '}
-          <a href="/api/v1/openapi.json">OpenAPI 3.1 at /api/v1/openapi.json</a>. Signing in and posting are for the
-          app. The API is for apps and servers; from a web page, use the files above, which any site can fetch.
+          <a href="/api/v1/openapi.json">OpenAPI 3.1 at /api/v1/openapi.json</a>. Signing in and posting through it are
+          for the app. The API is for apps and servers. From a web page, use the files above, which any site can fetch.
         </p>
         <ul class="routes">
           {reads.map((r) => (
@@ -376,8 +376,8 @@ for (const sign of signs) {
             is plenty.
           </li>
           <li>
-            The format of the files is their <code>version</code>. Fields may be added; renaming or removing one moves
-            the version on. The API says its version in the <code>API-Version</code> header.
+            Each file has a <code>version</code>. Fields may get added, and renaming or removing one bumps the version.
+            The API says its version in the <code>API-Version</code> header.
           </li>
           <li>Only signs on the map are here. A sign that is held back or hidden never is.</li>
           <li>

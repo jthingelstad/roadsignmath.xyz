@@ -50,7 +50,7 @@ test('an address with no page answers 404 with the way back and the three newest
     assert.match(res.headers.get('content-type') ?? '', /^text\/html/);
     assert.equal(res.headers.get('cache-control'), PAGE_CACHE);
     assert.match(html, /<h1>This road doesn’t go anywhere\.<\/h1>/);
-    assert.ok(html.includes(`There’s no page at <code class="mono">${path}</code>.`), path);
+    assert.ok(html.includes(`There’s nothing at <code class="mono">${path}</code>.`), path);
     assert.match(html, /<div class="plate"><span role="img" aria-label="404 = 4 × 101"><svg /);
     assert.match(
       html,
@@ -166,7 +166,9 @@ test('the header and footer show the horizontal logo, colour on light and white 
     assert.ok(html.includes(`<a class="brand" href="/">${lockup('Road Sign Math', 44)}</a>`), path);
     // The footer's says nothing: the sentence beside it starts with the name.
     assert.ok(
-      html.includes(`<footer class="foot"><div class="wrap">${lockup('', 32)}<p>Road Sign Math was created`),
+      html.includes(
+        `<footer class="foot"><div class="wrap">${lockup('', 32)}<p>Jamie Thingelstad started Road Sign Math in 2005.`
+      ),
       path
     );
     // The files are pictures, not inline: their ids (title, radical-route) never land in the page twice.

@@ -148,9 +148,9 @@ export const SortChips: FC<{ on: SortKey; href: (key: SortKey) => string; label?
 /** What each sort means, in a line under the chips. */
 export const SORT_NOTES: Record<SortKey, string> = {
   latest: 'Newest first.',
-  nearby: 'Closest to you first. Your browser asks for your location; it stays on this page.',
-  popular: 'Most hearts first, from the app and this site together.',
-  complexity: 'The most complex math first: roots, powers and factorials count for more than adding up.'
+  nearby: 'Closest to you first. Your browser asks where you are, and that never leaves this page.',
+  popular: 'Most hearts first, counting the app and this site.',
+  complexity: 'The most complex math first. Roots, powers and factorials count for more than adding.'
 };
 
 export const CHIP_STYLE = `

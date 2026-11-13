@@ -304,7 +304,7 @@ const YourSigns = ({ signs, site }: { signs: Sign[]; site: string }) => (
       Post a sign
     </a>
     {signs.length === 0 ? (
-      <p class="meta">Signs you post show here, with any only you can see.</p>
+      <p class="meta">Your signs show up here, including any only you can see.</p>
     ) : (
       <ul class="mine">
         {signs.map((sign) => {
