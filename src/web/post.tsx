@@ -602,7 +602,7 @@ export const DetailsPage: FC<{
   return (
     <PostFrame title="Post a sign" quiz={quiz} script={EXIF_JS + '\n' + POST_JS}>
       <h1>Post a sign</h1>
-      <p class="lede">A road sign whose numbers make true math. Add its photo, the numbers, and where it was.</p>
+      <p class="lede">Found a sign whose numbers make true math? Add its photo, its numbers and where it was.</p>
       <p class="meta">
         Have an iPhone? Posting is easiest in the <a href="/app">Road Sign Math app</a>.
       </p>
@@ -655,8 +655,7 @@ export const DetailsPage: FC<{
               Up to {LIMITS.photosMax} photos, the first one of the sign itself.{' '}
               {/* Only true when the script runs, which shows it. */}
               <span id="photo-reads" hidden>
-                A photo’s place and day are read from it here, in your browser, then it is made smaller and sent without
-                them.
+                Your browser reads where and when a photo was taken, then shrinks it and sends it without those details.
               </span>
             </p>
           </div>
@@ -666,7 +665,8 @@ export const DetailsPage: FC<{
         <fieldset class="part">
           <legend>The numbers</legend>
           <p class="meta">
-            Every number on the sign, and what each was read from (Exit 2, Speed limit 55). The math will use them all.
+            Every number on the sign, and where each one came from (Exit 2, Speed limit 55). The math has to use them
+            all.
           </p>
           <div id="mark" class="mark" hidden>
             <img alt="The first photo. Tap where the number is." />
@@ -795,8 +795,13 @@ export const DetailsPage: FC<{
             </div>
           </div>
           <p class="meta">
-            On the map it goes where the photo says it was taken. No place in the photo? Pick it on the map, or type its
-            latitude and longitude. Road Sign Math never asks your browser where you are.
+            {/* Without scripts nothing reads the photo and there's no map to pick on; the script swaps these. */}
+            <span id="place-plain">Know its latitude and longitude? Type them and it gets a pin on the map.</span>
+            <span id="place-script" hidden>
+              It goes on the map where the photo says it was taken. No place in the photo? Pick it on the map, or type
+              its latitude and longitude.
+            </span>{' '}
+            Road Sign Math never asks your browser where you are.
           </p>
           <button id="map-open" type="button" class="btn ghost" hidden>
             Pick it on the map
@@ -875,8 +880,8 @@ export const MathPage: FC<{
             Posted already?
           </h2>
           <p class="meta">
-            {similar.length === 1 ? 'This sign is' : 'These signs are'} near there with some of the same numbers. If
-            it’s the same sign, find another way to its math instead of posting it again.
+            {similar.length === 1 ? 'This sign is' : 'These signs are'} close by, with some of the same numbers. If it’s
+            the same sign, put your math on it as another way instead of posting it again.
           </p>
           <ul class="alike">
             {similar.map(({ sign, miles }) => {
@@ -920,7 +925,7 @@ export const MathPage: FC<{
         <h2 id="way-h" class="h2">
           The first way
         </h2>
-        <p class="meta">Build the sign’s math from its numbers. Every number goes in.</p>
+        <p class="meta">Make the math with the sign’s numbers. Use every one.</p>
         <FormError error={error} />
         <form id="solve" class="stack" method="post" action={POST_PATH}>
           <Kept d={d} />
@@ -941,7 +946,7 @@ export const MathPage: FC<{
           </button>
         </form>
         <p class="meta">
-          Posting agrees to the <a href="/rules">house rules</a>. Our moderator looks at every post.
+          By posting you agree to the <a href="/rules">house rules</a>. Our moderator looks at every post.
         </p>
       </section>
     </PostFrame>
@@ -967,14 +972,14 @@ export const DonePage: FC<{ sign: Sign; site: string; quiz?: string; script?: st
           </span>
           <h1>{sign.title} is held for now</h1>
           {sign.moderation?.note && <p class="note">{sign.moderation.note}</p>}
-          <p class="lede">Only you can see it. It stays on your page with why.</p>
+          <p class="lede">Only you can see it. It stays on your page with the reason.</p>
         </>
       ) : (
         <>
           <h1>{sign.title} is posted</h1>
           <p class="lede">
-            {sign.firstWay ? 'With its first way.' : 'Unsolved, for now: anyone can find the first way.'} It can take a
-            minute to show everywhere.
+            {sign.firstWay ? 'With its first way.' : 'Unsolved for now, so anyone can find the first way.'} It can take
+            a minute to show up everywhere.
           </p>
         </>
       )}

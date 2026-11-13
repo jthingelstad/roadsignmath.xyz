@@ -125,7 +125,7 @@ test('/players lists everyone with a sign or a badge, the most signs first', asy
   // Ada has two signs and Ben one. Eve and Cy have none of their own, so the newer player comes
   // first: Eve started by posting a sign in March 2026, Cy with a way in February. Dee has nothing yet.
   assert.deepEqual(names(html), ['Ada', 'Ben', 'Eve', 'Cy']);
-  assert.match(html, /the most signs first/);
+  assert.match(html, /Everyone with a sign or a badge, most signs first\./);
   assert.match(html, /<a href="\/players" aria-current="page">Players<\/a>/);
   // A bio stands in for when they started.
   assert.match(html, /<h2>Ada<\/h2><span class="sub">Counts everything\.<\/span>/);

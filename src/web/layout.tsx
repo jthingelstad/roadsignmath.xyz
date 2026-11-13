@@ -402,8 +402,8 @@ export const Page: FC<PropsWithChildren<PageMeta>> = ({
         <div class="wrap">
           <Lockup height={32} alt="" />
           <p>
-            Road Sign Math was created by Jamie Thingelstad in 2005. The first era’s signs, 2005 to 2014, are on the map
-            with today’s, and all of them are kept in{' '}
+            Jamie Thingelstad started Road Sign Math in 2005. Lots of the signs from 2005 to 2014 are on the map with
+            today’s, and every one of them is in{' '}
             <a href={ARCHIVE_URL} style="font-weight: 700">
               the archive on Things I’ve built
             </a>

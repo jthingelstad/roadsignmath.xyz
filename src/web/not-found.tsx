@@ -122,8 +122,8 @@ export function notFoundPage({
                 <p class="kicker mono">Not found</p>
                 <h1>This road doesn’t go anywhere.</h1>
                 <p>
-                  There’s no page at <code class="mono">{path}</code>. The sign may have a new name, or the address may
-                  have a typo.
+                  There’s nothing at <code class="mono">{path}</code>. Maybe the sign has a new name, or there’s a typo
+                  in the address.
                 </p>
                 <Plate way={{ text: '404 = 4 × 101', tex: '404 = 4 \\times 101' }} />
                 <div class="go">

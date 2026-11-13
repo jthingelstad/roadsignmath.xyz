@@ -130,7 +130,7 @@ test('with Quiz closed, or with no address for it, the site never names it', asy
 test('Home says since 2005 and Players; first-era players found signs in their years, current ones play since', async () => {
   const { page } = await setup({});
   const home = await page('/');
-  assert.ok(home.includes('These are the signs players have found since 2005, around the world.'));
+  assert.ok(home.includes('Here are the signs players have found since 2005, all over the world.'));
   assert.ok(home.includes('<h2 id="who-h">Players</h2>'));
   assert.ok(!home.includes('Who’s playing'));
   const players = await page('/players');

@@ -78,7 +78,7 @@ const SHOTS = [
     name: 'sign',
     alt: 'A sign in the app: its photo, its math on a green plate, who found it, and a heart',
     title: 'Find another way',
-    text: 'Every sign can hold more than one way. The keypad has square roots, powers and stacked fractions, and says “It works” when it does.'
+    text: 'A sign can have more than one way to make it true. The keypad has square roots, powers and stacked fractions, and says “It works” when it does.'
   },
   {
     name: 'home',
@@ -150,7 +150,8 @@ export function mountAppPage(
                   <a href={`${quiz}/`} data-tinylytics-event="quiz.open" data-tinylytics-event-value="app">
                     Quiz
                   </a>{' '}
-                  in any browser: find the math in signs other players posted. You sign in when you send your first way.
+                  in any browser and find the math in signs other players posted. You only sign in when you send your
+                  first way.
                 </>
               ] as const
             ])
@@ -168,7 +169,7 @@ export function mountAppPage(
                 'Can I post without the app?',
                 <>
                   Yes. Sign in on this website and <a href="/post">post a sign</a> from any browser. On an iPhone the
-                  app is the easiest way: it reads the numbers for you.
+                  app is easier, since it reads the numbers for you.
                 </>
               ] as const
             ])
@@ -191,7 +192,7 @@ export function mountAppPage(
     c.html(
       <Page
         title="The iPhone app · Road Sign Math"
-        description="Road Sign Math lives in the iPhone app: point the camera at a sign, make its numbers true, and post it to the map. Free on the App Store."
+        description="Road Sign Math lives in the iPhone app. Point the camera at a sign, make its numbers true, and post it to the map. Free on the App Store."
         url={`${urls.site}/app`}
         card={siteCard && (await siteCard())}
         jsonLd={APP_JSON_LD}
@@ -208,7 +209,7 @@ export function mountAppPage(
                 </p>
                 <h1>The game lives in the app.</h1>
                 <p class="lead">
-                  Point the camera at a sign. It reads the numbers; you make them true. Post it, and it lands on the map
+                  Point the camera at a sign. It reads the numbers, you make them true. Post it, and it lands on the map
                   here and in everyone’s app.
                 </p>
                 <div class="join">
@@ -277,7 +278,7 @@ export function mountAppPage(
                       3
                     </span>
                     <h3>Sign in to play</h3>
-                    <p>Sign in with your email: the app sends a code and a link. There’s no password.</p>
+                    <p>Sign in with your email. The app sends you a code and a link, no password.</p>
                   </li>
                 </ol>
               </div>

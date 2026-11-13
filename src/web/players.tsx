@@ -141,7 +141,7 @@ export function mountPlayers(
     return c.html(
       <Page
         title="Players · Road Sign Math"
-        description={`Everyone playing Road Sign Math: ${rows.length} ${rows.length === 1 ? 'player' : 'players'} and the road signs they've found.`}
+        description={`Everyone playing Road Sign Math, ${rows.length} ${rows.length === 1 ? 'player' : 'players'}, and the road signs they’ve found.`}
         url={`${urls.site}/players`}
         card={await siteCard({ signs, everyone })}
         here="players"
@@ -152,7 +152,7 @@ export function mountPlayers(
           <div class="wrap">
             <div>
               <h1>Players</h1>
-              <p class="lead">Everyone with a sign or a badge on the map, the most signs first.</p>
+              <p class="lead">Everyone with a sign or a badge, most signs first.</p>
             </div>
             {rows.length > 0 ? (
               <ul class="people">

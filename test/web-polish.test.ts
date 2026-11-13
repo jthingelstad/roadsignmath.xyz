@@ -127,7 +127,7 @@ test('a sign’s description says something its title doesn’t', async () => {
   const page = await html('/signs/small-sign');
   const description = /<meta name="description" content="([^"]+)"/.exec(page)?.[1] ?? '';
   assert.ok(!description.startsWith('Small Sign'), description);
-  assert.equal(description, '18 ÷ 6 = 3. A road sign found by Ada on Jan 10, 2026. Where: Testville, Minnesota.');
+  assert.equal(description, '18 ÷ 6 = 3. A road sign found by Ada on Jan 10, 2026. Testville, Minnesota.');
   assert.equal(
     signDescription({
       first_way: null,
@@ -140,7 +140,7 @@ test('a sign’s description says something its title doesn’t', async () => {
       found_on: '2025-09-01',
       numbers: [{ value: '4' }, { value: '2' }]
     } as unknown as Parameters<typeof signDescription>[0]),
-    'A road sign found by Ada, Ben and Cy on Sep 1, 2025. Where: Somewhere. Not solved yet: the numbers are 4, 2.'
+    'A road sign found by Ada, Ben and Cy on Sep 1, 2025. Somewhere. Nobody has solved it yet. The numbers are 4 and 2.'
   );
 });
 
