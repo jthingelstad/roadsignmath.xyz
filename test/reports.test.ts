@@ -158,6 +158,11 @@ test('a duplicate report is emailed too, labelled as a duplicate', async () => {
   await call('/signs/exit-seven/duplicate', { same_as: 'mile-twelve', note: 'Same exit, I’m sure' });
   assert.equal(mailer.sent.length, 2);
 
+  // Two of the same at once are still one.
+  const twice = { same_as: 'mile-twelve', note: 'Sent twice' };
+  await Promise.all([call('/signs/exit-seven/duplicate', twice), call('/signs/exit-seven/duplicate', twice)]);
+  assert.equal(mailer.sent.length, 3);
+
   // Without a note, it says so; a failing mailer leaves the report kept.
   const broken = await setup({ mailer: new BrokenMailer() });
   const kept = await broken.call('/signs/exit-seven/duplicate', { same_as: 'mile-twelve' });

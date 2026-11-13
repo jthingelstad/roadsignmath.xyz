@@ -758,18 +758,31 @@ export async function reportDuplicate(
   only(body, 'The duplicate report', ['same_as', 'note']);
   if (other.id === sign.id) fail('bad_request', 'A sign can’t be a duplicate of itself');
   const note = body.note === undefined || body.note === null ? '' : text(body.note, 'note', LIMITS.reportMax, 0);
-  const before = await store.getDuplicate(sign.id, player.id);
-  if (before && before.sameAs === other.id && (before.note ?? '') === note) return before;
-  const now = nowSeconds();
-  await limit(store, `reports:${player.id}`, LIMITS.reportsADay, DAY, now, `Too many reports today. ${tomorrow}`);
-  const report: DuplicateReport = {
-    signId: sign.id,
-    playerId: player.id,
-    sameAs: other.id,
-    ...(note ? { note } : {}),
-    createdAt: isoNow(now)
-  };
-  await store.putDuplicate(report);
+  // One at a time per player and sign, so the same report sent twice at once is still one: the
+  // second waits for the first, then reads what it kept. A lease that stays busy is not in the way.
+  const lease = `duplicate:${sign.id}:${player.id}`;
+  const holder = randomUUID();
+  let held = false;
+  for (let tries = 0; tries < 10 && !(held = await store.lease(lease, holder, 30)); tries++) {
+    await new Promise((done) => setTimeout(done, 200));
+  }
+  let report: DuplicateReport;
+  try {
+    const before = await store.getDuplicate(sign.id, player.id);
+    if (before && before.sameAs === other.id && (before.note ?? '') === note) return before;
+    const now = nowSeconds();
+    await limit(store, `reports:${player.id}`, LIMITS.reportsADay, DAY, now, `Too many reports today. ${tomorrow}`);
+    report = {
+      signId: sign.id,
+      playerId: player.id,
+      sameAs: other.id,
+      ...(note ? { note } : {}),
+      createdAt: isoNow(now)
+    };
+    await store.putDuplicate(report);
+  } finally {
+    if (held) await store.endLease(lease, holder).catch(() => undefined);
+  }
   product({ action: 'duplicate', front });
   await told?.(report);
   return report;
