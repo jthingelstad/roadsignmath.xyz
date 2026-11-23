@@ -947,7 +947,7 @@ export function createSite({
             <a href={APP_STORE_URL} data-tinylytics-event="app.store" data-tinylytics-event-value="about">
               get the iPhone app
             </a>{' '}
-            to play along. Questions are welcome at <a href="mailto:jamie@thingelstad.com">jamie@thingelstad.com</a>.
+            to play along. Questions are welcome at <a href="mailto:hello@roadsignmath.xyz">hello@roadsignmath.xyz</a>.
           </p>
         </main>
       </Page>
@@ -1054,10 +1054,10 @@ export function createSite({
           </p>
           <h2>Questions</h2>
           <p>
-            Email Jamie at <a href="mailto:jamie@thingelstad.com">jamie@thingelstad.com</a>. The{' '}
+            Email Jamie at <a href="mailto:hello@roadsignmath.xyz">hello@roadsignmath.xyz</a>. The{' '}
             <a href="/rules">house rules</a> say what can be posted.
           </p>
-          <p class="soft">Updated 12 November 2026.</p>
+          <p class="soft">Updated 22 November 2026.</p>
         </main>
       </Page>
     )
@@ -1088,7 +1088,7 @@ export function createSite({
             <li>It’s a hobby: free, as is, and no promise it’ll be here forever.</li>
           </ul>
           <p>
-            Questions? Email Jamie at <a href="mailto:jamie@thingelstad.com">jamie@thingelstad.com</a>.
+            Questions? Email Jamie at <a href="mailto:hello@roadsignmath.xyz">hello@roadsignmath.xyz</a>.
           </p>
         </main>
       </Page>
@@ -1113,7 +1113,7 @@ export function createSite({
           <h2>Reach Jamie</h2>
           <p>
             In the app, tap your picture at the top of Home to open You, then the gear for Settings, and choose Send
-            feedback under Help. Or email <a href="mailto:jamie@thingelstad.com">jamie@thingelstad.com</a>.
+            feedback under Help. Or email <a href="mailto:hello@roadsignmath.xyz">hello@roadsignmath.xyz</a>.
           </p>
           <h2>Delete your account</h2>
           <p>

@@ -120,7 +120,7 @@ test('the privacy page says deleted things leave the backups within a year, and 
   assert.ok(html.includes('gone from them within a year'));
   assert.ok(html.includes('When you report a sign'));
   assert.ok(html.includes('Jamie gets an email about it'));
-  assert.ok(html.includes('Updated 12 November 2026.'));
+  assert.ok(html.includes('Updated 22 November 2026.'));
   assert.ok(html.includes('<h2>Quiz</h2>'));
   assert.ok(html.includes('it sets one cookie, which holds your sign-in and nothing else'));
   assert.ok(html.replace(/\s+/g, ' ').includes('whether you play in the app, in Quiz or both'));
@@ -745,4 +745,14 @@ test('while Quiz is open, a sign with numbers says “Try this one in Quiz”, l
   const closed = await (await make(false).request(`/signs/${await slug('Exit Seven')}`)).text();
   assert.ok(!closed.includes('Try this one in Quiz'), 'never while Quiz is switched off');
   assert.ok(closed.includes('Add yours in the app. The keypad checks your math as you go.'));
+});
+
+test('the pages that say where to write give the game’s own address, never a personal one', async () => {
+  const { app } = await setup();
+  for (const path of ['/about', '/privacy', '/rules', '/support']) {
+    const html = await (await app.request(path)).text();
+    assert.ok(html.includes('<a href="mailto:hello@roadsignmath.xyz">hello@roadsignmath.xyz</a>'), path);
+    assert.ok(!/mailto:(?!hello@roadsignmath\.xyz)/.test(html), path);
+    assert.ok(!html.includes('@thingelstad.com'), path);
+  }
 });
