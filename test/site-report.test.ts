@@ -159,12 +159,12 @@ test('open, the sign and player pages link the forms and stay cached, the same f
     assert.equal(page.res.status, 200);
     assert.equal(page.res.headers.get('cache-control'), PAGE_CACHE);
     assert.deepEqual(page.cookies, [], 'no cookie on a cached page');
-    assert.ok(page.html.includes('<a href="/you/report/sign/twelve-seven">Report this sign</a>'));
-    assert.ok(page.html.includes('<a href="/you/report/duplicate/twelve-seven">Report a duplicate</a>'));
+    assert.ok(page.html.includes('<a href="/you/report/sign/twelve-seven" rel="nofollow">Report this sign</a>'));
+    assert.ok(page.html.includes('<a href="/you/report/duplicate/twelve-seven" rel="nofollow">Report a duplicate</a>'));
     const player = await t.request('/players/ben', { as });
     assert.equal(player.res.headers.get('cache-control'), PAGE_CACHE);
     assert.deepEqual(player.cookies, []);
-    assert.ok(player.html.includes('<a href="/you/report/player/ben">Report this player</a>'));
+    assert.ok(player.html.includes('<a href="/you/report/player/ben" rel="nofollow">Report this player</a>'));
   }
   // The same page signed in and out: nothing per person.
   assert.equal(

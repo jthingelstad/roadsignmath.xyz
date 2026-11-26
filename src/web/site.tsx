@@ -760,11 +760,14 @@ export function createSite({
   mountIcons(site);
 
   // For search engines: every page that answers 200. The API and the sign-in link's landing
-  // are not pages to index.
+  // are not pages to index, and neither is anything under /you/: signed out, each answers with a
+  // redirect to sign in that the edge never keeps, so a crawler that follows the report links on
+  // every sign and player page spends two or three function calls a page on nothing. Those links
+  // say nofollow as well.
   // The API's OpenAPI description is allowed: llms.txt and /data point agents at it.
   site.get('/robots.txt', (c) =>
     c.text(
-      `User-agent: *\nAllow: /\nAllow: /api/v1/openapi.json\nDisallow: /api/\nDisallow: /signin\n\nSitemap: ${urls.site}/sitemap.xml\n`
+      `User-agent: *\nAllow: /\nAllow: /api/v1/openapi.json\nDisallow: /api/\nDisallow: /signin\nDisallow: /you/\n\nSitemap: ${urls.site}/sitemap.xml\n`
     )
   );
   site.get('/sitemap.xml', async (c) => {
@@ -1640,8 +1643,12 @@ export function createSite({
                 {webPosting && (
                   // Plain links, the same for every reader, so the page stays cached (src/web/report.tsx).
                   <p class="reports">
-                    <a href={reportPath('sign', sign.slug)}>Report this sign</a>
-                    <a href={reportPath('duplicate', sign.slug)}>Report a duplicate</a>
+                    <a href={reportPath('sign', sign.slug)} rel="nofollow">
+                      Report this sign
+                    </a>
+                    <a href={reportPath('duplicate', sign.slug)} rel="nofollow">
+                      Report a duplicate
+                    </a>
                   </p>
                 )}
               </div>
@@ -2042,7 +2049,9 @@ const PlayerPage: FC<{
           )}
           {reports && (
             <p class="reports">
-              <a href={reportPath('player', player.handle)}>Report this player</a>
+              <a href={reportPath('player', player.handle)} rel="nofollow">
+                Report this player
+              </a>
             </p>
           )}
         </div>
