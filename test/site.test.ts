@@ -428,6 +428,9 @@ test('robots.txt points to the sitemap, which lists every page that answers and 
   const robots = await (await app.request('/robots.txt')).text();
   assert.match(robots, /^Sitemap: https:\/\/example\.test\/sitemap\.xml$/m);
   assert.match(robots, /^Disallow: \/api\/$/m);
+  // Signed-in pages answer a signed-out reader with a redirect to sign in: nothing to crawl.
+  assert.match(robots, /^Disallow: \/you\/$/m);
+  assert.match(robots, /^Disallow: \/signin$/m);
   const res = await app.request('/sitemap.xml');
   assert.equal(res.status, 200);
   assert.match(res.headers.get('content-type') ?? '', /^application\/xml/);
