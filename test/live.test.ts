@@ -12,6 +12,7 @@ import {
   type PostVerdict
 } from '../src/moderation/moderator.ts';
 import { S3PhotoStore } from '../src/photos.ts';
+import { SIGN_IN_PAUSE } from '../src/quiz/pause.ts';
 import { secretField } from '../src/secrets.ts';
 import { DynamoStore } from '../src/store/dynamo.ts';
 import { KeyedTinylytics } from '../src/tinylytics.ts';
@@ -46,6 +47,7 @@ test('the live server is wired from the stack environment', () => {
   assert.ok(options.tinylytics instanceof KeyedTinylytics);
   assert.deepEqual(options.urls, { site: 'https://example.test', quiz: 'https://quiz.example.test' });
   assert.equal(options.feedbackTo, 'feedback@example.test');
+  assert.equal(options.signInPause, SIGN_IN_PAUSE, 'a sign-in form posted at once sends no email, live');
   assert.ok(createApp(options));
 });
 

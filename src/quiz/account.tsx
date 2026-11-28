@@ -30,6 +30,7 @@ import {
   type ProfileDone,
   type ProfileTrouble
 } from './pages.tsx';
+import { formStamp, tooQuick } from './pause.ts';
 import { forget, freshMarker, remember, sessionViewer, type Jar } from './session.ts';
 
 export type Status = 200 | 400 | 404 | 409 | 413 | 422 | 429 | 503;
@@ -92,12 +93,16 @@ function codeTrouble(err: ApiError): CodeSaid {
   return 'wrong';
 }
 
+/** What the sign-in page says to a form posted too soon after it was drawn; the next press goes through. */
+export const TOO_QUICK = 'That didn’t go through. Press “Email me a code” once more.';
+
 const withTo = (path: string, to: string | undefined) => (to ? `${path}?to=${encodeURIComponent(to)}` : path);
 
 /** Mounts the sign-in and profile pages on a front, at its paths. */
 export function mountAccount(app: Hono, front: AccountFront): void {
   const { options, here, jar, page, backTo, onward, carry } = front;
   const { store, mailer, clientIp } = options;
+  const pause = options.signInPause ?? 0;
   const paths = pathsOf(here);
   const go = (c: Context, path: string) => c.redirect(path, 303);
   const form = async (c: Context) => {
@@ -159,6 +164,23 @@ export function mountAccount(app: Hono, front: AccountFront): void {
     // the email's link and the name page can all bring it back. "Send the email again" keeps it.
     const math = carry && to && field('math') ? await carry.fromForm(to, field('math')) : undefined;
     const carried = again ? again.carry : to && math ? { to, text: math } : undefined;
+    // A form posted sooner after it was drawn than anyone types an address sends nothing
+    // (src/quiz/pause.ts). "Send the email again" names a sign-in that got past this already.
+    if (!again && tooQuick(field('at'), pause)) {
+      console.info({ event: 'limited', limit: 'quick' });
+      return page(
+        c,
+        <SignInPage
+          here={here}
+          email={email}
+          error={TOO_QUICK}
+          to={to}
+          math={math}
+          at={formStamp(Date.now() - pause)}
+        />,
+        429
+      );
+    }
     const landing = here.front === 'site' ? paths.link : paths.signin;
     const link = (loginId: string, token: string) =>
       `${origin}${landing}?l=${encodeURIComponent(loginId)}&t=${encodeURIComponent(token)}${to ? `&to=${encodeURIComponent(to)}` : ''}`;
@@ -180,6 +202,8 @@ export function mountAccount(app: Hono, front: AccountFront): void {
           badEmail={err.code === 'bad_request'}
           to={to}
           math={kept}
+          // The form they sent got past the pause: its stamp stays, so mending a typo is never too quick.
+          at={(!again && field('at')) || undefined}
         />,
         err.code === 'bad_request' ? 400 : 429
       );

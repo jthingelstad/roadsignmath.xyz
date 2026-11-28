@@ -16,6 +16,7 @@ import { secretField } from './secrets.ts';
 import { Buttondown } from './newsletter.ts';
 import { KeyedTinylytics } from './tinylytics.ts';
 import { DynamoStore } from './store/dynamo.ts';
+import { SIGN_IN_PAUSE } from './quiz/pause.ts';
 import { quizOrigin } from './quiz/quiz.tsx';
 
 export type LiveConfig = {
@@ -81,6 +82,7 @@ export function liveOptions(config: LiveConfig): ApiOptions {
     tinylytics: new KeyedTinylytics(tinylyticsKey(config)),
     newsletter: new Buttondown(buttondownKey(config)),
     edgeCache: config.photoDistributionId ? new CloudFrontEdgeCache(config.photoDistributionId) : undefined,
-    census: true
+    census: true,
+    signInPause: SIGN_IN_PAUSE
   };
 }

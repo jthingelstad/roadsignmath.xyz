@@ -49,7 +49,9 @@ export function text(raw: unknown, field: string, max: number, min: number): str
  * Counts one more try at `key` and fails with `message` once there are more than `max` in the
  * window. A refusal logs the limit's kind alone (`address`, `network`, `total`, `posts`...), never
  * the rest of the key, which names an address hash, a network or a player; the live stack counts
- * `total` refusals, when every sign-in email in the hour is used up (a metric, with no alarm).
+ * `total` refusals, when every sign-in email in the hour is used up (a metric, with no alarm). A
+ * sign-in form posted too soon after it was drawn logs the same line with `quick`
+ * (src/quiz/pause.ts), though it counts no try.
  */
 export async function limit(store: Store, key: string, max: number, seconds: number, now: number, message: string) {
   if ((await store.bump(key, seconds, now)) > max) {

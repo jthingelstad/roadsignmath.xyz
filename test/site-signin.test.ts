@@ -107,7 +107,9 @@ test('with nothing said, the site answers as it does open', async () => {
     const a = await open.request(path);
     const b = await unsaid.request(path);
     assert.equal(a.res.status, b.res.status, path);
-    assert.equal(a.html, b.html, path);
+    // The sign-in form says when it was drawn (src/quiz/pause.ts), which no two answers share.
+    const drawn = (html: string) => html.replace(/(name="at" value=")[0-9a-z]+/, '$1');
+    assert.equal(drawn(a.html), drawn(b.html), path);
   }
 });
 

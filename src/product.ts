@@ -10,7 +10,8 @@
 // `failure`: a counted line for each thing the Operator reads in the morning that went wrong for
 // a player, by kind and outcome only (`FAILURES`). Some failures have their own lines from before
 // and keep them: `report-mail` (src/reports.ts), `limited` with `limit: 'total'` for the sign-in
-// cap (src/api/input.ts; the stack's SignInTotalLimited metric reads it) and `moderator-key`.
+// cap (src/api/input.ts; the stack's SignInTotalLimited metric reads it) or `limit: 'quick'` for a
+// sign-in form posted too soon after it was drawn (src/quiz/pause.ts), and `moderator-key`.
 
 /** Where a player did it: the iPhone app (the API), Quiz, or the website. */
 export type Front = 'app' | 'quiz' | 'site';
