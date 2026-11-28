@@ -421,6 +421,7 @@ test('home lists the first ten players, then a link to all of them, and loads th
   // The privacy page names the tiles' host.
   const privacy = await (await app.request('/privacy')).text();
   assert.match(privacy, /OpenStreetMap draws the map on the home page/);
+  assert.match(privacy, /Cloudflare Turnstile checks for bots when you sign in on this website or in Quiz/);
 });
 
 test('robots.txt points to the sitemap, which lists every page that answers and none that do not', async () => {

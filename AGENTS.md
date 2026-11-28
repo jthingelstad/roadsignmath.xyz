@@ -142,7 +142,25 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
   after that, or with no stamp or one past a day old, sends no email, counts no try, logs `limited` with `limit: quick` and draws the form
   again with what was typed, to be pressed once more. A crawler posted the site's form 40 times in
   a week, each within 2 seconds of loading it, under every limit (2026-11-28). The stamp is not
-  signed: the limits are the ceiling. The app's `POST /auth/start` is unchanged. A try at the
+  signed: the limits are the ceiling. Before the pause the same form checks **Cloudflare
+  Turnstile** (`src/auth/turnstile.ts`, the page's half `src/quiz/turnstile.ts`; Jamie,
+  2026-11-28: "our pattern is using Turnstile on other sites. Lets also make sure our
+  observability tools can see turnstile success too."), Release Notes' check for a server-drawn
+  form: the widget "Road Sign Math sign-in" (managed, interaction-only; its public site key is
+  `TURNSTILE_SITE_KEY`) is drawn in the form, whose `turnstile_reason` says `no-script` until its
+  script runs; the script waits for the token on submit (five seconds, two minutes on a visible
+  checkbox) and posts the token, `turnstile_wait_ms` and, without one, why. The server asks
+  siteverify (three seconds at most) and logs one line per new form posted, `event: turnstile`
+  with `result` (`pass`, `fail`, `missing`, `error`, `unconfigured`, `off`), `mode`, `allowed`,
+  `front`, `codes`, Cloudflare's `hostname` and `action`, and the page's `client_reason` and
+  `client_wait_ms` (its word, never trusted); never the token or the address. Modes,
+  `TURNSTILE_MODE` from the stack's `TurnstileMode`: `observe` (the default: nobody refused),
+  `enforce` (a missing or rejected token sends no email and draws the form again, 403; a
+  Cloudflare `error` goes ahead) and `off` (no widget). The secret is `TURNSTILE_SECRET_KEY` in the
+  runtime secret; until it is there every post is `unconfigured` and goes ahead in any mode.
+  Enforcing is the owner's call, made from the observe numbers on the product dashboard. "Send
+  the email again" is neither checked nor paused. `/privacy` names Turnstile. The app's
+  `POST /auth/start` is unchanged. A try at the
   code is counted before the code is compared, in one conditional write, so five is the most a
   login ever gets however the guesses arrive. `PATCH /me` writes only what differs from what is
   kept (a write clears the edge) and takes `LIMITS.profileEditsADay` changes a day, counted before the
@@ -323,7 +341,8 @@ looking at it.
   reads the live table and says what a load would do. Old addresses are read into memory only: never
   print, log or save them.
 - The runtime secret holds the moderator's key (`ANTHROPIC_API_KEY`), the Tinylytics key
-  (`TINYLYTICS_API_KEY`) and the newsletter's Buttondown key (`BUTTONDOWN_API_KEY`). The owner keeps it by hand; never read or write its values. Never test
+  (`TINYLYTICS_API_KEY`), the newsletter's Buttondown key (`BUTTONDOWN_API_KEY`) and the sign-in
+  form's Turnstile secret (`TURNSTILE_SECRET_KEY`). The owner keeps it by hand; never read or write its values. Never test
   hearts or app views against live Tinylytics with writes: tests use `test/support/tinylytics.ts`.
 - No account id, ARN, zone id or other resource id goes in this repo or its Actions logs:
   scripts read them from the stacks and mask them in Actions.

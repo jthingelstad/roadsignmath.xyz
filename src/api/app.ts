@@ -10,6 +10,7 @@ import { signComplexity } from '../domain/complexity.ts';
 import { miles } from '../domain/geo.ts';
 import { similarSigns } from '../posting/similar.ts';
 import type { Sign, Way } from '../domain/types.ts';
+import type { TurnstileConfig } from '../auth/turnstile.ts';
 import type { Store } from '../store/store.ts';
 import { API_VERSION, LIMITS, ROUTES } from './contract.ts';
 import { PageChanges, type EdgeCache } from '../edge-cache.ts';
@@ -103,6 +104,12 @@ export type ApiOptions = {
    * form is taken however soon it comes, as tests post them.
    */
   signInPause?: number;
+  /**
+   * Cloudflare Turnstile on the website's and Quiz's sign-in form (src/auth/turnstile.ts): the live
+   * server's, in the stack's mode. Without it no widget is drawn and nothing is checked or logged,
+   * as tests and `npm run dev` have it.
+   */
+  turnstile?: TurnstileConfig;
 };
 
 /** The viewer's two-letter country from CloudFront, when it sent one. */

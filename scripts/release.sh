@@ -105,11 +105,19 @@ echo "code uploaded"
 
 # The Apple Team ID for apple-app-site-association, only when the caller sets APPLE_TEAM_ID (once,
 # from the Mac); otherwise the stack keeps the value it has, so GitHub never needs it.
-TEAM_PARAMETER=()
+OWNER_PARAMETERS=()
 if [[ -n "${APPLE_TEAM_ID:-}" ]]; then
   [[ "$APPLE_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]] || refuse "APPLE_TEAM_ID is not a Team ID"
   mask "$APPLE_TEAM_ID"
-  TEAM_PARAMETER=("AppleTeamId=$APPLE_TEAM_ID")
+  OWNER_PARAMETERS=("AppleTeamId=$APPLE_TEAM_ID")
+fi
+
+# The sign-in form's Turnstile mode (src/auth/turnstile.ts), only when the caller sets TURNSTILE_MODE
+# (from the Mac: enforcing is the owner's call); otherwise the stack keeps the mode it has, and an
+# empty one is the code's default, observe.
+if [[ -n "${TURNSTILE_MODE:-}" ]]; then
+  [[ "$TURNSTILE_MODE" =~ ^(off|observe|enforce)$ ]] || refuse "TURNSTILE_MODE is off, observe or enforce"
+  OWNER_PARAMETERS+=("TurnstileMode=$TURNSTILE_MODE")
 fi
 
 # The stack acts through its own service role (infra/deploy.yaml), whoever deploys.
@@ -121,7 +129,7 @@ update() {
     --capabilities CAPABILITY_IAM \
     --no-fail-on-empty-changeset \
     --parameter-overrides "BuildId=$COMMIT" "$CODE_PARAMETER" "CodeBucket=$CODE_BUCKET" \
-      "HostedZoneId=$HOSTED_ZONE" "PhotoDistributionId=$1" ${TEAM_PARAMETER[@]+"${TEAM_PARAMETER[@]}"} \
+      "HostedZoneId=$HOSTED_ZONE" "PhotoDistributionId=$1" ${OWNER_PARAMETERS[@]+"${OWNER_PARAMETERS[@]}"} \
     --tags Application=RoadSignMath Project=roadsignmath.xyz ManagedBy=cloudformation \
            Environment=production Repository=jthingelstad/roadsignmath.xyz >/dev/null; then
     # Which resources failed and why, newest first; identifiers are masked in CI.

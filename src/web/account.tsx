@@ -22,6 +22,7 @@ import { Hono, type Context } from 'hono';
 import type { Child } from 'hono/jsx';
 import type { ApiOptions } from '../api/app.ts';
 import { ApiError } from '../api/errors.ts';
+import { widgetKey } from '../auth/turnstile.ts';
 import { isPublic, photoUrl, signPath } from '../api/views.ts';
 import type { Player, Sign } from '../domain/types.ts';
 import { deleteSign } from '../posting/posting.ts';
@@ -155,7 +156,13 @@ export function createAccount(options: AccountOptions): Hono {
   const quizAt = urls.quiz ?? quizOrigin(urls.site);
   const quizOpen = options.quizOpen ?? QUIZ_OPEN;
   // The header's Quiz link, as the site's other pages have it, while Quiz is open.
-  const here: Here = { site: urls.site, quiz: quizAt, front: 'site', quizNav: quizOpen ? quizAt : undefined };
+  const here: Here = {
+    site: urls.site,
+    quiz: quizAt,
+    front: 'site',
+    quizNav: quizOpen ? quizAt : undefined,
+    turnstile: widgetKey(options.turnstile)
+  };
   const jar = jarFor(urls.site, true);
   const app = new Hono();
 

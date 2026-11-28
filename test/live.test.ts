@@ -13,6 +13,7 @@ import {
 } from '../src/moderation/moderator.ts';
 import { S3PhotoStore } from '../src/photos.ts';
 import { SIGN_IN_PAUSE } from '../src/quiz/pause.ts';
+import { TURNSTILE_SITE_KEY } from '../src/auth/turnstile.ts';
 import { secretField } from '../src/secrets.ts';
 import { DynamoStore } from '../src/store/dynamo.ts';
 import { KeyedTinylytics } from '../src/tinylytics.ts';
@@ -37,7 +38,8 @@ test('the live server is wired from the stack environment', () => {
     fromAddress: 'Road Sign Math <signin@example.test>',
     feedbackTo: 'feedback@example.test',
     site: 'https://example.test',
-    runtimeSecret: 'example-runtime'
+    runtimeSecret: 'example-runtime',
+    turnstileMode: 'observe'
   });
   const options = liveOptions(config);
   assert.ok(options.store instanceof DynamoStore);
@@ -48,7 +50,22 @@ test('the live server is wired from the stack environment', () => {
   assert.deepEqual(options.urls, { site: 'https://example.test', quiz: 'https://quiz.example.test' });
   assert.equal(options.feedbackTo, 'feedback@example.test');
   assert.equal(options.signInPause, SIGN_IN_PAUSE, 'a sign-in form posted at once sends no email, live');
+  assert.equal(options.turnstile?.mode, 'observe', 'Turnstile observes unless the stack says otherwise');
+  assert.equal(options.turnstile?.siteKey, TURNSTILE_SITE_KEY);
   assert.ok(createApp(options));
+});
+
+test("the sign-in form's Turnstile mode comes from the stack, observe unless it names another", () => {
+  for (const [raw, mode] of [
+    [undefined, 'observe'],
+    ['', 'observe'],
+    ['observe', 'observe'],
+    ['off', 'off'],
+    [' Enforce ', 'enforce'],
+    ['block', 'observe']
+  ] as const)
+    assert.equal(liveConfig({ ...env, TURNSTILE_MODE: raw }).turnstileMode, mode, String(raw));
+  assert.equal(liveOptions(liveConfig({ ...env, TURNSTILE_MODE: 'off' })).turnstile?.mode, 'off');
 });
 
 test('the first deploy has no distribution yet, and a missing setting stops the server', () => {

@@ -1,7 +1,7 @@
 // The live server's parts, from the environment the stack gives the web function
 // (infra/template.yaml): the table, the photo bucket and the distribution that serves it, the
 // sign-in address, where feedback goes, the site, the runtime secret and the team that signs
-// the iPhone app.
+// the iPhone app, and the sign-in form's Turnstile mode.
 // `src/server.ts` runs them; tests build them from a made-up environment without touching the
 // network.
 
@@ -17,6 +17,7 @@ import { Buttondown } from './newsletter.ts';
 import { KeyedTinylytics } from './tinylytics.ts';
 import { DynamoStore } from './store/dynamo.ts';
 import { SIGN_IN_PAUSE } from './quiz/pause.ts';
+import { TURNSTILE_SITE_KEY, keptSecret, turnstileMode, type TurnstileMode } from './auth/turnstile.ts';
 import { quizOrigin } from './quiz/quiz.tsx';
 
 export type LiveConfig = {
@@ -34,6 +35,8 @@ export type LiveConfig = {
   runtimeSecret: string;
   /** The team that signs the iPhone app, for apple-app-site-association; unset, none is served. */
   appleTeamId?: string;
+  /** The sign-in form's Turnstile mode (`TURNSTILE_MODE`; unset or unknown is the default, observe). */
+  turnstileMode: TurnstileMode;
 };
 
 export function liveConfig(env: Record<string, string | undefined> = process.env): LiveConfig {
@@ -56,6 +59,7 @@ export function liveConfig(env: Record<string, string | undefined> = process.env
     feedbackTo,
     site,
     runtimeSecret: need('RUNTIME_SECRET'),
+    turnstileMode: turnstileMode(env.TURNSTILE_MODE),
     ...(appleTeamId ? { appleTeamId } : {})
   };
 }
@@ -68,6 +72,10 @@ export const tinylyticsKey = (config: LiveConfig) => () => secretField(config.ru
 
 /** The newsletter's key: BUTTONDOWN_API_KEY in the runtime secret. */
 export const buttondownKey = (config: LiveConfig) => () => secretField(config.runtimeSecret, 'BUTTONDOWN_API_KEY');
+
+/** The sign-in form's Turnstile secret: TURNSTILE_SECRET_KEY in the runtime secret, kept an hour once read. */
+export const turnstileSecret = (config: LiveConfig) =>
+  keptSecret(() => secretField(config.runtimeSecret, 'TURNSTILE_SECRET_KEY'));
 
 export function liveOptions(config: LiveConfig): ApiOptions {
   return {
@@ -83,6 +91,7 @@ export function liveOptions(config: LiveConfig): ApiOptions {
     newsletter: new Buttondown(buttondownKey(config)),
     edgeCache: config.photoDistributionId ? new CloudFrontEdgeCache(config.photoDistributionId) : undefined,
     census: true,
-    signInPause: SIGN_IN_PAUSE
+    signInPause: SIGN_IN_PAUSE,
+    turnstile: { mode: config.turnstileMode, siteKey: TURNSTILE_SITE_KEY, secret: turnstileSecret(config) }
   };
 }

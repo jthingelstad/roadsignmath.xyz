@@ -14,6 +14,7 @@ import { LIMITS } from '../api/contract.ts';
 import { ApiError, STATUS, fail } from '../api/errors.ts';
 import { newsletterAtSignIn, removeAvatar, removePlayer, setAvatar, updateMe } from '../auth/account.ts';
 import { finishSignIn, signOut, startSignIn, type Viewer } from '../auth/auth.ts';
+import { checkTurnstile, turnstileClient, turnstileLine, turnstileLog, turnstileToken } from '../auth/turnstile.ts';
 import type { Player } from '../domain/types.ts';
 import {
   CodePage,
@@ -33,7 +34,7 @@ import {
 import { formStamp, tooQuick } from './pause.ts';
 import { forget, freshMarker, remember, sessionViewer, type Jar } from './session.ts';
 
-export type Status = 200 | 400 | 404 | 409 | 413 | 422 | 429 | 503;
+export type Status = 200 | 400 | 403 | 404 | 409 | 413 | 422 | 429 | 503;
 
 export type AccountFront = {
   options: ApiOptions & { clientIp: (c: Context) => string };
@@ -92,6 +93,13 @@ function codeTrouble(err: ApiError): CodeSaid {
   if (err.code === 'bad_request') return 'format';
   return 'wrong';
 }
+
+/**
+ * What the sign-in page says when Turnstile, enforced, found no person behind the form (no token, or
+ * one Cloudflare rejected). Only in `enforce`, which is the owner's call.
+ */
+export const NOT_CHECKED =
+  'We couldn’t check that a person sent this, so no email went. Wait a moment and press “Email me a code” again. If it keeps happening, let this page run its scripts or pause a content blocker, or sign in with the Road Sign Math app.';
 
 /** What the sign-in page says to a form posted too soon after it was drawn; the next press goes through. */
 export const TOO_QUICK = 'That didn’t go through. Press “Email me a code” once more.';
@@ -164,6 +172,35 @@ export function mountAccount(app: Hono, front: AccountFront): void {
     // the email's link and the name page can all bring it back. "Send the email again" keeps it.
     const math = carry && to && field('math') ? await carry.fromForm(to, field('math')) : undefined;
     const carried = again ? again.carry : to && math ? { to, text: math } : undefined;
+    // Cloudflare Turnstile first (src/auth/turnstile.ts), so every new sign-in form posted is
+    // checked and logged, the crawler's quick ones included; then the pause. "Send the email
+    // again" names a sign-in that got past both already, and is neither checked nor logged.
+    if (!again && options.turnstile) {
+      const verdict = await checkTurnstile({
+        token: turnstileToken(field),
+        viewer: clientIp(c),
+        config: options.turnstile
+      });
+      try {
+        turnstileLog.write(turnstileLine(verdict, mailFront, turnstileClient(field)));
+      } catch {
+        // A log line is never in the way of a sign-in.
+      }
+      if (!verdict.allowed) {
+        return page(
+          c,
+          <SignInPage
+            here={here}
+            email={email}
+            error={NOT_CHECKED}
+            to={to}
+            math={math}
+            at={field('at') || undefined}
+          />,
+          403
+        );
+      }
+    }
     // A form posted sooner after it was drawn than anyone types an address sends nothing
     // (src/quiz/pause.ts). "Send the email again" names a sign-in that got past this already.
     if (!again && tooQuick(field('at'), pause)) {

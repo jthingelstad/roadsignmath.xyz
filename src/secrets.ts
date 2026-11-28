@@ -1,9 +1,11 @@
 // The live server's credentials are keys in the runtime secret, which the owner keeps by hand
 // in Secrets Manager: ANTHROPIC_API_KEY, the moderator's, TINYLYTICS_API_KEY, for hearts and
-// the app's views, and BUTTONDOWN_API_KEY, for the players' newsletter. The stack names the secret (RUNTIME_SECRET) and lets the server read it and
+// the app's views, BUTTONDOWN_API_KEY, for the players' newsletter, and TURNSTILE_SECRET_KEY, for the
+// sign-in form's Turnstile check. The stack names the secret (RUNTIME_SECRET) and lets the server read it and
 // nothing else. A missing secret or key reads as none, so the server starts and answers without
-// it: posting waits for the first, hearts and app views are off without the second, and
-// without the third no one joins or leaves the newsletter.
+// it: posting waits for the first, hearts and app views are off without the second, without
+// the third no one joins or leaves the newsletter, and without the fourth Turnstile logs
+// `unconfigured` and refuses nobody.
 
 import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 

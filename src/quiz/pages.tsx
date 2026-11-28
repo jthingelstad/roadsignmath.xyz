@@ -20,6 +20,7 @@ import { CHECKER_JS } from './checker.ts';
 import { KEYPAD_JS } from './keypad.ts';
 import { formStamp } from './pause.ts';
 import { PHOTOS_JS } from './photos.ts';
+import { TURNSTILE_JS, TURNSTILE_STYLE } from './turnstile.ts';
 import { faceLetter } from './session.ts';
 import type { OnSign, Solve } from './data.ts';
 
@@ -34,6 +35,11 @@ export type Here = {
   front?: 'quiz' | 'site';
   /** On the site's front, Quiz's address for the header's Quiz link, only while Quiz is open. */
   quizNav?: string;
+  /**
+   * The Turnstile widget's site key, when the sign-in form draws one (src/auth/turnstile.ts,
+   * `widgetKey`): unset in tests and `npm run dev`, and while the mode is `off`.
+   */
+  turnstile?: string;
 };
 
 /** Where each shared page lives on a front. */
@@ -380,7 +386,7 @@ export const Frame: FC<
         quiz={here.quizNav}
         count={false}
         banner={false}
-        style={FORM_STYLE}
+        style={FORM_STYLE + TURNSTILE_STYLE}
         script={script}
       >
         <main id="main" class="wrap acct">
@@ -423,7 +429,7 @@ export const Frame: FC<
           rel="stylesheet"
           href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;700;800;900&family=Overpass+Mono:wght@400;700&family=STIX+Two+Text:wght@500&display=swap"
         />
-        <style dangerouslySetInnerHTML={{ __html: STYLE + BADGE_STYLE }} />
+        <style dangerouslySetInnerHTML={{ __html: STYLE + BADGE_STYLE + TURNSTILE_STYLE }} />
       </head>
       <body>
         <a class="skip" href="#main">
@@ -758,6 +764,19 @@ export const HomePage: FC<{ here: Here; sample?: Sign; more: Sign[] }> = ({ here
   </Frame>
 );
 
+/**
+ * Cloudflare Turnstile's place in the sign-in form (src/quiz/turnstile.ts): the slot the widget
+ * draws into, and the fields the page's script fills. Without scripts the form says `no-script`.
+ */
+const TurnstileSlot: FC<{ here: Here; siteKey: string }> = ({ here, siteKey }) => (
+  <>
+    <input type="hidden" name="turnstile_token" value="" />
+    <input type="hidden" name="turnstile_reason" value="no-script" />
+    <input type="hidden" name="turnstile_wait_ms" value="" />
+    <div class="ts-slot" data-sitekey={siteKey} data-action={onSite(here) ? 'signin-site' : 'signin-quiz'} />
+  </>
+);
+
 export const SignInPage: FC<{
   here: Here;
   error?: string;
@@ -769,7 +788,7 @@ export const SignInPage: FC<{
   /** When the form was drawn (src/quiz/pause.ts): now, unless a refusal for being too quick drew it. */
   at?: string;
 }> = ({ here, error, badEmail, email, to, math, at }) => (
-  <Frame here={here} title="Sign in">
+  <Frame here={here} title="Sign in" script={here.turnstile ? TURNSTILE_JS : undefined}>
     <div class="stack narrow">
       <h1>{math ? 'Sign in to send it' : onSite(here) ? 'Sign in' : 'Sign in to play'}</h1>
       {math && (
@@ -784,7 +803,12 @@ export const SignInPage: FC<{
           : 'One account for Quiz and the Road Sign Math app. Already play in the app? Use the same email.'}
       </p>
       <FormError error={error} onField={badEmail} />
-      <form method="post" action={pathsOf(here).signin} class="stack">
+      <form
+        method="post"
+        action={pathsOf(here).signin}
+        class="stack"
+        {...(here.turnstile ? { 'data-turnstile': '' } : {})}
+      >
         <BackTo to={to} />
         <Carry math={math} />
         <input type="hidden" name="at" value={at ?? formStamp()} />
@@ -799,6 +823,7 @@ export const SignInPage: FC<{
           value={email ?? ''}
           {...invalidField(!!error && badEmail)}
         />
+        {here.turnstile && <TurnstileSlot here={here} siteKey={here.turnstile} />}
         <button class="btn" type="submit">
           Email me a code
         </button>
