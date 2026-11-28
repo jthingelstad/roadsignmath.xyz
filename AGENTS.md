@@ -161,8 +161,9 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
   `front`, `codes`, Cloudflare's `hostname` and `action`, and the page's `client_reason` and
   `client_wait_ms` (its word, never trusted); never the token or the address. Modes,
   `TURNSTILE_MODE` from the stack's `TurnstileMode`: `observe` (the default: nobody refused),
-  `enforce` (a missing or rejected token sends no email and draws the form again, 403; a
-  Cloudflare `error` goes ahead) and `off` (no widget). The secret is `TURNSTILE_SECRET_KEY` in the
+  `enforce` (a missing or rejected token sends no email and draws the form again, 403, with a new
+  widget and `NOT_CHECKED`, the sentence every site shows (Jamie, 2026-11-28): "We couldn’t confirm
+  you’re not a bot. Reload the page and try again."; a Cloudflare `error` goes ahead) and `off` (no widget). The secret is `TURNSTILE_SECRET_KEY` in the
   runtime secret; until it is there every post is `unconfigured` and goes ahead in any mode.
   Enforcing is the owner's call, made from the observe numbers on the product dashboard. "Send
   the email again" is neither checked nor paused. `/privacy` names Turnstile. The app's
