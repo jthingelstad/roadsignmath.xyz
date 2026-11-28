@@ -18,6 +18,7 @@ import { CARD_HEIGHT, CARD_WIDTH, type Card } from '../web/share.ts';
 import { QUIZ_TINYLYTICS_SITE, TINYLYTICS_SCRIPT } from '../web/tinylytics.ts';
 import { CHECKER_JS } from './checker.ts';
 import { KEYPAD_JS } from './keypad.ts';
+import { formStamp } from './pause.ts';
 import { PHOTOS_JS } from './photos.ts';
 import { faceLetter } from './session.ts';
 import type { OnSign, Solve } from './data.ts';
@@ -765,7 +766,9 @@ export const SignInPage: FC<{
   email?: string;
   to?: string;
   math?: string;
-}> = ({ here, error, badEmail, email, to, math }) => (
+  /** When the form was drawn (src/quiz/pause.ts): now, unless a refusal for being too quick drew it. */
+  at?: string;
+}> = ({ here, error, badEmail, email, to, math, at }) => (
   <Frame here={here} title="Sign in">
     <div class="stack narrow">
       <h1>{math ? 'Sign in to send it' : onSite(here) ? 'Sign in' : 'Sign in to play'}</h1>
@@ -784,6 +787,7 @@ export const SignInPage: FC<{
       <form method="post" action={pathsOf(here).signin} class="stack">
         <BackTo to={to} />
         <Carry math={math} />
+        <input type="hidden" name="at" value={at ?? formStamp()} />
         <label for="em">Email</label>
         <input
           id="em"

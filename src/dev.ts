@@ -15,6 +15,7 @@ import { FRONT_HEADER } from './front.ts';
 import { FileMailer } from './mail/mailer.ts';
 import { ClaudeModerator, LenientModerator } from './moderation/moderator.ts';
 import { DirPhotoStore } from './photos.ts';
+import { SIGN_IN_PAUSE } from './quiz/pause.ts';
 import { MemoryStore } from './store/memory.ts';
 
 const port = Number(process.env.PORT ?? 8787);
@@ -40,6 +41,7 @@ const server = createApp({
   photos,
   moderator,
   clientIp: () => 'local',
+  signInPause: SIGN_IN_PAUSE,
   appleTeamId,
   feedbackTo: process.env.FEEDBACK_TO?.trim() || 'feedback@example.test'
 });

@@ -97,6 +97,12 @@ export type ApiOptions = {
   siteSignInOpen?: boolean;
   /** Logs the hourly census (src/census.ts): the live server only. */
   census?: boolean;
+  /**
+   * The least time, in milliseconds, between a sign-in form being drawn and its POST
+   * (src/quiz/pause.ts): the live server and `npm run dev` give `SIGN_IN_PAUSE`. Without it a
+   * form is taken however soon it comes, as tests post them.
+   */
+  signInPause?: number;
 };
 
 /** The viewer's two-letter country from CloudFront, when it sent one. */
