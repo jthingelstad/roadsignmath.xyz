@@ -156,8 +156,10 @@ async function siteverify(
           )
           .slice(0, 5)
       : [];
-    // A rejected secret is our fault, not the visitor's.
-    if (data.success !== true && codes.some((code) => code.includes('secret'))) return { result: 'error', codes };
+    // A rejected secret is our fault and `internal-error` is Cloudflare's: neither says anything
+    // about the visitor, so neither is a `fail`.
+    if (data.success !== true && codes.some((code) => code.includes('secret') || code === 'internal-error'))
+      return { result: 'error', codes };
     return {
       result: data.success === true ? 'pass' : 'fail',
       codes,

@@ -34,7 +34,7 @@ const SECRET = 'made-up-secret';
 const TOKEN = 'made-up-token';
 const EMAIL = 'pat@example.com';
 
-type Answer = 'pass' | 'fail' | 'hang' | 'http-500' | 'bad-secret';
+type Answer = 'pass' | 'fail' | 'hang' | 'http-500' | 'bad-secret' | 'internal';
 
 /** A fake siteverify: answers as told, and keeps what it was asked. */
 function fakeCloudflare(answer: Answer = 'pass') {
@@ -51,7 +51,9 @@ function fakeCloudflare(answer: Answer = 'pass') {
         ? { success: true, 'error-codes': [], hostname: 'example.test', action: 'signin-site' }
         : answer === 'fail'
           ? { success: false, 'error-codes': ['invalid-input-response'] }
-          : { success: false, 'error-codes': ['invalid-input-secret'] };
+          : answer === 'internal'
+            ? { success: false, 'error-codes': ['internal-error'] }
+            : { success: false, 'error-codes': ['invalid-input-secret'] };
     return Response.json(body);
   };
   return { fetch, asked };
@@ -105,6 +107,7 @@ test('pass, fail, missing, unconfigured, error and off, in observe: nobody is re
     ['error', config('observe', 'hang'), TOKEN, ['TimeoutError']],
     ['error', config('observe', 'http-500'), TOKEN, ['http-500']],
     ['error', config('observe', 'bad-secret'), TOKEN, ['invalid-input-secret']],
+    ['error', config('observe', 'internal'), TOKEN, ['internal-error']],
     ['off', config('off'), TOKEN, []]
   ];
   for (const [result, c, token, codes] of cases) {
@@ -121,6 +124,9 @@ test('a timeout ends the wait at the timeout, and a secret that cannot be read i
   assert.equal(verdict.result, 'error');
   assert.equal(verdict.allowed, true, 'enforce fails open when Cloudflare can’t answer');
   assert.ok(Date.now() - started < 2000, 'it gave up at its own timeout');
+  const outage = await checkTurnstile({ token: TOKEN, viewer: '', config: config('enforce', 'internal') });
+  assert.equal(outage.result, 'error', 'Cloudflare’s internal-error is its fault, not a rejected token');
+  assert.equal(outage.allowed, true, 'so enforce lets it through');
   const broken: TurnstileConfig = {
     ...config('enforce'),
     secret: async () => {
