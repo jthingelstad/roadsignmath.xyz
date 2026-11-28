@@ -53,10 +53,13 @@ export const TURNSTILE_JS = `(() => {
   script.async = true;
   script.onerror = () => { failure = 'script-blocked'; wake(); };
   document.head.appendChild(script);
-  let sending = false;
+  let sending = false, waiting = false;
   form.addEventListener('submit', (event) => {
     if (sending) return;
     event.preventDefault();
+    // A second press while the first waits for its token starts no second wait: one press, one post.
+    if (waiting) return;
+    waiting = true;
     const started = Date.now();
     const send = (timedOut) => {
       sending = true;
