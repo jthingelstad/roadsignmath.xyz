@@ -9,6 +9,7 @@ import { texOf } from '../domain/equation.ts';
 import type { Player, Sign, SignNumber, Way } from '../domain/types.ts';
 import { LIMITS } from '../api/contract.ts';
 import { BIO_MAX, HOME_MAX, NAME_MAX, WEBSITE_MAX } from '../auth/account.ts';
+import { turnstileAction } from '../auth/turnstile.ts';
 import { photoUrl, playerUrl, signPath, signUrl, websiteHost, type People } from '../api/views.ts';
 import { BRAND_VERSION, LOCKUP_SIZE } from '../web/brand.ts';
 import { BADGE_STYLE, BadgeCards, type BadgeView } from '../web/badges.tsx';
@@ -773,7 +774,7 @@ const TurnstileSlot: FC<{ here: Here; siteKey: string }> = ({ here, siteKey }) =
     <input type="hidden" name="turnstile_token" value="" />
     <input type="hidden" name="turnstile_reason" value="no-script" />
     <input type="hidden" name="turnstile_wait_ms" value="" />
-    <div class="ts-slot" data-sitekey={siteKey} data-action={onSite(here) ? 'signin-site' : 'signin-quiz'} />
+    <div class="ts-slot" data-sitekey={siteKey} data-action={turnstileAction(onSite(here) ? 'site' : 'quiz')} />
   </>
 );
 

@@ -18,6 +18,12 @@
 // adds by hand; until it is there every post logs `unconfigured` and goes ahead in any mode. The
 // iPhone app's `POST /auth/start` can't carry a widget and isn't checked.
 //
+// Cloudflare's own rule for siteverify is to check where and for what a token was made, not only
+// that it is good: a pass whose `hostname` is not one the widget is on (the site, its www and Quiz,
+// from the configured origins, `widgetHostnames`) or whose `action` is not the posting front's
+// (`turnstileAction`: `signin-site` or `signin-quiz`) is a `fail`, with `hostname-mismatch` or
+// `action-mismatch` among its codes. Enforce refuses it like any rejected token.
+//
 // One line per checked post (`event: 'turnstile'`), never the token or the address. The page's
 // `client_reason` and `client_wait_ms` are its own word: logged, never trusted.
 
@@ -53,6 +59,22 @@ export type TurnstileConfig = {
   fetch?: Fetch;
   timeoutMs?: number;
 };
+
+/** Where and for what a good token must have been made: the widget's hostnames, and the front's action. */
+export type TurnstileExpect = { hostnames: readonly string[]; action: string };
+
+/** The action each front's widget is drawn with (src/quiz/pages.tsx), and the one its posts must carry. */
+export const turnstileAction = (front: 'site' | 'quiz'): string => `signin-${front}`;
+
+/**
+ * The hostnames the widget is drawn on, from the site's and Quiz's origins: the site, its www (the
+ * widget is set up for it; the edge sends www to the apex) and Quiz. Lowercase, as Cloudflare gives them.
+ */
+export function widgetHostnames(site: string, quiz: string): string[] {
+  const host = (origin: string) => new URL(origin).hostname.toLowerCase();
+  const apex = host(site);
+  return [...new Set([apex, `www.${apex}`, host(quiz)])];
+}
 
 export type TurnstileVerdict = {
   result: TurnstileResult;
@@ -177,6 +199,8 @@ export async function checkTurnstile(input: {
   token: string;
   viewer: string;
   config: TurnstileConfig;
+  /** What a pass must say: a token made elsewhere, or for the other front, is a `fail`. */
+  expect: TurnstileExpect;
 }): Promise<TurnstileVerdict> {
   const { config } = input;
   const mode = config.mode;
@@ -205,6 +229,14 @@ export async function checkTurnstile(input: {
     input.viewer,
     config.timeoutMs ?? VERIFY_TIMEOUT_MS
   );
+  if (result === 'pass') {
+    // Cloudflare vouches for the token; these say whether it was made here, for this form.
+    const mismatch = [
+      ...(input.expect.hostnames.includes(extra.hostname?.toLowerCase() ?? '') ? [] : ['hostname-mismatch']),
+      ...(extra.action === input.expect.action ? [] : ['action-mismatch'])
+    ];
+    if (mismatch.length) return done('fail', [...codes, ...mismatch], extra);
+  }
   return done(result, codes, extra);
 }
 

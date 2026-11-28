@@ -14,7 +14,15 @@ import { LIMITS } from '../api/contract.ts';
 import { ApiError, STATUS, fail } from '../api/errors.ts';
 import { newsletterAtSignIn, removeAvatar, removePlayer, setAvatar, updateMe } from '../auth/account.ts';
 import { finishSignIn, signOut, startSignIn, type Viewer } from '../auth/auth.ts';
-import { checkTurnstile, turnstileClient, turnstileLine, turnstileLog, turnstileToken } from '../auth/turnstile.ts';
+import {
+  checkTurnstile,
+  turnstileAction,
+  turnstileClient,
+  turnstileLine,
+  turnstileLog,
+  turnstileToken,
+  widgetHostnames
+} from '../auth/turnstile.ts';
 import type { Player } from '../domain/types.ts';
 import {
   CodePage,
@@ -124,6 +132,8 @@ export function mountAccount(app: Hono, front: AccountFront): void {
   /** The origin the email's link opens: the front's own. */
   const origin = here.front === 'site' ? here.site : here.quiz;
   const mailFront = here.front === 'site' ? 'site' : 'quiz';
+  /** What a good Turnstile token must say: made on one of our hostnames, for this front's form. */
+  const turnstileExpect = { hostnames: widgetHostnames(here.site, here.quiz), action: turnstileAction(mailFront) };
 
   /** The signed-in player, or a redirect: to sign in, or to give a name first, then back to `to`. */
   async function signedIn(c: Context, to?: string): Promise<Viewer | Response> {
@@ -179,7 +189,8 @@ export function mountAccount(app: Hono, front: AccountFront): void {
       const verdict = await checkTurnstile({
         token: turnstileToken(field),
         viewer: clientIp(c),
-        config: options.turnstile
+        config: options.turnstile,
+        expect: turnstileExpect
       });
       try {
         turnstileLog.write(turnstileLine(verdict, mailFront, turnstileClient(field)));

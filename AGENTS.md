@@ -149,8 +149,14 @@ it too, since TTL deletes late. `test/docs.test.ts` checks this table against
   form: the widget "Road Sign Math sign-in" (managed, interaction-only; its public site key is
   `TURNSTILE_SITE_KEY`) is drawn in the form, whose `turnstile_reason` says `no-script` until its
   script runs; the script waits for the token on submit (five seconds, two minutes on a visible
-  checkbox) and posts the token, `turnstile_wait_ms` and, without one, why. The server asks
-  siteverify (three seconds at most) and logs one line per new form posted, `event: turnstile`
+  checkbox) and posts the token, `turnstile_wait_ms` and, without one, why. A Cloudflare error
+  inside that wait is not the end: the widget retries on its own (`RETRY_INTERVAL_MS`, under the
+  five seconds) and the form posts without a token, the last error as its reason, only when the wait
+  runs out; a script that didn't load or came empty, and the codes Cloudflare never retries
+  (`FINAL_CODES`), post at once. The server asks
+  siteverify (three seconds at most), counts a pass made on a hostname the widget isn't on
+  (`widgetHostnames`, from the configured origins) or for another front's action (`signin-site`,
+  `signin-quiz`) as a `fail` (`hostname-mismatch`, `action-mismatch`), and logs one line per new form posted, `event: turnstile`
   with `result` (`pass`, `fail`, `missing`, `error`, `unconfigured`, `off`), `mode`, `allowed`,
   `front`, `codes`, Cloudflare's `hostname` and `action`, and the page's `client_reason` and
   `client_wait_ms` (its word, never trusted); never the token or the address. Modes,
