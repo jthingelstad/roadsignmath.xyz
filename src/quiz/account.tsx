@@ -104,10 +104,11 @@ function codeTrouble(err: ApiError): CodeSaid {
 
 /**
  * What the sign-in page says when Turnstile, enforced, found no person behind the form (no token, or
- * one Cloudflare rejected). Only in `enforce`, which is the owner's call.
+ * one Cloudflare rejected). Only in `enforce`, which is the owner's call. The same sentence on every
+ * site that uses Turnstile (Jamie, 2026-11-28). The page it is on draws a new widget, so pressing
+ * the button again there is a fresh try too.
  */
-export const NOT_CHECKED =
-  'We couldn’t check that a person sent this, so no email went. Wait a moment and press “Email me a code” again. If it keeps happening, let this page run its scripts or pause a content blocker, or sign in with the Road Sign Math app.';
+export const NOT_CHECKED = 'We couldn’t confirm you’re not a bot. Reload the page and try again.';
 
 /** What the sign-in page says to a form posted too soon after it was drawn; the next press goes through. */
 export const TOO_QUICK = 'That didn’t go through. Press “Email me a code” once more.';

@@ -448,9 +448,11 @@ for (const front of ['site', 'quiz'] as const) {
         const res = await t.request(front, '/signin', { email: EMAIL, turnstile_token: token });
         assert.equal(res.res.status, status, `${answer} ${token ? 'token' : 'none'}`);
         if (status === 403) {
+          assert.equal(NOT_CHECKED, 'We couldn’t confirm you’re not a bot. Reload the page and try again.');
           assert.ok(plain(res.html).includes(NOT_CHECKED), 'it says why');
           assert.match(res.html, new RegExp(`name="email"[^>]* value="${EMAIL}"`), 'what was typed is kept');
           assert.match(res.html, /class="ts-slot"/, 'with a new widget');
+          assert.ok(res.html.includes('rsmTurnstileLoaded'), 'and the script that draws it');
         }
       });
       assert.equal(t.mailer.sent.length, status === 303 ? 1 : 0);
