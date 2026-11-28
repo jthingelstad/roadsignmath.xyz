@@ -180,6 +180,22 @@ and an association file naming it opens nothing. Every later release, GitHub's i
 the stack's value. While it is empty the site serves no association file and the links open in
 Safari, where `/signin` says to use the link on the iPhone or type the code.
 
+## Turnstile on the sign-in form
+
+The website's and Quiz's sign-in form checks Cloudflare Turnstile
+([`src/auth/turnstile.ts`](../src/auth/turnstile.ts)). The widget's public site key is in the code.
+Its secret is `TURNSTILE_SECRET_KEY` in the runtime secret, which the owner adds by hand; until
+then every sign-in logs `unconfigured` and goes ahead. The mode is the stack's `TurnstileMode`,
+empty for the code's default, `observe`. Change it with one release from the Mac:
+
+```sh
+TURNSTILE_MODE=enforce ./deploy.sh   # or observe, or off
+```
+
+Every later release, GitHub's included, keeps the stack's value. Enforce only once the product
+dashboard shows people pass: in enforce a sign-in with no token (no scripts, a content blocker
+that stops Cloudflare's script) or a rejected one sends no email.
+
 ## Checking a release by hand
 
 Reads only: the `deploy` run's log, the stack's events, and `GET /api/v1` through

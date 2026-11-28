@@ -21,6 +21,7 @@ import { LIMITS } from '../api/contract.ts';
 import { ApiError } from '../api/errors.ts';
 import { earnedBadgeView, isPublic, signPath } from '../api/views.ts';
 import type { Viewer } from '../auth/auth.ts';
+import { widgetKey } from '../auth/turnstile.ts';
 import { sameWayKey } from '../domain/equation.ts';
 import { isUlid } from '../domain/ids.ts';
 import type { Player, Sign } from '../domain/types.ts';
@@ -116,14 +117,18 @@ export function createQuiz(options: QuizOptions): Hono {
   }
 
   const { store, urls } = options;
-  const here: Here = { site: urls.site, quiz: urls.quiz ?? quizOrigin(urls.site) };
+  const here: Here = {
+    site: urls.site,
+    quiz: urls.quiz ?? quizOrigin(urls.site),
+    turnstile: widgetKey(options.turnstile)
+  };
   // One sign-in for Quiz and the site while the site's is open (D5a); else Quiz's own cookie.
   const jar = jarFor(urls.site, options.siteSignInOpen ?? SITE_SIGNIN_OPEN);
   /**
    * A page, naming the share card (Home's, src/quiz/share.ts) in its head. A card that can't be
    * worked out leaves the page without one, never in the way.
    */
-  const page = async (c: Context, body: Child, status: 200 | 400 | 404 | 409 | 413 | 422 | 429 | 503 = 200) => {
+  const page = async (c: Context, body: Child, status: 200 | 400 | 403 | 404 | 409 | 413 | 422 | 429 | 503 = 200) => {
     const card = await quizCard(store).catch(() => undefined);
     const html = (<ShareCard.Provider value={card}>{body}</ShareCard.Provider>).toString();
     return c.html('<!doctype html>' + html, status, PRIVATE);

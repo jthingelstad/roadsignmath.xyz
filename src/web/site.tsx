@@ -1011,6 +1011,7 @@ export function createSite({
               the app, in Quiz or both (and, for the players from 2005 to 2014, that you played then), and nothing else.
             </li>
             <li>OpenStreetMap draws the map on the home page: your browser fetches the map’s tiles from it.</li>
+            <li>Cloudflare Turnstile checks for bots when you sign in on this website or in Quiz.</li>
           </ul>
           <h2>Quiz</h2>
           <p>

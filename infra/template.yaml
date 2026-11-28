@@ -41,7 +41,7 @@ Parameters:
   RuntimeSecretName:
     Type: String
     Default: roadsignmath-xyz-runtime
-    Description: The Secrets Manager secret holding ANTHROPIC_API_KEY (the moderator's key) and TINYLYTICS_API_KEY (hearts and app views). Kept by hand; no deploy writes it and the stack does not own it. Without the first, posting answers 503; without the second, hearts are off.
+    Description: The Secrets Manager secret holding ANTHROPIC_API_KEY (the moderator's key), TINYLYTICS_API_KEY (hearts and app views), BUTTONDOWN_API_KEY (the newsletter) and TURNSTILE_SECRET_KEY (the sign-in form's Turnstile widget). Kept by hand; no deploy writes it and the stack does not own it. Without the first, posting answers 503; without the second, hearts are off; without the last, every sign-in form logs Turnstile as unconfigured and goes ahead.
   PhotoDistributionId:
     Type: String
     Default: ""
@@ -55,6 +55,15 @@ Parameters:
     Default: ""
     AllowedPattern: '^$|^[A-Z0-9]{10}$'
     Description: The Apple Team ID that signs the iPhone app, for apple-app-site-association (sign-in and sign links open the app).
+  # The website's and Quiz's sign-in form checks Cloudflare Turnstile (src/auth/turnstile.ts).
+  # Empty is the code's default, observe: check and log, refuse nobody. scripts/release.sh passes it
+  # only when TURNSTILE_MODE is set (from the Mac, the owner's call), and every later release keeps
+  # the stack's value, like AppleTeamId.
+  TurnstileMode:
+    Type: String
+    Default: ""
+    AllowedValues: ["", "off", "observe", "enforce"]
+    Description: TURNSTILE_MODE for the sign-in form. Empty uses the code's default (observe). enforce refuses a sign-in form with no token or a token Cloudflare rejected.
   OpsQueueName:
     Type: String
     Default: projects-ops-alerts
@@ -75,6 +84,7 @@ Parameters:
 Conditions:
   HasPhotoDistribution: !Not [!Equals [!Ref PhotoDistributionId, ""]]
   HasAppleTeam: !Not [!Equals [!Ref AppleTeamId, ""]]
+  HasTurnstileMode: !Not [!Equals [!Ref TurnstileMode, ""]]
 
 Resources:
   # --- the web function -------------------------------------------------------
@@ -134,6 +144,7 @@ Resources:
           SITE_URL: !Sub "https://${Domain}"
           RUNTIME_SECRET: !Ref RuntimeSecretName
           APPLE_TEAM_ID: !If [HasAppleTeam, !Ref AppleTeamId, !Ref AWS::NoValue]
+          TURNSTILE_MODE: !If [HasTurnstileMode, !Ref TurnstileMode, !Ref AWS::NoValue]
           APP_VERSION: !Ref BuildId
         TelemetryConfig:
           LoggingConfig:
@@ -221,7 +232,8 @@ Resources:
                       - !Ref FromAddress
                       - !Sub "*<${FromAddress}>"
               - Effect: Allow
-                # The moderator's key (src/secrets.ts), and no other secret.
+                # The runtime secret's keys (src/secrets.ts: the moderator's, Tinylytics', Buttondown's
+                # and Turnstile's), and no other secret.
                 Action: secretsmanager:GetSecretValue
                 Resource: !Sub "arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${RuntimeSecretName}-??????"
               - Effect: Allow
